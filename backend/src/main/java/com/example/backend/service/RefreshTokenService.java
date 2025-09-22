@@ -27,7 +27,7 @@ public class RefreshTokenService {
     public RefreshToken findByRawToken(String token)
     {
         return refreshTokenRepository.findByTokenHash(CryptoUtils.hash(token)).orElseThrow(
-                ()->new AuthenticationException(401,"INVALID_REFRESH_TOKEN","Refresh token is not found!")
+                ()->new AuthenticationException(401,"Refresh token is not found!")
         );
     }
     public String createToken(User user)
@@ -50,7 +50,7 @@ public class RefreshTokenService {
 
     public void verifyToken(RefreshToken token) {
         if (!token.isValid())
-           throw new AuthenticationException(401,"INVALID_REFRESH_TOKEN","Refresh token is invalid!");
+           throw new AuthenticationException(401,"Refresh token is invalid!");
     }
     public String rotateToken(RefreshToken refreshToken)
     {
@@ -61,7 +61,7 @@ public class RefreshTokenService {
     @Transactional
     public int deleteByUserId(UUID userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new AuthenticationException(401,"USER_NOT_FOUND","User not found with id: " + userId));
+                .orElseThrow(() -> new AuthenticationException(401,"User not found with id: " + userId));
         return refreshTokenRepository.deleteByUser(user);
     }
     public boolean revokeToken(RefreshToken refreshToken,String reason){

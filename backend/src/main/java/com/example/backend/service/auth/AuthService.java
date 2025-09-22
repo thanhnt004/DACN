@@ -39,17 +39,19 @@ public class AuthService {
     UserMapper userMapper;
     JwtService jwtService;
     RefreshTokenService refreshTokenService;
+    EmailVerificationService emailVerificationService;
     public RegisterResponse register(RegisterRequest request)
     {
         //check exist
         userRepository.findByEmail(request.getEmail()).orElseThrow(
-                ()-> new AuthenticationException(409,"EMAIL_EXISTED","Email is used by another account")
+                ()-> new AuthenticationException(409,"Email is used by another account")
         );
         User newUser = userMapper.toUser(request);
         newUser.setRole(Role.CUSTOMER);
         newUser.setStatus(UserStatus.DISABLED);
-
         newUser = userRepository.save(newUser);
+        //send email
+        emailVerificationService.sendVerificationEmailAsync(newUser.getId(), newUser.getEmail());
         return RegisterResponse.builder()
                 .userId(newUser.getId().toString())
                 .message("Register successful!")
@@ -68,7 +70,7 @@ public class AuthService {
                     )
             );
         } catch (RuntimeException e) {
-            throw new AuthenticationException(401, "INVALID_ACCOUNT", "Wrong email or password!");
+            throw new AuthenticationException(401,"Wrong email or password!");
         }
         //set context
         SecurityContextHolder.getContext().setAuthentication(authentication);

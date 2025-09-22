@@ -82,4 +82,8 @@ public class User {
     {
         return this.status.equals(UserStatus.DISABLED);
     }
+
+    public boolean isActive() {
+        return this.status.equals(UserStatus.ACTIVE);
+    }
 }

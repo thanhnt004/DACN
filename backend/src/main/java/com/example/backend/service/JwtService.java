@@ -27,6 +27,26 @@ public class JwtService
 
     private final String keyId = "key-hs512";
 
+    public String generateEmailVerifyToken(UUID userId,String email,int version)
+    {
+        Instant now = Instant.now();
+        Instant expiryTime = now.plusSeconds(expiration);
+        SecretKey jwtSecretKey =  buildSecretKey();
+        return Jwts.builder()
+                .header()
+                .type("JWT")
+                .add("kid",keyId)
+                .and()
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(expiryTime))
+                .id(UUID.randomUUID().toString())
+                .claim("userId", userId)
+                .claim("email", email)
+                .claim("version",version)
+                .claim("jti", UUID.randomUUID())
+                .signWith(jwtSecretKey,Jwts.SIG.HS512)
+                .compact();
+    }
     public String generateAccessToken(User user)
     {
         Instant now = Instant.now();
@@ -79,12 +99,12 @@ public class JwtService
         return getClaims(token, Claims::getId);
     }
     //helper function
-    private <T> T getClaims(String token, Function<Claims,T> extractor)
+    public <T> T getClaims(String token, Function<Claims, T> extractor)
     {
         Claims c = parseClaims(token);
         return extractor.apply(c);
     }
-    private Claims parseClaims(String token)
+    public Claims parseClaims(String token)
     {
         try {
             return  Jwts.parser()
