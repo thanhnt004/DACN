@@ -1,7 +1,8 @@
 package com.example.backend.config;
 
 import com.example.backend.filter.JwtAuthenticationFilter;
-import com.example.backend.service.UserDetailService;
+import com.example.backend.handler.OAuth2LoginSuccessHandler;
+import com.example.backend.service.auth.UserDetailService;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -25,6 +26,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
     private final UserDetailService userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final OAuth2LoginSuccessHandler successHandler;
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
         return authConfig.getAuthenticationManager();
@@ -52,7 +54,7 @@ public class SecurityConfig {
                                 "/swagger-ui.html"
                         ).permitAll()
                         .anyRequest().permitAll())
-
+                 .oauth2Login(o->o.successHandler(successHandler))
                 ;
 
          http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

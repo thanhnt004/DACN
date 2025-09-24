@@ -2,6 +2,7 @@ package com.example.backend.util;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.experimental.UtilityClass;
 import org.springframework.beans.factory.annotation.Value;
 
@@ -19,7 +20,7 @@ public class CookieUtil {
     @Value("${REFRESH_TOKEN_EXPIRATION}")
     private long maxAgeSeconds;
     public static final String REFRESH_TOKEN_COOKIE = "refreshToken";
-
+    //Refresh token
     public Cookie createRefreshTokenCookie(String refreshToken) {
         Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE, refreshToken);
         cookie.setHttpOnly(true);  // Prevent XSS
@@ -61,5 +62,35 @@ public class CookieUtil {
                 .map(Cookie::getValue)
                 .findFirst()
                 .orElse(null);
+    }
+    //OAuth state
+    public Cookie creatOAuthState(String state) {
+        Cookie cookie = new Cookie("oauth_link_state", state);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(isSecure);
+        cookie.setPath("/");
+        cookie.setDomain(cookieDomain);
+        cookie.setMaxAge(300);
+        // Set domain if not localhost
+        if (!"localhost".equals(cookieDomain)) {
+            cookie.setDomain(cookieDomain);
+        }
+
+        // SameSite attribute (Spring Boot 2.6+)
+        cookie.setAttribute("SameSite", "Strict");
+        return cookie;
+    }
+    public void clearCookie(HttpServletResponse response,String cookieName)
+    {
+        Cookie cookie = new Cookie(cookieName, "");
+        cookie.setHttpOnly(true);
+        cookie.setSecure(isSecure);
+        cookie.setPath("/");
+        cookie.setMaxAge(0); // Expire immediately
+
+        if (!"localhost".equals(cookieDomain)) {
+            cookie.setDomain(cookieDomain);
+        }
+        response.addCookie(cookie);
     }
 }

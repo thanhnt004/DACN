@@ -1,6 +1,7 @@
 package com.example.backend.filter;
 
-import com.example.backend.service.JwtService;
+import com.example.backend.service.auth.AccessTokenService;
+import com.example.backend.service.auth.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,7 +24,7 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private final JwtService jwtService;
+    private final AccessTokenService accessTokenService;
     private final UserDetailsService userDetailsService;
 
     @Override
@@ -33,9 +34,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = extractJwtFromRequest(request);
             if (!StringUtils.hasText(token) && SecurityContextHolder.getContext().getAuthentication()!=null)
                 filterChain.doFilter(request,response);
-            if(jwtService.validateAccessToken(token))
+            if(accessTokenService.validateAccessToken(token))
             {
-                String email = jwtService.extractEmail(token);
+                String email = accessTokenService.extractEmail(token);
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(

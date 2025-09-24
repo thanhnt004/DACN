@@ -1,4 +1,4 @@
-package com.example.backend.service;
+package com.example.backend.service.auth;
 
 import com.example.backend.excepton.AuthenticationException;
 import com.example.backend.model.RefreshToken;
@@ -7,13 +7,10 @@ import com.example.backend.repository.RefreshTokenRepository;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.util.CryptoUtils;
 import jakarta.transaction.Transactional;
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.UUID;
 

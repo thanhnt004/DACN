@@ -1,4 +1,4 @@
-package com.example.backend.service;
+package com.example.backend.service.auth;
 
 import com.example.backend.dto.CustomUserDetail;
 import com.example.backend.model.User;

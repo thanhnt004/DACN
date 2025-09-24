@@ -1,16 +1,16 @@
 package com.example.backend.model;
 
+import com.example.backend.model.enumrator.Role;
 import com.example.backend.model.enumrator.UserStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -67,11 +67,8 @@ public class User {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    @Version
-    @Column(nullable = false)
-    private int version;
-
     @Builder.Default
+    @Enumerated(EnumType.STRING)
     private Role role = Role.CUSTOMER;
 
     public boolean isLooked()

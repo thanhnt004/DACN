@@ -2,29 +2,25 @@ package com.example.backend.service.auth;
 
 import com.example.backend.excepton.ResponseStatusException;
 import com.example.backend.model.EmailLog;
+import com.example.backend.model.enumrator.UserStatus;
 import com.example.backend.repository.EmailLogRepository;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.service.EmailService;
-import com.example.backend.service.JwtService;
+import io.jsonwebtoken.Claims;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.security.core.token.TokenService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import javax.print.DocFlavor;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.UUID;
 
 @Service
@@ -33,29 +29,22 @@ import java.util.UUID;
 public class EmailVerificationService {
     private final UserRepository userRepository;
     private final EmailLogRepository emailLogRepository;
-    private final JwtService tokenService;
     private final EmailService emailService;
-    private final Clock clock;
-    private final JwtService jwtService;
+    private final EmailVerifyTokenService tokenService;
 
-    @Value("${app.frontend.base-url:https://frontend.example.com}")
+    @Value("${app.frontend.base-url}")
     private String defaultFrontendBaseUrl;
 
     @Transactional
     public Map<String, Object> verifyEmail(String token) {
-        var claims = tokenService.parseClaims(token);
-        var userId = claims.get("userId", UUID.class);
-        var emailFromToken = claims.get("email", String.class);
+        var userId = tokenService.getUserId(token);
+        var emailFromToken = tokenService.getEmail(token);
 
-        if (jwtService.isExpired(token))
+        if (tokenService.isExpired(token))
             throw new ResponseStatusException(HttpStatus.FORBIDDEN.value(), "Token hết hạn");
 
         var user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED.value(), "Tài khoản không tồn tại"));
-
-        if (!user.isActive()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN.value(), "Tài khoản đã bị khóa hoặc vô hiệu");
-        }
 
         if (!user.getEmail().equalsIgnoreCase(emailFromToken)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT.value(), "Email không khớp. Vui lòng yêu cầu gửi lại liên kết xác minh.");
@@ -70,9 +59,9 @@ public class EmailVerificationService {
                     "verifiedAt", user.getEmailVerifiedAt()
             );
         }
-
-        user.setEmailVerifiedAt(Instant.now(clock));
-        user.setUpdatedAt(LocalDateTime.now(clock));
+        user.setStatus(UserStatus.ACTIVE);
+        user.setEmailVerifiedAt(Instant.now());
+        user.setUpdatedAt(LocalDateTime.now());
         userRepository.save(user);
 
         return Map.of(
@@ -108,7 +97,7 @@ public class EmailVerificationService {
             throw new ResponseStatusException(HttpStatus.CONFLICT.value(), "Email không khớp với người dùng");
         }
 
-        var token = tokenService.generateEmailVerifyToken(user.getId(), user.getEmail(),user.getTokenVersion());
+        var token = tokenService.generateEmailVerifyToken(user.getId(), user.getEmail());
         var base = defaultFrontendBaseUrl;
         var url = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
 

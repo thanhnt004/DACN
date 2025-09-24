@@ -33,11 +33,11 @@ public class CustomUserDetail implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return user.isLooked();
+        return !user.isLooked();
     }
 
     @Override
     public boolean isEnabled() {
-        return user.isDisable();
+        return !user.isDisable();
     }
 }
