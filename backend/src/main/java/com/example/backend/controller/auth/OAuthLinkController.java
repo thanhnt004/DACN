@@ -1,4 +1,4 @@
-package com.example.backend.controller;
+package com.example.backend.controller.auth;
 
 import com.example.backend.dto.CustomUserDetail;
 import com.example.backend.service.auth.oautth.OAuthAccountService;
@@ -6,6 +6,7 @@ import com.example.backend.service.auth.oautth.StateTokenService;
 import com.example.backend.util.CookieUtil;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.Cookie;
@@ -36,9 +37,10 @@ public class OAuthLinkController {
         response.setHeader("Location", location);
     }
     @DeleteMapping("/link/{provider}")
-    public void unlink(@AuthenticationPrincipal CustomUserDetail userDetail,
+    public ResponseEntity<?> unlink(@AuthenticationPrincipal CustomUserDetail userDetail,
                        @PathVariable String provider) {
 
         oauthService.unlink(userDetail, provider);
+        return ResponseEntity.accepted().build();
     }
 }

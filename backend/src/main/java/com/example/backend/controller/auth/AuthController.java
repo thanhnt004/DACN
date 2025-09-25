@@ -1,4 +1,4 @@
-package com.example.backend.controller;
+package com.example.backend.controller.auth;
 
 import com.example.backend.dto.request.LoginRequest;
 import com.example.backend.dto.request.RegisterRequest;
@@ -31,7 +31,7 @@ public class AuthController {
     }
     @PostMapping(value = "/login")
     public ResponseEntity<LoginResponse> login(@Validated @RequestBody LoginRequest loginRequest
-            , HttpServletRequest request, HttpServletResponse response)
+            , HttpServletResponse response)
     {
         LoginResponse loginResponse = authService.login(loginRequest,response);
         return ResponseEntity.status(HttpStatusCode.valueOf(200)).body(loginResponse);
@@ -48,14 +48,14 @@ public class AuthController {
     {
         String refreshToken = CookieUtil.getRefreshTokenFromRequest(request);
         LogoutResponse logoutResponse = authService.logOut(refreshToken,response);
-        return ResponseEntity.status(HttpStatusCode.valueOf(201)).body(logoutResponse);
+        return ResponseEntity.status(HttpStatusCode.valueOf(200)).body(logoutResponse);
     }
     @PostMapping(value = "/logout-all")
     public ResponseEntity<LogoutResponse> logOutAll(HttpServletRequest request, HttpServletResponse response)
     {
         String refreshToken = CookieUtil.getRefreshTokenFromRequest(request);
         LogoutResponse logoutResponse = authService.logOutAll(refreshToken,response);
-        return ResponseEntity.status(HttpStatusCode.valueOf(201)).body(logoutResponse);
+        return ResponseEntity.status(HttpStatusCode.valueOf(200)).body(logoutResponse);
     }
 
 }

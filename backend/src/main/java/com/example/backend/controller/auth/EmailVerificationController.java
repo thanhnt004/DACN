@@ -1,10 +1,9 @@
-package com.example.backend.controller;
+package com.example.backend.controller.auth;
 
 import com.example.backend.dto.request.ResendVerificationRequest;
 import com.example.backend.dto.request.VerifyEmailRequest;
 import com.example.backend.service.auth.EmailVerificationService;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
