@@ -1,11 +1,10 @@
 package com.example.backend.model.product;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
@@ -17,10 +16,13 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@SQLDelete(sql = "UPDATE products SET deleted_at = now() WHERE id = ?")
+@SQLRestriction(value = "deleted_at IS NULL")
 @Table(name = "brands")
 public class Brand {
 
     @Id
+    @GeneratedValue
     @Column(columnDefinition = "uuid")
     private UUID id;
 

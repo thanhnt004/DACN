@@ -12,7 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
-@RestController(value = "/api/v1/color")
+@RestController
+@RequestMapping("/api/v1/colors")
 @PreAuthorize("hasRole('ADMIN') or hasRole('STAFF')")
 @RequiredArgsConstructor
 public class ColorController

@@ -2,10 +2,12 @@ package com.example.backend.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
 
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
@@ -44,11 +46,7 @@ public class AuditLog {
     @Column(name = "trace_id")
     private String traceId;
 
+    @CreationTimestamp
     @Column(name = "created_at", nullable = false)
-    private OffsetDateTime createdAt;
-
-    @PrePersist
-    void prePersist() {
-        if (createdAt == null) createdAt = OffsetDateTime.now();
-    }
+    private LocalDateTime createdAt;
 }

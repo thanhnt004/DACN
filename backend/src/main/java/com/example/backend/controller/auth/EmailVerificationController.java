@@ -1,6 +1,6 @@
 package com.example.backend.controller.auth;
 
-import com.example.backend.dto.request.ResendVerificationRequest;
+import com.example.backend.dto.request.SendVerifyEmailRequest;
 import com.example.backend.dto.request.VerifyEmailRequest;
 import com.example.backend.service.auth.EmailVerificationService;
 import jakarta.validation.Valid;
@@ -26,7 +26,7 @@ public class EmailVerificationController {
 
     // POST /api/v1/auth/verify-email/resend
     @PostMapping("/verify-email/resend")
-    public ResponseEntity<?> resend(@Valid @RequestBody ResendVerificationRequest req) {
+    public ResponseEntity<?> resend(@Valid @RequestBody SendVerifyEmailRequest req) {
         emailVerificationService.resendVerification(req.getEmail());
         return ResponseEntity.accepted().build();
     }

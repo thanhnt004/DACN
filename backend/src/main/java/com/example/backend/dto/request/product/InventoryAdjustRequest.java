@@ -7,7 +7,7 @@ import lombok.Data;
 @Data
 public class InventoryAdjustRequest {
     @NotNull
-    private Integer adjustment; // + tăng, - giảm
+    private Integer adjustment;
 
     @NotBlank
     private String reason;

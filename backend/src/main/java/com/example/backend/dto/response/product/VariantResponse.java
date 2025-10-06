@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
@@ -17,12 +18,11 @@ public class VariantResponse {
     private UUID colorId;
     private Long priceAmount;
     private Long compareAtAmount;
-    private String currency;
     private Integer weightGrams;
     private String status;
-    private Instant createdAt;
-    private Instant updatedAt;
-    private Instant deletedAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    private LocalDateTime deletedAt;
     private Integer version;
 
     private InventoryResponse inventory; // optional khi include=inventory

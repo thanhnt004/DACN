@@ -1,13 +1,18 @@
 package com.example.backend.model.product;
 
 import jakarta.persistence.*;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.ForeignKey;
+import jakarta.persistence.OrderBy;
+import jakarta.persistence.Table;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.*;
+import org.hibernate.type.SqlTypes;
 
+import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Getter
 @Setter
@@ -16,6 +21,7 @@ import java.util.*;
 @Builder
 @Entity
 @SQLDelete(sql = "UPDATE products SET deleted_at = now() WHERE id = ?")
+@SQLRestriction(value = "deleted_at IS NULL")
 @Table(name = "products")
 public class Product {
     @Id
@@ -33,12 +39,17 @@ public class Product {
     private String material;
 
     @Builder.Default
+    @Enumerated(value = EnumType.STRING)
     private Gender gender = Gender.unisex;
 
     @Builder.Default
+    @Enumerated(value = EnumType.STRING)
     private ProductStatus status = ProductStatus.DRAFT;
 
     private String seoTitle;
+
+    @Column(name = "price", nullable = false)
+    private long priceAmount;
 
     private String seoDescription;
 
@@ -51,7 +62,7 @@ public class Product {
     private LocalDateTime deletedAt;
 
     @Version
-    private long version;
+    private Integer version;
 
     //relations
     @ManyToMany(fetch = FetchType.LAZY)
@@ -60,8 +71,7 @@ public class Product {
             joinColumns = @JoinColumn(name = "product_id"),            // <-- product_id
             inverseJoinColumns = @JoinColumn(name = "category_id")     // <-- category_id
     )
-    @Builder.Default
-    private Set<Category> categories = new HashSet<>();
+    private List<Category> categories ;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "brand_id", foreignKey = @ForeignKey(name = "fk_products_brand"))
@@ -85,6 +95,29 @@ public class Product {
         img.setProduct(null);
     }
 
+    public void syncImage(List<ProductImage> images) {
+        if (images == null)
+            return;
+        Map<UUID,ProductImage> existedById = getImages().stream()
+                .collect(Collectors.toMap(ProductImage::getId, img->img));
+        Set<ProductImage> toRemove = new HashSet<>(this.getImages());
+        for (ProductImage image:images)
+        {
+            if (image.getId() != null)
+            {
+                ProductImage existing = existedById.get(image.getId());
+                if (existing == null)
+                    throw new IllegalArgumentException("Cannot resolve");
+                existing.setValue(image);
+                toRemove.remove(existing);
+            }else
+            {
+                this.addImage(image);
+            }
+        }
+        toRemove.forEach(this::removeImage);
+    }
+    //variant
     public void addVariant(ProductVariant variant) {
         variants.add(variant);
         variant.setProduct(this);

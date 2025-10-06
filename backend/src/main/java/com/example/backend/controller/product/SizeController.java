@@ -13,7 +13,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
-@RestController(value = "/api/v1/size")
+@RestController
+@RequestMapping("/api/v1/sizes")
 @PreAuthorize("hasRole('ADMIN') or hasRole('STAFF')")
 @RequiredArgsConstructor
 public class SizeController

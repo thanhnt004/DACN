@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
+@RequestMapping("/api/v1/brands")
 @RequiredArgsConstructor
 public class BrandController {
     private final BrandService brandService;

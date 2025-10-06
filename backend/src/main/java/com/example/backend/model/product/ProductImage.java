@@ -31,9 +31,21 @@ public class ProductImage {
     private String alt;
 
     @Column(nullable = false)
+    @Builder.Default
     private int position = 0;
+
+    private String publicId;
+
+    private UUID colorId;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    public void setValue(ProductImage image) {
+        this.setAlt(image.getAlt());
+        this.setColorId(image.getColorId());
+        this.setPosition(image.getPosition());
+        this.setImageUrl(image.getImageUrl());
+    }
 }

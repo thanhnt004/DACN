@@ -7,6 +7,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.*;
 import org.hibernate.annotations.*;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -33,6 +34,7 @@ import java.util.UUID;
 public class ProductVariant {
 
     @Id
+    @GeneratedValue
     @Column(columnDefinition = "uuid")
     private UUID id;
 
@@ -60,9 +62,6 @@ public class ProductVariant {
     @Column(name = "compare_at_amount")
     private Long compareAtAmount;
 
-    @Column(length = 3, nullable = false)
-    private String currency = "VND";
-
     @Column(name = "weight_grams")
     private Integer weightGrams;
 
@@ -86,6 +85,6 @@ public class ProductVariant {
     private int version;
 
     // One-to-one inventory
-    @OneToOne(mappedBy = "variant", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToOne(mappedBy = "variant", cascade = CascadeType.ALL, orphanRemoval = true)
     private Inventory inventory;
 }

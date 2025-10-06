@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
@@ -15,13 +16,15 @@ import java.util.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@SQLDelete(sql = "UPDATE categories SET deleted_at = now() WHERE id = ?")
+@SQLDelete(sql = "UPDATE products SET deleted_at = now() WHERE id = ?")
+@SQLRestriction(value = "deleted_at IS NULL")
 @Table(name = "categories")
 public class Category {
     @Id
     @GeneratedValue
     private UUID id;
 
+    @Column(name = "parent_id")
     private UUID parentId;
 
     @Column(nullable = false)
@@ -50,7 +53,6 @@ public class Category {
     private List<Category> children = new ArrayList<>();
 
     @ManyToMany(mappedBy = "categories", fetch = FetchType.LAZY)
-    @Builder.Default
-    private Set<Product> products = new HashSet<>();
+    private List<Product> products;
 
 }
