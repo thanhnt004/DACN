@@ -1,19 +1,22 @@
 package com.example.backend.service.auth;
 
-import com.example.backend.excepton.BadRequestException;
-import com.example.backend.excepton.ConflictException;
-import com.example.backend.excepton.NotFoundException;
-import com.example.backend.excepton.ResponseStatusException;
+import com.example.backend.dto.CustomUserDetail;
+import com.example.backend.dto.request.ChangePasswordRequest;
+import com.example.backend.excepton.*;
 import com.example.backend.model.User;
 import com.example.backend.model.enumrator.UserStatus;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.service.EmailService;
 import com.example.backend.util.CryptoUtils;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,5 +69,16 @@ public class ResetPasswordService {
         userRepository.save(user);
         //disable token dung redis
 
+    }
+    public void changePassword(CustomUserDetail userDetail, ChangePasswordRequest request) {
+        if (!request.getNewPassword().equals(request.getNewPasswordConfirm()))
+            throw new ConflictException("Password confirm invalid");
+        User user = userDetail.getUser();
+        String passwordHash = CryptoUtils.hash(request.getCurrentPassword());
+        if (!user.getPasswordHash().equals(passwordHash))
+            throw new ConflictException("Incorrect password");
+        String newPasswordHash = CryptoUtils.hash(request.getNewPassword());
+        user.setPasswordHash(newPasswordHash);
+        userRepository.save(user);
     }
 }

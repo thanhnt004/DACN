@@ -1,5 +1,7 @@
 package com.example.backend.controller.auth;
 
+import com.example.backend.dto.CustomUserDetail;
+import com.example.backend.dto.request.ChangePasswordRequest;
 import com.example.backend.dto.request.ResetPasswordRequest;
 import com.example.backend.dto.request.SendVerifyEmailRequest;
 import com.example.backend.service.auth.ResetPasswordService;
@@ -9,6 +11,9 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.parameters.P;
 import org.springframework.web.bind.annotation.*;
 
@@ -33,5 +38,12 @@ public class ResetPasswordController {
     {
         resetPasswordService.confirmReset(request.getToken(),request.getPassword());
         return ResponseEntity.status(200).body("Successful!");
+    }
+    @PreAuthorize(value = "isAuthenticated()")
+    @PostMapping(value = "/change-password")
+    public ResponseEntity<?> changePassword(@AuthenticationPrincipal CustomUserDetail userDetail, @Valid @RequestBody ChangePasswordRequest request)
+    {
+        resetPasswordService.changePassword(userDetail,request);
+        return ResponseEntity.noContent().build();
     }
 }
