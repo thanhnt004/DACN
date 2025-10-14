@@ -1,11 +1,10 @@
 package com.example.backend.mapper;
 
 import com.example.backend.dto.request.RegisterRequest;
+import com.example.backend.dto.response.user.UserProfileDto;
 import com.example.backend.model.User;
 import org.mapstruct.*;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Component;
 
 @Mapper(componentModel = "spring")
 public interface UserMapper {
@@ -19,4 +18,9 @@ public interface UserMapper {
             builder.passwordHash(encoder.encode(request.getPassword()));
         }
     }
+
+    UserProfileDto toUserProfile(User currentUser);
+
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    void updateFromDto(User user,@MappingTarget UserProfileDto dto);
 }

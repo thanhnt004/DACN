@@ -39,9 +39,11 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
          http
+                 .anonymous(AbstractHttpConfigurer::disable)
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
                 .authorizeHttpRequests(
                 auth -> auth
                         .requestMatchers(
@@ -49,11 +51,23 @@ public class SecurityConfig {
                                 "/api/v1/oauth2/**",         // OAuth2 endpoints
                                 "/actuator/health",          // health check
                                 "/actuator/info",            // app info
-                                "/v3/api-docs/**",           // OpenAPI docs
-                                "/swagger-ui/**",            // Swagger UI (chỉ dev/staging)
-                                "/swagger-ui.html"
+                                "/v3/api-docs/**",
+                                "/v3/api-docs",
+                                "/api-docs/**",                // một số cài đặt hoặc proxy có thể dùng path này
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/swagger-ui/index.html",
+                                "/swagger-ui/**",
+                                "/swagger-resources/**",
+                                "/swagger-resources",
+                                "/swagger-config/**",
+                                "/webjars/**",
+                                "/configuration/ui",
+                                "/configuration/security"
                         ).permitAll()
-                        .anyRequest().permitAll())
+                        .requestMatchers("/api/v1/me/**",
+                                "/api/v1/me").authenticated()
+                        )
                  .oauth2Login(o->o.successHandler(successHandler))
                 ;
 

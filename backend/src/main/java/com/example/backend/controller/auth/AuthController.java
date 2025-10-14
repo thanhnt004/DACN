@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AuthController {
     private final AuthService authService;
-
+    private final CookieUtil cookieUtil;
     @PostMapping(value = "/register")
     public ResponseEntity<RegisterResponse> register(@Validated @RequestBody RegisterRequest registerRequest)
     {
@@ -41,21 +41,21 @@ public class AuthController {
     @PostMapping(value = "/refresh")
     public ResponseEntity<RefreshTokenResponse> refresh(HttpServletRequest request, HttpServletResponse response)
     {
-        String refreshToken = CookieUtil.getRefreshTokenFromRequest(request);
+        String refreshToken = cookieUtil.getRefreshTokenFromRequest(request);
         RefreshTokenResponse refreshTokenResponse = authService.refreshToken(refreshToken,response);
         return ResponseEntity.status(HttpStatusCode.valueOf(201)).body(refreshTokenResponse);
     }
     @PostMapping(value = "/logout")
     public ResponseEntity<LogoutResponse> logOut(HttpServletRequest request, HttpServletResponse response)
     {
-        String refreshToken = CookieUtil.getRefreshTokenFromRequest(request);
+        String refreshToken = cookieUtil.getRefreshTokenFromRequest(request);
         LogoutResponse logoutResponse = authService.logOut(refreshToken,response);
         return ResponseEntity.status(HttpStatusCode.valueOf(200)).body(logoutResponse);
     }
     @PostMapping(value = "/logout-all")
     public ResponseEntity<LogoutResponse> logOutAll(HttpServletRequest request, HttpServletResponse response)
     {
-        String refreshToken = CookieUtil.getRefreshTokenFromRequest(request);
+        String refreshToken = cookieUtil.getRefreshTokenFromRequest(request);
         LogoutResponse logoutResponse = authService.logOutAll(refreshToken,response);
         return ResponseEntity.status(HttpStatusCode.valueOf(200)).body(logoutResponse);
     }

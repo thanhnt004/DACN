@@ -4,6 +4,7 @@ import com.example.backend.excepton.NotFoundException;
 import com.example.backend.mapper.GenericMapper;
 import com.example.backend.repository.product.GenericRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.swing.plaf.SpinnerUI;
 import java.util.List;
@@ -18,6 +19,7 @@ public abstract class GenericCrudService<E,D> {
         this.genericMapper = genericMapper;
         this.genericRepository = genericRepository;
     }
+    @Transactional
     public D create(D dto)
     {
         E newEntity = genericMapper.toEntity(dto);
@@ -35,6 +37,7 @@ public abstract class GenericCrudService<E,D> {
         E exist = genericRepository.findById(id).orElseThrow(()->new NotFoundException("Not found"));
         return genericMapper.toDto(exist);
     }
+    @Transactional
     public D update(D dto, UUID id){
         E exist = genericRepository.findById(id).orElseThrow(()->new NotFoundException("Not found"));
         beforeUpdate(exist,dto);

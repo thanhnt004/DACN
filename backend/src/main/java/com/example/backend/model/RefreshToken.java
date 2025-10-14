@@ -68,6 +68,6 @@ public class RefreshToken {
     }
     public boolean isValid()
     {
-        return isExpired()&&isRevoked();
+        return  !isExpired() && !isRevoked();
     }
 }

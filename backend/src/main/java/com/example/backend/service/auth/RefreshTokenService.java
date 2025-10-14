@@ -8,6 +8,7 @@ import com.example.backend.repository.UserRepository;
 import com.example.backend.util.CryptoUtils;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +16,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class RefreshTokenService {
     @Value("${REFRESH_TOKEN_EXPIRATION}")
@@ -30,7 +32,7 @@ public class RefreshTokenService {
     public String createToken(User user)
     {
         String rawToken = CryptoUtils.generateSecureTokenRaw();
-
+        log.info("expiration: {}", expiration);
         LocalDateTime expiry = LocalDateTime.now().plusSeconds(expiration);
 
         String tokenHash = CryptoUtils.hash(rawToken);

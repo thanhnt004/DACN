@@ -5,7 +5,6 @@ import com.example.backend.model.OAuthAccount;
 import com.example.backend.model.User;
 import com.example.backend.model.enumrator.Role;
 import com.example.backend.repository.OAuthAccountRepository;
-import com.example.backend.repository.RefreshTokenRepository;
 import com.example.backend.repository.UserRepository;
 import com.example.backend.service.auth.RefreshTokenService;
 import com.example.backend.service.auth.oautth.OAuthAccountService;
@@ -15,6 +14,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
@@ -24,8 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Component
@@ -36,22 +37,21 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private final OAuthAccountRepository oauthAccounts;
     private final OAuthAccountService oauthService;
     private final StateTokenService stateTokens;
-
+    @Value("${app.oauth2.provider}")
+    private final Set<String> providers;
+    private final CookieUtil cookieUtil;
     @Override
     @Transactional
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
         OAuth2User oUser = (OAuth2User) authentication.getPrincipal();
-        String registrationId = inferProvider(request);
-        String provider = registrationId;
+        String provider = inferProvider(request);
 
         // Attributes
         String providerUserId = extractProviderUserId(oUser, provider);
         String email = extractEmail(oUser, provider);
-        boolean emailVerified = extractEmailVerified(oUser, provider);
         String name = extractName(oUser, provider);
         String avatar = extractAvatar(oUser, provider);
 
-        boolean isLinkFlow = false;
         String redirectOverride = null;
         // neu de link tai khoan
         Optional<Cookie> linkStateCookie = readCookie(request, "oauth_link_state");
@@ -63,19 +63,18 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
             String prov = (String) claims.get("provider");
             redirectOverride = Optional.ofNullable((String) claims.get("redirect")).filter(s -> !s.isBlank()).orElse(null);
             if ("link".equals(mode) && provider.equals(prov)) {
-                isLinkFlow = true;
                 UUID linkUserId = UUID.fromString(uid);
                 User targetUser = users.findById(linkUserId).orElseThrow(
                         ()->new AuthenticationException(401,"Not found user!")
                 );
                 // Thực hiện liên kết/idempotent
                 oauthService.link(targetUser.getId(), provider, providerUserId, email, name);
-                issueSessionAndRedirect(response, provider, targetUser, redirectOverride);
-                CookieUtil.clearCookie(response, "oauth_link_state");
+                issueCookieAndRedirect(response, provider, targetUser, redirectOverride);
+                cookieUtil.clearCookie(response, CookieUtil.OAUTH_STATE_COOKIE);
                 return;
             }
         }
-        // 1) Nếu đã liên kết trước đó → dùng user đó
+        // Đã liên kết
         Optional<OAuthAccount> byLink = oauthAccounts.findByProviderAndProviderUserId(provider, providerUserId);
         User user;
         if (byLink.isPresent()) {
@@ -83,8 +82,8 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                     ()->new AuthenticationException(401,"User not found")
             );
         } else {
-            // 3) Chưa liên kết: cố gắng hợp nhất theo email (an toàn)
-            if (email != null && !email.isBlank() && ("google".equals(provider) ? emailVerified : false)) {
+            //cập nhật user theo email hoặc tạo mới
+            if (email != null && !email.isBlank()) {
                 user = users.findByEmailIgnoreCase(email).orElseGet(() -> User.builder()
                         .email(email)
                         .emailVerifiedAt(Instant.now())
@@ -93,7 +92,6 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                         .avatarUrl(avatar)
                         .build());
             } else {
-                // GitHub có thể không trả email hoặc không verified → JIT user mới
                 user = User.builder()
                         .email(email)
                         .emailVerifiedAt(Instant.now())
@@ -107,12 +105,12 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
             oauthService.link(user.getId(), provider, providerUserId, email, name);
         }
         // Issue refresh token cookie & redirect
-        issueSessionAndRedirect(response, provider, user, redirectOverride);
+        issueCookieAndRedirect(response, provider, user, redirectOverride);
     }
 
-    private void issueSessionAndRedirect(HttpServletResponse response, String provider, User user, String redirectOverride) {
+    private void issueCookieAndRedirect(HttpServletResponse response, String provider, User user, String redirectOverride) {
         String rawRefresh = refreshTokenService.createToken(user);
-        Cookie cookie = CookieUtil.createRefreshTokenCookie(rawRefresh);
+        Cookie cookie = cookieUtil.createRefreshTokenCookie(rawRefresh);
         response.addCookie(cookie);
 
         String url = redirectOverride
@@ -129,8 +127,10 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         String registrationId = (String) request.getAttribute("org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter.CLIENT_REGISTRATION_ID");
         if (registrationId != null) return registrationId;
         String uri = request.getRequestURI();
-        if (uri.contains("google")) return "google";
-        if (uri.contains("github")) return "github";
+        for(String provider:providers)
+        {
+            if (uri.contains(provider)) return provider;
+        }
         return "oauth2";
     }
 
@@ -143,15 +143,9 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     }
 
     private String extractProviderUserId(OAuth2User user, String provider) {
-        if ("google".equals(provider)) {
-            Object sub = user.getName();
-            if (sub != null) return sub.toString();
-        }
-        if ("github".equals(provider)) {
-            Object id = user.getName();
-            if (id != null) return id.toString();
-        }
-        throw new IllegalStateException("Không lấy được provider_user_id từ " + provider);
+        Object id = user.getName();
+        if (id != null) return id.toString();
+        throw new IllegalStateException("Cannot get user id from provider! " + provider);
     }
 
     private String extractEmail(OAuth2User user, String provider) {
@@ -159,27 +153,15 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         return email != null ? email.toString() : null;
     }
 
-    private boolean extractEmailVerified(OAuth2User user, String provider) {
-        if ("google".equals(provider)) {
-            Object v = user.getAttributes().get("email_verified");
-            if (v instanceof Boolean b) return b;
-            if (v != null) return Boolean.parseBoolean(v.toString());
-        }
-        return false;
-    }
-
     private String extractName(OAuth2User user, String provider) {
         Object name = user.getAttributes().get("name");
         if (name != null) return name.toString();
+        //fallback for google
         if ("google".equals(provider)) {
             Object given = user.getAttributes().get("given_name");
             Object family = user.getAttributes().get("family_name");
             String n = ((given != null ? given : "") + " " + (family != null ? family : "")).trim();
             return n.isEmpty() ? null : n;
-        }
-        if ("github".equals(provider)) {
-            Object login = user.getAttributes().get("login");
-            return login != null ? login.toString() : null;
         }
         return null;
     }
@@ -190,8 +172,16 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
             return pic != null ? pic.toString() : null;
         }
         if ("github".equals(provider)) {
-            Object avatar = user.getAttributes().get("avatar_url");
-            return avatar != null ? avatar.toString() : null;
+            Object pictureObj = user.getAttributes().get("picture");
+            if (pictureObj instanceof Map<?, ?> pictureMap) {
+                Object dataObj = pictureMap.get("data");
+                if (dataObj instanceof Map<?, ?> dataMap) {
+                    Object urlObj = dataMap.get("url");
+                    if (urlObj != null) {
+                        return urlObj.toString();
+                    }
+                }
+            }
         }
         return null;
     }

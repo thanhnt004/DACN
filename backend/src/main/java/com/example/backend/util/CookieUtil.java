@@ -4,11 +4,14 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.experimental.UtilityClass;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 
-@UtilityClass
+@Component
+@Slf4j
 public class CookieUtil {
 
     @Value("${app.cookie.domain:localhost}")
@@ -20,6 +23,7 @@ public class CookieUtil {
     @Value("${REFRESH_TOKEN_EXPIRATION}")
     private long maxAgeSeconds;
     public static final String REFRESH_TOKEN_COOKIE = "refreshToken";
+    public static final String OAUTH_STATE_COOKIE = "oauth_link_state";
     //Refresh token
     public Cookie createRefreshTokenCookie(String refreshToken) {
         Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE, refreshToken);
@@ -27,7 +31,6 @@ public class CookieUtil {
         cookie.setSecure(isSecure); // HTTPS only in production
         cookie.setPath("/");
         cookie.setMaxAge((int) maxAgeSeconds);
-
         // Set domain if not localhost
         if (!"localhost".equals(cookieDomain)) {
             cookie.setDomain(cookieDomain);

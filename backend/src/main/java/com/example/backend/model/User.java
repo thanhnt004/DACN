@@ -1,5 +1,6 @@
 package com.example.backend.model;
 
+import com.example.backend.model.cart.Cart;
 import com.example.backend.model.enumrator.Role;
 import com.example.backend.model.enumrator.UserStatus;
 import jakarta.persistence.*;
@@ -8,9 +9,12 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -41,6 +45,14 @@ public class User {
 
     @Column(length = 30)
     private String phone;
+
+    private LocalDate dateOfBirth;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(columnDefinition = "CHAR(1)")
+    @Builder.Default
+    private Gender gender = Gender.O;
 
     @Column(name = "avatar_url", columnDefinition = "text")
     private String avatarUrl;
@@ -77,10 +89,24 @@ public class User {
     }
     public boolean isDisable()
     {
-        return this.status.equals(UserStatus.DISABLED);
+        return this.status.equals(UserStatus.DISABLED)||this.emailVerifiedAt==null;
     }
 
     public boolean isActive() {
         return this.status.equals(UserStatus.ACTIVE);
+    }
+    //relations
+    @OneToMany(mappedBy = "user",fetch = FetchType.LAZY,orphanRemoval = true,cascade = CascadeType.ALL)
+    @OrderBy(value = "isDefaultShipping desc")
+    private List<Address> addresses;
+    @OneToMany(mappedBy = "user",fetch = FetchType.LAZY,cascade = CascadeType.ALL)
+    private List<Cart> carts;
+    public void addAddress(Address address)
+    {
+        List<Address> addresses = this.getAddresses();
+        addresses.add(address);
+    }
+    private enum Gender{
+        M,F,O;
     }
 }
