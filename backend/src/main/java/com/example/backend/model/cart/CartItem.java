@@ -5,8 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.springframework.data.annotation.CreatedBy;
-
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -23,7 +22,9 @@ public class CartItem {
     @GeneratedValue
     private UUID id;
     private int quantity;
-    private BigInteger unitPriceAmount;
+
+    private long unitPriceAmount;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
     @UpdateTimestamp

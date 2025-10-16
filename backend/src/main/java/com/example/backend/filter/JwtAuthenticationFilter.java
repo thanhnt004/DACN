@@ -1,5 +1,6 @@
 package com.example.backend.filter;
 
+import com.example.backend.dto.CustomUserDetail;
 import com.example.backend.service.auth.AccessTokenService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -18,6 +19,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 
 import java.io.IOException;
+import java.util.UUID;
 
 @Component
 @Slf4j
@@ -25,7 +27,6 @@ import java.io.IOException;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final AccessTokenService accessTokenService;
-    private final UserDetailsService userDetailsService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -49,20 +50,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 filterChain.doFilter(request, response);
                 return;
             }
-
             // Validate token
             if (accessTokenService.validateAccessToken(token)) {
                 String email = accessTokenService.extractEmail(token);
-
+                UUID id = accessTokenService.extractUserId(token);
+                var roles = accessTokenService.extractRole(token);
+                UserDetails userDetails = new CustomUserDetail(id,email,roles,null,false,true);
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(
-                                email,
+                                userDetails,
                                 null,
                                 userDetails.getAuthorities()
                         );
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
-
                 log.info("JWT authentication successful for {} with authorities={}", email, userDetails.getAuthorities());
             } else {
                 log.trace("JWT token invalid or expired for path: {}", path);

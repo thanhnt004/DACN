@@ -13,7 +13,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Service
 @Slf4j
@@ -58,10 +57,8 @@ public class RefreshTokenService {
         return createToken(refreshToken.getUser());
     }
     @Transactional
-    public int deleteByUserId(UUID userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new AuthenticationException(401,"User not found with id: " + userId));
-        return refreshTokenRepository.deleteByUser(user);
+    public int revokeAllByUser(User user, String reason) {
+        return refreshTokenRepository.revokeByUser(user,reason);
     }
     public boolean revokeToken(RefreshToken refreshToken,String reason){
         return refreshTokenRepository.revokeByToken(refreshToken.getTokenHash(),reason)>0;

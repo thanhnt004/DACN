@@ -1,44 +1,60 @@
 package com.example.backend.dto;
 
+import com.example.backend.dto.response.user.UserAuthenDTO;
 import com.example.backend.model.User;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 @Getter
-public class CustomUserDetail implements UserDetails {
-    private final User user;
-
-    public CustomUserDetail(User user) {
-        this.user = user;
+@AllArgsConstructor
+public class CustomUserDetail implements UserDetails, CredentialsContainer {
+    private UUID id;
+    private String email;
+    private List<SimpleGrantedAuthority> authorities;
+    private String passwordHash;
+    private boolean locked;
+    private boolean enabled;
+    public static CustomUserDetail createUserDetail(UserAuthenDTO userAuthenDTO)
+    {
+        var authorities = List.of(new SimpleGrantedAuthority("ROLE_"+userAuthenDTO.getRole()));
+        return new CustomUserDetail(userAuthenDTO.getId(),userAuthenDTO.getEmail(),authorities,userAuthenDTO.getPasswordHash(), userAuthenDTO.isLocked(), userAuthenDTO.isEnabled());
     }
-
+    public CustomUserDetail() {}
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+        return authorities;
     }
 
     @Override
     public String getPassword() {
-        return user.getPasswordHash();
+        return passwordHash;
     }
 
     @Override
     public String getUsername() {
-        return user.getEmail();
+        return email;
     }
 
     @Override
     public boolean isAccountNonLocked() {
-        return !user.isLooked();
+        return !locked;
     }
 
     @Override
     public boolean isEnabled() {
-        return !user.isDisable();
+        return enabled;
+    }
+
+    @Override
+    public void eraseCredentials() {
+        passwordHash = null;
     }
 }

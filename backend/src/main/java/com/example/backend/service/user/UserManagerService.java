@@ -33,16 +33,17 @@ public class UserManagerService {
     private final AddressMapper addressMapper;
     private final UserMapper userMapper;
     public UserProfileDto getUserProfile(CustomUserDetail userDetail) {
-        User currentUser = userDetail.getUser();
+        User currentUser = userRepository.findById(userDetail.getId()).orElseThrow(()->new NotFoundException("User not found!"));
         return userMapper.toUserProfile(currentUser);
     }
 
     public List<UserAddress> getAddressList(CustomUserDetail userDetail) {
-        return addressMapper.toDto(addressRepository.getAddressByUser(userDetail.getUser()));
+        User currentUser = userRepository.findById(userDetail.getId()).orElseThrow(()->new NotFoundException("User not found!"));
+        return addressMapper.toDto(addressRepository.getAddressByUser(currentUser));
     }
     public List<OauthProviderResponse> getLinkedProvider(CustomUserDetail userDetail)
     {
-        User currentUser = userDetail.getUser();
+        User currentUser = userRepository.findById(userDetail.getId()).orElseThrow(()->new NotFoundException("User not found!"));
         List<OauthProviderResponse> response = new ArrayList<>();
         for (String provider:providers)
             if (oAuthAccountRepository.existsByUserIdAndProvider(currentUser.getId(),provider))
@@ -53,7 +54,7 @@ public class UserManagerService {
     }
     @Transactional
     public void addAddress(CustomUserDetail userDetail, UserAddress address) {
-        User currentUser = userDetail.getUser();
+        User currentUser = userRepository.findById(userDetail.getId()).orElseThrow(()->new NotFoundException("User not found!"));
         Address newAddress = addressMapper.toEntity(address);
         if (address.isDefaultShipping())
             addressRepository.setDefaultShippingFalse();
@@ -63,9 +64,9 @@ public class UserManagerService {
     @Transactional
     public void updateProfile(CustomUserDetail userDetail,UserProfileDto dto)
     {
-        User user = userDetail.getUser();
-        userMapper.updateFromDto(user,dto);
-        userRepository.save(user);
+        User currentUser = userRepository.findById(userDetail.getId()).orElseThrow(()->new NotFoundException("User not found!"));
+        userMapper.updateFromDto(currentUser,dto);
+        userRepository.save(currentUser);
     }
     @Transactional
     public void updateAddress(UserAddress dto, UUID addressId) {

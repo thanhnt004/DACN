@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
@@ -19,12 +20,12 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @PreAuthorize(value = "hasRole('ADMIN') or hasRole('STAFF')")
 public class AdminProductController {
-    private ProductService productService;
+    private final ProductService productService;
     @PostMapping
-    public ResponseEntity<ProductResponse> create(@RequestBody ProductCreateRequest request)
-    {
+    public ResponseEntity<ProductResponse> createProduct(@RequestBody ProductCreateRequest request) {
         ProductResponse response = productService.create(request);
-        return ResponseEntity.ok(response);
+        URI location = URI.create("/api/v1/products/"+response.getId());
+        return ResponseEntity.created(location).build();
     }
     @PutMapping(value = "/{id}")
     public ResponseEntity<ProductResponse> update(@RequestBody ProductUpdateRequest request)

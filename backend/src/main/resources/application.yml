@@ -1,0 +1,132 @@
+app:
+    frontend:
+        base-url: ${FRONTEND_URL};
+    jwt:
+        alg: HS512
+        issuer: 'NULL'
+        secret: ${JWT_SECRET_KEY}
+        ttlSeconds:
+            ACCESS: 900
+            OAUTH_STATE: 300
+            RESET_PASSWORD: 1800
+            VERIFY_EMAIL: 86400
+    oauth2:
+        provider: google,facebook
+cloudinary:
+    api-key: ${CLOUDINARY_API_KEY}
+    api-secret: ${CLOUDINARY_API_SECRET}
+    cloud-name: ${CLOUDINARY_CLOUD_NAME}
+    upload-url: https://api.cloudinary.com/v1_1/${cloudinary.cloud-name}/image/upload
+logging:
+    level:
+        org:
+            hibernate:
+                orm:
+                    jdbc:
+                        bind: trace
+            springframework:
+                security: DEBUG
+                cache: DEBUG
+server:
+    port: 8089
+spring:
+    application:
+        name: backend
+    cache:
+        type: redis
+    data:
+        redis:
+            host: redis-host
+            port: 6379
+    datasource:
+        driver-class-name: org.postgresql.Driver
+        hikari:
+            data-source-properties:
+                cachePrepStmts: true
+                cacheResultSetMetadata: true
+                cacheServerConfiguration: true
+                elideSetAutoCommits: true
+                maintainTimeStats: false
+                prepStmtCacheSize: 250
+                prepStmtCacheSqlLimit: 2048
+                rewriteBatchedStatements: true
+                useLocalSessionState: true
+                useServerPrepStmts: true
+            maximum-pool-size: 5
+            pool-name: RestDB-Pool
+        password: ${POSTGRES_PASSWORD}
+        url: ${POSTGRES_URL}
+        username: ${POSTGRES_USER}
+    devtools:
+        restart:
+            enabled: false
+    flyway:
+        baseline-on-migrate: true
+        baseline-version: 1
+        enabled: true
+    jpa:
+        database: postgresql
+        hibernate:
+            ddl-auto: validate
+        properties:
+            hibernate:
+                dialect: org.hibernate.dialect.PostgreSQLDialect
+                format_sql: true
+                show_sql: true
+    mail:
+        host: ${MAIL_HOST:smtp.gmail.com}
+        port: ${MAIL_PORT:587}
+        username: ${MAIL_USERNAME}
+        password: ${MAIL_PASSWORD}
+        properties:
+            mail:
+                smtp:
+                    auth: true
+                    starttls:
+                        enable: true
+
+    security:
+        oauth2:
+            client:
+                provider:
+                    facebook:
+                        authorization-uri: https://www.facebook.com/v16.0/dialog/oauth
+                        token-uri: https://graph.facebook.com/v16.0/oauth/access_token
+                        user-info-uri: https://graph.facebook.com/me?fields=id,name,email,picture.width(200).height(200)
+                        user-name-attribute: id
+                registration:
+                    facebook:
+                        client-id: ${FACEBOOK_CLIENT_ID}
+                        client-name: Facebook
+                        client-secret: ${FACEBOOK_CLIENT_SECRET}
+                        redirect-uri: ${BASE_URL}/login/oauth2/code/{registrationId}
+                        scope: public_profile,email
+                    google:
+                        client-id: ${GOOGLE_CLIENT_ID}
+                        client-secret: ${GOOGLE_CLIENT_SECRET}
+                        redirect-uri: http://localhost:8089/login/oauth2/code/{registrationId}
+                        scope: openid, profile, email
+springdoc:
+    api-docs:
+        path: /api-docs
+    default-consumes-media-type: application/json
+    default-produces-media-type: application/json
+    swagger-ui:
+        path: /swagger-ui
+upload:
+    type:
+        avatar:
+            allowed-formats: jpg,png.webp
+            folder-pattern: users/%s/avatar
+            max-size: 2000000
+            transformations: c_limit,w_400
+        banner:
+            allowed-formats: jpg,webp
+            folder-pattern: banners/%s
+            max-size: 8000000
+            transformations: c_limit,w_1600
+        product:
+            allowed-formats: jpg,png,webp
+            folder-pattern: products/%s/images
+            max-size: 10000000
+            transformations: c_limit,w_1200

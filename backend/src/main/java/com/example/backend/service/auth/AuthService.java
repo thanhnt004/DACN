@@ -8,6 +8,7 @@ import com.example.backend.dto.response.LogoutResponse;
 import com.example.backend.dto.response.RefreshTokenResponse;
 import com.example.backend.dto.response.RegisterResponse;
 import com.example.backend.excepton.AuthenticationException;
+import com.example.backend.excepton.NotFoundException;
 import com.example.backend.mapper.UserMapper;
 import com.example.backend.model.RefreshToken;
 import com.example.backend.model.enumrator.Role;
@@ -17,13 +18,10 @@ import com.example.backend.repository.UserRepository;
 import com.example.backend.util.CookieUtil;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -75,7 +73,7 @@ public class AuthService {
         try {
             authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
-                            request.getEmail(),
+                            request.getIdentifier(),
                             request.getPassword()
                     )
             );
@@ -87,12 +85,13 @@ public class AuthService {
         SecurityContextHolder.getContext().setAuthentication(authentication);
         //get userdetails
         CustomUserDetail userDetail = (CustomUserDetail) authentication.getPrincipal();
-        User user  = userDetail.getUser();
-        user.setLastLoginAt(LocalDateTime.now());
-        userRepository.save(user);
-
-        String accessToken = accessTokenService.generateAccessToken(user);
-        String refreshToken = refreshTokenService.createToken(user);
+        User currentUser = userRepository.findById(userDetail.getId()).orElseThrow(()->new NotFoundException("User not found!"));
+        if (currentUser.getEmailVerifiedAt()==null)
+            throw new AuthenticationException(401,"Email is not verified!");
+        currentUser.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(currentUser);
+        String accessToken = accessTokenService.generateAccessToken(currentUser);
+        String refreshToken = refreshTokenService.createToken(currentUser);
 
         response.addCookie(cookieUtil.createRefreshTokenCookie(refreshToken));
         return LoginResponse.builder()
@@ -107,8 +106,15 @@ public class AuthService {
         RefreshToken refreshToken = refreshTokenService.findByRawToken(token);
         //Check expiry
         refreshTokenService.verifyToken(refreshToken);
+        //Check user state
+        User user = refreshToken.getUser();
+        if (user.isDisable()||user.isLocked())
+        {
+            refreshTokenService.revokeAllByUser(user,"Account is disable!");
+            throw new AuthenticationException(401,"Account is "+user.getStatus().toString());
+        }
         //gen AC
-        String accessToken = accessTokenService.generateAccessToken(refreshToken.getUser());
+        String accessToken = accessTokenService.generateAccessToken(user);
         //Rotate(gen and save RT)
         String newToken = refreshTokenService.rotateToken(refreshToken);
 
@@ -138,7 +144,7 @@ public class AuthService {
     public LogoutResponse logOutAll(String token,HttpServletResponse response)
     {
         RefreshToken refreshToken = refreshTokenService.findByRawToken(token);
-        if(refreshTokenService.deleteByUserId(refreshToken.getUser().getId())>0)
+        if(refreshTokenService.revokeAllByUser(refreshToken.getUser(),"Log out")>0)
         {
             cookieUtil.clearCookie(response,CookieUtil.REFRESH_TOKEN_COOKIE);
             return LogoutResponse.builder()

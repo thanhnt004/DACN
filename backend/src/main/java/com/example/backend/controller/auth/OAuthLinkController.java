@@ -29,7 +29,7 @@ public class OAuthLinkController {
         if (!"google".equals(provider) && !"facebook".equals(provider)) {
             throw new IllegalArgumentException("Provider không hợp lệ.");
         }
-        String state = tokenService.createStateToken(userDetail.getUser().getId(), provider,redirect);
+        String state = tokenService.createStateToken(userDetail.getId(), provider,redirect);
         Cookie cookie = cookieUtil.creatOAuthState(state);
         response.addCookie(cookie);
         // Redirect tới flow oauth2 mặc định của Spring

@@ -64,15 +64,16 @@ public class ResetPasswordService {
         //disable token dung redis
 
     }
+    @Transactional
     public void changePassword(CustomUserDetail userDetail, ChangePasswordRequest request) {
         if (!request.getNewPassword().equals(request.getNewPasswordConfirm()))
             throw new ConflictException("Password confirm invalid");
-        User user = userDetail.getUser();
+        User currentUser = userRepository.findById(userDetail.getId()).orElseThrow(()->new NotFoundException("User not found!"));
         String passwordHash = CryptoUtils.hash(request.getCurrentPassword());
-        if (!user.getPasswordHash().equals(passwordHash))
+        if (!currentUser.getPasswordHash().equals(passwordHash))
             throw new ConflictException("Incorrect password");
         String newPasswordHash = CryptoUtils.hash(request.getNewPassword());
-        user.setPasswordHash(newPasswordHash);
-        userRepository.save(user);
+        currentUser.setPasswordHash(newPasswordHash);
+        userRepository.save(currentUser);
     }
 }

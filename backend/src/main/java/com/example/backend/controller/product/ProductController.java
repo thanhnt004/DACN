@@ -1,11 +1,13 @@
 package com.example.backend.controller.product;
 
+import com.example.backend.dto.request.product.ProductCreateRequest;
 import com.example.backend.dto.response.product.ProductResponse;
 import com.example.backend.service.product.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,4 +25,5 @@ public class ProductController {
         ProductResponse response =  productService.findById(id,include);
         return ResponseEntity.ok(response);
     }
+
 }

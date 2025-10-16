@@ -1,9 +1,11 @@
 package com.example.backend.dto.response.user;
 
+import com.example.backend.model.User;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.experimental.FieldDefaults;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -14,5 +16,7 @@ public class UserProfileDto {
     String fullName;
     String phone;
     String avatarUrl;
+    User.Gender gender = User.Gender.O;
+    LocalDate dateOfBirth;
     LocalDateTime passwordChangedAt;
 }

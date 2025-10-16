@@ -10,15 +10,13 @@ import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -27,11 +25,11 @@ public class AccessTokenService{
     public String generateAccessToken(User user)
     {
         String jti = UUID.randomUUID().toString();
-        Role role = user.getRole() == null ? Role.CUSTOMER : user.getRole();
+        String role = "ROLE_" + user.getRole();
         Map<String,Object> claims = new HashMap<>();
         claims.put("jti", jti);
         claims.put("email", user.getEmail());
-        claims.put("role", role.name());
+        claims.put("role", role);
         // lưu jti vào store để check sau
         //
          //
@@ -52,5 +50,16 @@ public class AccessTokenService{
         var claims = jwtService.parseAndValidate(token);
         return claims.get("email",String.class);
     }
-
+    public UUID extractUserId(String token)
+    {
+        var claims = jwtService.parseAndValidate(token);
+        return UUID.fromString(claims.getSubject());
+    }
+    public List<SimpleGrantedAuthority> extractRole(String token)
+    {
+        var claims = jwtService.parseAndValidate(token);
+        Object role = claims.get("role");
+        if (role == null) return List.of();
+        return Arrays.stream(role.toString().split(",")).map(SimpleGrantedAuthority::new).toList();
+    }
 }

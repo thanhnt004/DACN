@@ -83,18 +83,6 @@ public class User {
     @Enumerated(EnumType.STRING)
     private Role role = Role.CUSTOMER;
 
-    public boolean isLooked()
-    {
-        return this.status.equals(UserStatus.LOCKED);
-    }
-    public boolean isDisable()
-    {
-        return this.status.equals(UserStatus.DISABLED)||this.emailVerifiedAt==null;
-    }
-
-    public boolean isActive() {
-        return this.status.equals(UserStatus.ACTIVE);
-    }
     //relations
     @OneToMany(mappedBy = "user",fetch = FetchType.LAZY,orphanRemoval = true,cascade = CascadeType.ALL)
     @OrderBy(value = "isDefaultShipping desc")
@@ -106,7 +94,15 @@ public class User {
         List<Address> addresses = this.getAddresses();
         addresses.add(address);
     }
-    private enum Gender{
+    public enum Gender{
         M,F,O;
+    }
+    public boolean isDisable()
+    {
+        return this.status.equals(UserStatus.DISABLED);
+    }
+    public boolean isLocked()
+    {
+        return this.status.equals(UserStatus.LOCKED);
     }
 }

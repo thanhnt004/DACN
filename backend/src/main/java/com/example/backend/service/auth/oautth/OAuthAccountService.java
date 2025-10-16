@@ -1,8 +1,11 @@
 package com.example.backend.service.auth.oautth;
 
 import com.example.backend.dto.CustomUserDetail;
+import com.example.backend.excepton.NotFoundException;
 import com.example.backend.model.OAuthAccount;
+import com.example.backend.model.User;
 import com.example.backend.repository.OAuthAccountRepository;
+import com.example.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +16,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OAuthAccountService {
     private final OAuthAccountRepository repo;
+    private final UserRepository userRepository;
     @Transactional
     public void link(UUID userId, String provider, String providerUserId,
                      String email, String displayName) {
@@ -39,11 +43,12 @@ public class OAuthAccountService {
 
     @Transactional
     public void unlink(CustomUserDetail userDetail, String provider) {
-        var userId = userDetail.getUser().getId();
+        User currentUser = userRepository.findById(userDetail.getId()).orElseThrow(()->new NotFoundException("User not found!"));
+        var userId = currentUser.getId();
         OAuthAccount acc = repo.findByUserIdAndProvider(userId, provider)
                 .orElseThrow(() -> new IllegalStateException("Chưa liên kết " + provider + " để hủy."));
         long linkedCount = repo.countByUserId(userId);
-        boolean hasPassword = userDetail.getUser().getPasswordHash() != null && !userDetail.getUser().getPasswordHash().isBlank();
+        boolean hasPassword = currentUser.getPasswordHash() != null && !currentUser.getPasswordHash().isBlank();
         if (!hasPassword && linkedCount <= 1) {
             throw new IllegalStateException("Không thể hủy liên kết vì đây là phương thức đăng nhập duy nhất.");
         }

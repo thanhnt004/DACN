@@ -40,7 +40,7 @@ public class CloudImageService {
 
             if (authentication != null && authentication.getPrincipal() instanceof CustomUserDetail) {
                 CustomUserDetail userDetail = (CustomUserDetail) authentication.getPrincipal();
-                UUID currentUserId = userDetail.getUser().getId();
+                UUID currentUserId = userDetail.getId();
                 if (!targetId.equals(currentUserId))
                     throw new AuthenticationException(403,"forbidden");
             } else {
