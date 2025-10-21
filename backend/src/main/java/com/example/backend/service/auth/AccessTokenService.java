@@ -25,7 +25,7 @@ public class AccessTokenService{
     public String generateAccessToken(User user)
     {
         String jti = UUID.randomUUID().toString();
-        String role = "ROLE_" + user.getRole();
+        String role =  "ROLE_"+user.getRole().toString();
         Map<String,Object> claims = new HashMap<>();
         claims.put("jti", jti);
         claims.put("email", user.getEmail());

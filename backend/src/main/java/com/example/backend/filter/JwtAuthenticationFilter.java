@@ -97,8 +97,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/v1/auth/")) return true;
         if (path.startsWith("/api/v1/oauth2/") || path.startsWith("/oauth2/")) return true;
         if (path.equals("/actuator/health") || path.equals("/actuator/info")) return true;
-        if (path.startsWith("/v3/api-docs") || path.startsWith("/swagger-ui")) return true;
+        return path.startsWith("/v3/api-docs") || path.startsWith("/swagger-ui");
         // default: not public
-        return false;
     }
 }

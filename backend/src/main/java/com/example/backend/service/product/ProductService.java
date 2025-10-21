@@ -15,8 +15,8 @@ import com.example.backend.model.product.Gender;
 import com.example.backend.model.product.Product;
 import com.example.backend.model.product.ProductImage;
 import com.example.backend.model.product.ProductStatus;
-import com.example.backend.repository.product.ProductRepository;
-import com.example.backend.repository.product.ProductVariantRepository;
+import com.example.backend.repository.catalog.product.ProductRepository;
+import com.example.backend.repository.catalog.product.ProductVariantRepository;
 import com.example.backend.util.SlugUtil;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
@@ -27,7 +27,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -46,15 +45,15 @@ public class ProductService {
 
     private static final Set<String> ALLOWED_INCLUDES = Set.of("variants", "images", "categories");
 
-    private boolean ensureUniqueSlug(String slug, UUID excludedId)
+    private boolean slugExist(String slug, UUID excludedId)
     {
-        return !productRepository.existsBySlugIgnoreCaseAndIdNot(slug, excludedId);
+        return productRepository.existsBySlugIgnoreCaseAndIdNot(slug, excludedId);
     }
     @Transactional
     public ProductResponse create(ProductCreateRequest productCreateRequest)
     {
         Product product = productMapper.toEntity(productCreateRequest);
-        String slug = SlugUtil.uniqueSlug(productCreateRequest.getSlug(),(v)->this.ensureUniqueSlug(v,null));
+        String slug = SlugUtil.uniqueSlug(productCreateRequest.getSlug(),(v)->this.slugExist(v,null));
         product.setSlug(slug);
         if (product.getSeoTitle().isBlank())
             product.setSeoTitle(product.getName());
@@ -75,7 +74,7 @@ public class ProductService {
                 ()->new NotFoundException("Product not found!")
         );
         if (StringUtils.hasText(request.getSlug()))
-            request.setSlug(SlugUtil.uniqueSlug(request.getSlug(),(v)->this.ensureUniqueSlug(v,request.getId())));
+            request.setSlug(SlugUtil.uniqueSlug(request.getSlug(),(v)->this.slugExist(v,request.getId())));
         productMapper.updateFromDto(request,exist);
         if (request.getImages()!=null)
         {

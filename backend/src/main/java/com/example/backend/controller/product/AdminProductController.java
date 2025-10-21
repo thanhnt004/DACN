@@ -25,7 +25,7 @@ public class AdminProductController {
     public ResponseEntity<ProductResponse> createProduct(@RequestBody ProductCreateRequest request) {
         ProductResponse response = productService.create(request);
         URI location = URI.create("/api/v1/products/"+response.getId());
-        return ResponseEntity.created(location).build();
+        return ResponseEntity.created(location).body(response);
     }
     @PutMapping(value = "/{id}")
     public ResponseEntity<ProductResponse> update(@RequestBody ProductUpdateRequest request)
@@ -39,7 +39,7 @@ public class AdminProductController {
         productService.delete(id);
         return ResponseEntity.noContent().build();
     }
-    @PostMapping(value = "/{id}")
+    @PatchMapping(value = "/{id}")
     public ResponseEntity<?> changeStatus(
             @PathVariable UUID id,
             @RequestParam("status") ProductStatus status)

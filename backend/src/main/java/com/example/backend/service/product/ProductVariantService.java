@@ -1,7 +1,6 @@
 package com.example.backend.service.product;
 
 import com.example.backend.dto.request.product.InventoryAdjustRequest;
-import com.example.backend.dto.request.product.InventoryReserveRequest;
 import com.example.backend.dto.request.product.VariantCreateRequest;
 import com.example.backend.dto.request.product.VariantUpdateRequest;
 import com.example.backend.dto.response.product.VariantResponse;
@@ -12,8 +11,8 @@ import com.example.backend.model.product.Inventory;
 import com.example.backend.model.product.Product;
 import com.example.backend.model.product.ProductVariant;
 import com.example.backend.model.product.VariantStatus;
-import com.example.backend.repository.product.ProductRepository;
-import com.example.backend.repository.product.ProductVariantRepository;
+import com.example.backend.repository.catalog.product.ProductRepository;
+import com.example.backend.repository.catalog.product.ProductVariantRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

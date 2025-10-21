@@ -42,6 +42,9 @@ public class Category {
     private LocalDateTime updatedAt;
 
     private LocalDateTime deletedAt;
+
+    private Integer productsCount;
+
     //relations
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id", insertable = false, updatable = false)

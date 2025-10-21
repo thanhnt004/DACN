@@ -1,4 +1,4 @@
-package com.example.backend.repository.product;
+package com.example.backend.repository.catalog.product;
 
 import com.example.backend.model.product.ProductVariant;
 import com.example.backend.model.product.VariantStatus;

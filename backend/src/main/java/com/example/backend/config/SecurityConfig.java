@@ -66,8 +66,16 @@ public class SecurityConfig {
                                 "/configuration/security"
                         ).permitAll()
                         .requestMatchers("/api/v1/me/**",
-                                "/api/v1/me").authenticated()
+                                "/api/v1/me",
+                                "/api/v1/products/**",
+                                "/api/v1/categories/**",
+                                "/api/v1/brands/**",
+                                "/api/v1/cart/**",
+                                "/api/v1/orders/**"
+                                ).authenticated()
+                        .anyRequest().permitAll()
                         )
+
                  .oauth2Login(o->o.successHandler(successHandler))
                 ;
 

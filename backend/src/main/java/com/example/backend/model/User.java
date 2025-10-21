@@ -95,7 +95,7 @@ public class User {
         addresses.add(address);
     }
     public enum Gender{
-        M,F,O;
+        M,F,O
     }
     public boolean isDisable()
     {

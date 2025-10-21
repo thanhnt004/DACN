@@ -8,15 +8,13 @@ import com.example.backend.excepton.ConflictException;
 import com.example.backend.excepton.NotFoundException;
 import com.example.backend.mapper.CategoryMapper;
 import com.example.backend.model.product.Category;
-import com.example.backend.repository.product.CategoryRepository;
-import com.example.backend.repository.product.ProductRepository;
+import com.example.backend.repository.catalog.categoty.CategoryRepository;
 import com.example.backend.util.SlugUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,9 +27,8 @@ public class CategoryService {
     private final CategoryRepository categoryRepository;
     private final CategoryMapper categoryMapper;
 
-    private boolean ensureSlugUnique(String slug,UUID excludeId){
-        var exists = categoryRepository.existsBySlugAndIdNot(slug,excludeId);
-        return !exists;
+    private boolean slugExist(String slug, UUID excludeId){
+        return categoryRepository.existsBySlugAndIdNot(slug,excludeId);
     }
     private void validateNoCircularReference(UUID categoryId, UUID parentId) {
         if (categoryId != null && categoryId.equals(parentId)) {
@@ -61,7 +58,7 @@ public class CategoryService {
     {
         //Tạo slug nếu trùng
         String slug = request.getSlug();
-        slug = SlugUtil.uniqueSlug(slug, e->this.ensureSlugUnique(e,null));
+        slug = SlugUtil.uniqueSlug(slug, e->this.slugExist(e,null));
 
         UUID parentId = request.getParentId();
         if (parentId != null)
@@ -90,7 +87,7 @@ public class CategoryService {
         categoryMapper.updateFromDto(req,c);
         if (req.getSlug()!=null)
         {
-           c.setSlug(SlugUtil.uniqueSlug(req.getSlug(),e->this.ensureSlugUnique(e,id)));
+           c.setSlug(SlugUtil.uniqueSlug(req.getSlug(),e->this.slugExist(e,id)));
         }
 
         return categoryMapper.toDto(c);

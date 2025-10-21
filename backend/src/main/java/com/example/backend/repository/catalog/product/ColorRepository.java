@@ -1,11 +1,12 @@
-package com.example.backend.repository.product;
+package com.example.backend.repository.catalog.product;
 
 import com.example.backend.model.product.Color;
+import com.example.backend.repository.GenericRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.UUID;
 
-public interface ColorRepository extends GenericRepository<Color>{
+public interface ColorRepository extends GenericRepository<Color> {
     boolean existsByName(String name);
 
     boolean existsByNameAndIdNot(String name, UUID id);

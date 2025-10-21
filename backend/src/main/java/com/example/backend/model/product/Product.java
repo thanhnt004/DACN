@@ -53,6 +53,24 @@ public class Product {
 
     private String seoDescription;
 
+    private Integer soldCount;
+
+    private Integer ratingCount;
+
+    private Integer ratingSum;
+
+    @Column(columnDefinition = "NUMERIC(3,2)")
+    private Double ratingAvg;
+
+    private long priceMinAmount;
+
+    private long priceMaxAmount;
+
+    @Builder.Default
+    private Boolean isInStock = true;
+
+    private String primaryImageUrl;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

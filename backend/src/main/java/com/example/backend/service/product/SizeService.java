@@ -5,7 +5,7 @@ import com.example.backend.excepton.BadRequestException;
 import com.example.backend.excepton.ConflictException;
 import com.example.backend.mapper.SizeMapper;
 import com.example.backend.model.product.Size;
-import com.example.backend.repository.product.SizeRepository;
+import com.example.backend.repository.catalog.product.SizeRepository;
 import com.example.backend.service.GenericCrudService;
 import org.springframework.stereotype.Service;
 

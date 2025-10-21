@@ -2,11 +2,10 @@ package com.example.backend.service;
 
 import com.example.backend.excepton.NotFoundException;
 import com.example.backend.mapper.GenericMapper;
-import com.example.backend.repository.product.GenericRepository;
+import com.example.backend.repository.GenericRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.swing.plaf.SpinnerUI;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,7 +26,8 @@ public abstract class GenericCrudService<E,D> {
         newEntity = genericRepository.save(newEntity);
         //after
         return genericMapper.toDto(newEntity);
-    };
+    }
+
     public List<D> findAll()
     {
         return genericMapper.toDto(genericRepository.findAll());

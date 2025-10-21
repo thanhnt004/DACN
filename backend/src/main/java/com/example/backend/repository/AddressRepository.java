@@ -2,7 +2,6 @@ package com.example.backend.repository;
 
 import com.example.backend.model.Address;
 import com.example.backend.model.User;
-import com.example.backend.repository.product.GenericRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 

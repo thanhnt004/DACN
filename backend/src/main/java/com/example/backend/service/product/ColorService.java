@@ -5,7 +5,7 @@ import com.example.backend.excepton.BadRequestException;
 import com.example.backend.excepton.ConflictException;
 import com.example.backend.mapper.ColorMapper;
 import com.example.backend.model.product.Color;
-import com.example.backend.repository.product.ColorRepository;
+import com.example.backend.repository.catalog.product.ColorRepository;
 import com.example.backend.service.GenericCrudService;
 import org.springframework.stereotype.Service;
 

@@ -1,6 +1,7 @@
-package com.example.backend.repository.product;
+package com.example.backend.repository.catalog.product;
 
 import com.example.backend.model.product.Size;
+import com.example.backend.repository.GenericRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.UUID;

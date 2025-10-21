@@ -16,7 +16,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@SQLDelete(sql = "UPDATE products SET deleted_at = now() WHERE id = ?")
+@SQLDelete(sql = "UPDATE brands SET deleted_at = now() WHERE id = ?")
 @SQLRestriction(value = "deleted_at IS NULL")
 @Table(name = "brands")
 public class Brand {
@@ -33,6 +33,9 @@ public class Brand {
     private String slug;
 
     private String description;
+
+    @Builder.Default
+    private int productsCount = 0;
 
     @CreationTimestamp
     private LocalDateTime createdAt;
