@@ -9,9 +9,11 @@ import lombok.*;
 import org.hibernate.annotations.*;
 import org.hibernate.type.SqlTypes;
 
+import java.awt.*;
 import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Getter
@@ -53,18 +55,14 @@ public class Product {
 
     private String seoDescription;
 
-    private Integer soldCount;
+    private int soldCount;
 
-    private Integer ratingCount;
+    private int ratingCount;
 
-    private Integer ratingSum;
+    private int ratingSum;
 
-    @Column(columnDefinition = "NUMERIC(3,2)")
-    private Double ratingAvg;
-
-    private long priceMinAmount;
-
-    private long priceMaxAmount;
+    @Column(columnDefinition = "NUMERIC(3,2)",updatable = false,insertable = false)
+    private double ratingAvg;
 
     @Builder.Default
     private Boolean isInStock = true;
@@ -91,9 +89,8 @@ public class Product {
     )
     private List<Category> categories ;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "brand_id", foreignKey = @ForeignKey(name = "fk_products_brand"))
-    private Brand brand;
+
+    private UUID brandId;
 
     // Images
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -105,10 +102,31 @@ public class Product {
     private List<ProductVariant> variants = new ArrayList<>();
 
     public void addImage(ProductImage img) {
+        boolean hasDefaultImage = false;
+        for (ProductImage productImage:images)
+        {
+            if (productImage.isDefault())
+            {
+                hasDefaultImage = true;
+                if (img.isDefault())
+                {
+                    this.primaryImageUrl = img.getImageUrl();
+                    productImage.setDefault(false);
+                }
+                break;
+            }
+        }
+        if (!hasDefaultImage)
+        {
+            img.setDefault(true);
+            this.primaryImageUrl = img.getImageUrl();
+        }
         images.add(img);
         img.setProduct(this);
     }
     public void removeImage(ProductImage img) {
+        if (img.isDefault())
+
         images.remove(img);
         img.setProduct(null);
     }
@@ -132,6 +150,10 @@ public class Product {
             {
                 this.addImage(image);
             }
+        }
+        for (int i = 0;i< images.size();i++)
+        {
+            images.get(i).setPosition(i);
         }
         toRemove.forEach(this::removeImage);
     }

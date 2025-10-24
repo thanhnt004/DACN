@@ -1,7 +1,7 @@
 package com.example.backend.controller.common;
 
-import com.example.backend.dto.request.ImageUploadRequest;
-import com.example.backend.dto.response.ImageUpdateResponse;
+import com.example.backend.dto.request.common.ImageUploadRequest;
+import com.example.backend.dto.response.common.ImageUploadResponse;
 import com.example.backend.service.product.CloudImageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CloudinarySignController {
     private final CloudImageService service;
     @PostMapping("/sign")
-    public ResponseEntity<ImageUpdateResponse> sign(@RequestBody @Valid ImageUploadRequest request)
+    public ResponseEntity<ImageUploadResponse> sign(@RequestBody @Valid ImageUploadRequest request)
     {
         return ResponseEntity.ok(service.sign(request));
     }

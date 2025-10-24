@@ -6,8 +6,10 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.security.core.parameters.P;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -33,9 +35,6 @@ public class Brand {
     private String slug;
 
     private String description;
-
-    @Builder.Default
-    private int productsCount = 0;
 
     @CreationTimestamp
     private LocalDateTime createdAt;

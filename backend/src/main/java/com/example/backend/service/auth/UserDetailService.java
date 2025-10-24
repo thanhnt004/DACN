@@ -1,6 +1,6 @@
 package com.example.backend.service.auth;
 
-import com.example.backend.dto.CustomUserDetail;
+import com.example.backend.dto.response.auth.CustomUserDetail;
 import com.example.backend.dto.response.user.UserAuthenDTO;
 import com.example.backend.service.user.UserService;
 import lombok.RequiredArgsConstructor;

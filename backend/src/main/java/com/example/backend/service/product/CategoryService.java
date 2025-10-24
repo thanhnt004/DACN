@@ -1,8 +1,10 @@
 package com.example.backend.service.product;
 
-import com.example.backend.dto.request.product.CategoryCreateRequest;
-import com.example.backend.dto.request.product.CategoryUpdateRequest;
-import com.example.backend.dto.response.product.CategoryDto;
+
+import com.example.backend.dto.request.catalog.category.CategoryCreateRequest;
+import com.example.backend.dto.request.catalog.category.CategoryUpdateRequest;
+import com.example.backend.dto.response.catalog.category.CategoryResponse;
+import com.example.backend.dto.response.wraper.PageResponse;
 import com.example.backend.excepton.BadRequestException;
 import com.example.backend.excepton.ConflictException;
 import com.example.backend.excepton.NotFoundException;
@@ -17,6 +19,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -26,6 +29,8 @@ import java.util.stream.Collectors;
 public class CategoryService {
     private final CategoryRepository categoryRepository;
     private final CategoryMapper categoryMapper;
+
+    private static final List<String> ALLOWED_SORT_FIELDS = List.of("name","productsCount","updatedAt","createdAt");
 
     private boolean slugExist(String slug, UUID excludeId){
         return categoryRepository.existsBySlugAndIdNot(slug,excludeId);
@@ -54,7 +59,7 @@ public class CategoryService {
         }
     }
 
-    public CategoryDto createCateGory(CategoryCreateRequest request)
+    public CategoryResponse createCategory(CategoryCreateRequest request)
     {
         //Tạo slug nếu trùng
         String slug = request.getSlug();
@@ -76,7 +81,7 @@ public class CategoryService {
         return categoryMapper.toDto(category);
     }
     @Transactional
-    public CategoryDto update(UUID id, CategoryUpdateRequest req) {
+    public CategoryResponse update(UUID id, CategoryUpdateRequest req) {
         var c = categoryRepository.findById(id).orElseThrow(() -> new NotFoundException("Category not found"));
 
         Category parent = null;
@@ -135,35 +140,52 @@ public class CategoryService {
         categoryRepository.save(cat);
     }
     @Transactional(readOnly = true)
-    public Page<CategoryDto> list(UUID parentId, Boolean isDeleted, String q, Pageable pageable) {
+    public PageResponse<CategoryResponse> list(UUID parentId, String q, Pageable pageable,String sort) {
     // Simple Specification
         var spec = (Specification<Category>) (root, query, cb) -> {
             List<jakarta.persistence.criteria.Predicate> ps = new ArrayList<>();
             if (parentId == null) ps.add(cb.isNull(root.get("parent")));
             else ps.add(cb.equal(root.get("parent").get("id"), parentId));
-            if (isDeleted != null)
-            {
-                if (isDeleted)
-                    ps.add(cb.isNull(root.get("deletedAt")));
-                else
-                    ps.add(cb.isNotNull(root.get("deletedAt")));
-            }
             if (q != null && !q.isBlank()) {
                 String like = "%" + q.trim().toLowerCase(Locale.ROOT) + "%";
                 ps.add(cb.or(cb.like(cb.lower(root.get("name")), like), cb.like(cb.lower(root.get("slug")), like)));
             }
             assert query != null;
             query.orderBy(cb.desc(root.get("name")));
+            if (StringUtils.hasText(sort))
+            {
+                String[] sortParams = sort.split(",");
+                if(sortParams.length == 2)
+                {
+                    String sortField = sortParams[0];
+                    String sortDirection = sortParams[1];
+                    if (!ALLOWED_SORT_FIELDS.contains(sortField))
+                        throw new BadRequestException("Invalid sort field: " + sortField);
+                    if(sortDirection.equalsIgnoreCase("asc"))
+                    {
+                        query.orderBy(cb.asc(root.get(sortField)));
+                    }
+                    else if(sortDirection.equalsIgnoreCase("desc"))
+                    {
+                        query.orderBy(cb.desc(root.get(sortField)));
+                    }
+                }
+            }
             return cb.and(ps.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
-        return categoryRepository.findAll(spec, pageable).map(categoryMapper::toDto);
+        Page<CategoryResponse> pages = categoryRepository.findAll(spec, pageable).map(categoryMapper::toDto);
+        return new PageResponse<>(pages);
     }
-    public CategoryDto getById(UUID id)  {
+    private CategoryResponse getById(UUID id)  {
         Category category = categoryRepository.findById(id).orElseThrow(()->new NotFoundException("Category not found"));
         return categoryMapper.toDto(category);
     }
+    private CategoryResponse getBySlug(String slug)  {
+        Category category = categoryRepository.findBySlug(slug).orElseThrow(()->new NotFoundException("Category not found"));
+        return categoryMapper.toDto(category);
+    }
     @Transactional(readOnly = true)
-    public CategoryDto getCategoryTree(Boolean includeDeleted, Integer depth, UUID rootId) {
+    public CategoryResponse getCategoryTree( Integer depth, UUID rootId) {
         if (depth <= 0||depth>=10) depth = 5;
         Category root;
         if (rootId != null) {
@@ -172,30 +194,39 @@ public class CategoryService {
         else
         {
             Integer finalDepth = depth;
-            List<CategoryDto> rootsDto = categoryRepository.findRootCategory(includeDeleted)
-                    .stream().map(c->buildCategoryTree(c, finalDepth -1,includeDeleted))
+            List<CategoryResponse> rootsDto = categoryRepository.findRootCategory()
+                    .stream().map(c->buildCategoryTree(c, finalDepth - 1))
                     .toList();
-            return CategoryDto.builder()
+            return CategoryResponse.builder()
                     .id(null)
                     .name("ROOT")
                     .slug("root")
                     .children(rootsDto)
                     .build();
         }
-        return buildCategoryTree(root,depth-1,includeDeleted);
+        return buildCategoryTree(root,depth-1);
     }
-    private CategoryDto buildCategoryTree(Category category,int depth,Boolean includeInactive)
+    private CategoryResponse buildCategoryTree(Category category, int depth)
     {
-        CategoryDto dto = categoryMapper.toDto(category);
+        CategoryResponse dto = categoryMapper.toDto(category);
         if(depth>0)
         {
             dto.setChildren(
-                    categoryRepository.findChildren(category.getId(),includeInactive)
+                    categoryRepository.findChildren(category.getId())
                             .stream()
-                            .map(ch->buildCategoryTree(ch,depth-1,includeInactive))
+                            .map(ch->buildCategoryTree(ch,depth-1))
                             .collect(Collectors.toList())
             );
         }
         return dto;
+    }
+
+    public CategoryResponse getBySlugOrId(String slugOrId) {
+        try {
+            UUID uuid = UUID.fromString(slugOrId);
+            return getById(uuid);
+        } catch (Exception e) {
+            return getBySlug(slugOrId);
+        }
     }
 }

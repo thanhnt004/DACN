@@ -1,6 +1,7 @@
 package com.example.backend.mapper;
 
-import com.example.backend.dto.request.RegisterRequest;
+
+import com.example.backend.dto.request.auth.RegisterRequest;
 import com.example.backend.dto.response.user.UserProfileDto;
 import com.example.backend.model.User;
 import org.mapstruct.*;

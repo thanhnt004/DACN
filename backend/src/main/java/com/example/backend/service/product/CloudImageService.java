@@ -4,9 +4,9 @@ import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.example.backend.config.CloudinaryProps;
 import com.example.backend.config.ImagePolicy;
-import com.example.backend.dto.CustomUserDetail;
-import com.example.backend.dto.request.ImageUploadRequest;
-import com.example.backend.dto.response.ImageUpdateResponse;
+import com.example.backend.dto.response.auth.CustomUserDetail;
+import com.example.backend.dto.request.common.ImageUploadRequest;
+import com.example.backend.dto.response.common.ImageUploadResponse;
 import com.example.backend.excepton.AuthenticationException;
 import com.example.backend.excepton.BadRequestException;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +29,7 @@ public class CloudImageService {
     private final ImagePolicy imagePolicy;
     private final CloudinaryProps cloudinaryProps;
     private final Cloudinary cloudinary;
-    public ImageUpdateResponse sign(ImageUploadRequest request){
+    public ImageUploadResponse sign(ImageUploadRequest request){
         String type = request.getType();
         UUID targetId = request.getTargetId();
         if (!StringUtils.hasText(type)||!imagePolicy.getType().containsKey(type))
@@ -56,7 +56,7 @@ public class CloudImageService {
 
         String signature = cloudinary.apiSignRequest(paramsToSign,cloudinaryProps.getApiSecret(), 1);
 
-        return ImageUpdateResponse.create(cloudinaryProps,imagePolicy.getType().get(type),signature,folder);
+        return ImageUploadResponse.create(cloudinaryProps,imagePolicy.getType().get(type),signature,folder);
     }
     @Async
     public void destroy(String publicId)  {

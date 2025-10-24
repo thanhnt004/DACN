@@ -1,11 +1,11 @@
 package com.example.backend.model.product;
 
 import jakarta.persistence.*;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.OrderBy;
+import jakarta.persistence.Table;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.SQLRestriction;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.*;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -43,7 +43,6 @@ public class Category {
 
     private LocalDateTime deletedAt;
 
-    private Integer productsCount;
 
     //relations
     @ManyToOne(fetch = FetchType.LAZY)
@@ -57,5 +56,4 @@ public class Category {
 
     @ManyToMany(mappedBy = "categories", fetch = FetchType.LAZY)
     private List<Product> products;
-
 }

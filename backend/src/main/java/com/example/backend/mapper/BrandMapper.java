@@ -1,6 +1,6 @@
 package com.example.backend.mapper;
 
-import com.example.backend.dto.BrandDto;
+import com.example.backend.dto.response.catalog.BrandDto;
 import com.example.backend.model.product.Brand;
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;

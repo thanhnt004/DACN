@@ -1,6 +1,6 @@
 package com.example.backend.service.product;
 
-import com.example.backend.dto.SizeDto;
+import com.example.backend.dto.response.catalog.SizeDto;
 import com.example.backend.excepton.BadRequestException;
 import com.example.backend.excepton.ConflictException;
 import com.example.backend.mapper.SizeMapper;

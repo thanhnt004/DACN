@@ -1,8 +1,8 @@
 package com.example.backend.mapper;
 
-import com.example.backend.dto.request.product.ProductCreateRequest;
-import com.example.backend.dto.request.product.ProductUpdateRequest;
-import com.example.backend.dto.response.product.ProductResponse;
+import com.example.backend.dto.request.catalog.product.ProductCreateRequest;
+import com.example.backend.dto.request.catalog.product.ProductUpdateRequest;
+import com.example.backend.dto.response.catalog.product.ProductDetailResponse;
 import com.example.backend.model.product.Product;
 import org.mapstruct.*;
 
@@ -15,7 +15,8 @@ public interface ProductMapper {
     @Mapping(target = "images",ignore = true)
     @Mapping(target = "categories",ignore = true)
     @Mapping(target = "variants",ignore = true)
-    ProductResponse toDto(Product product);
+    ProductDetailResponse toDto(Product product);
+
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "images",ignore = true)

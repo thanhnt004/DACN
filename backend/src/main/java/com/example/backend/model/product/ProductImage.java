@@ -36,6 +36,9 @@ public class ProductImage {
 
     private String publicId;
 
+    @Builder.Default
+    private boolean isDefault = false;
+
     private UUID colorId;
 
     @CreationTimestamp

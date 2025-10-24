@@ -1,6 +1,6 @@
 package com.example.backend.controller.auth;
 
-import com.example.backend.dto.CustomUserDetail;
+import com.example.backend.dto.response.auth.CustomUserDetail;
 import com.example.backend.service.auth.oautth.OAuthAccountService;
 import com.example.backend.service.auth.oautth.StateTokenService;
 import com.example.backend.util.CookieUtil;

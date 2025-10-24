@@ -1,6 +1,6 @@
 package com.example.backend.validate;
 
-import com.example.backend.dto.request.product.VariantCreateRequest;
+import com.example.backend.dto.request.catalog.product.VariantCreateRequest;
 import jakarta.validation.Constraint;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;

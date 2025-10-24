@@ -1,6 +1,6 @@
 package com.example.backend.mapper;
 
-import com.example.backend.dto.ColorDto;
+import com.example.backend.dto.response.catalog.ColorDto;
 import com.example.backend.model.product.Color;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingTarget;

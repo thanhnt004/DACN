@@ -1,9 +1,10 @@
 package com.example.backend.controller.auth;
 
-import com.example.backend.dto.CustomUserDetail;
-import com.example.backend.dto.request.ChangePasswordRequest;
-import com.example.backend.dto.request.ResetPasswordRequest;
-import com.example.backend.dto.request.SendVerifyEmailRequest;
+
+import com.example.backend.dto.request.auth.ChangePasswordRequest;
+import com.example.backend.dto.request.auth.ResetPasswordRequest;
+import com.example.backend.dto.request.auth.SendVerifyEmailRequest;
+import com.example.backend.dto.response.auth.CustomUserDetail;
 import com.example.backend.service.auth.ResetPasswordService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -12,9 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.parameters.P;
 import org.springframework.web.bind.annotation.*;
 
 @RestController

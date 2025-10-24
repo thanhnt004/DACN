@@ -1,7 +1,8 @@
 package com.example.backend.controller.auth;
 
-import com.example.backend.dto.request.SendVerifyEmailRequest;
-import com.example.backend.dto.request.VerifyEmailRequest;
+
+import com.example.backend.dto.request.auth.SendVerifyEmailRequest;
+import com.example.backend.dto.request.auth.VerifyEmailRequest;
 import com.example.backend.service.auth.EmailVerificationService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;

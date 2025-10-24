@@ -1,18 +1,19 @@
 package com.example.backend.service.product;
 
-import com.example.backend.dto.BrandDto;
+import com.example.backend.controller.catalog.category.fillter.BrandFilter;
+import com.example.backend.dto.response.catalog.BrandDto;
 import com.example.backend.dto.response.wraper.PageResponse;
 import com.example.backend.excepton.BadRequestException;
 import com.example.backend.excepton.NotFoundException;
 import com.example.backend.mapper.BrandMapper;
 import com.example.backend.model.product.Brand;
 import com.example.backend.repository.catalog.brand.BrandRepository;
+import com.example.backend.repository.catalog.brand.BrandRepositoryCustom;
 import com.example.backend.util.SlugUtil;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -28,8 +29,8 @@ import java.util.UUID;
 public class BrandService {
     BrandRepository brandRepository;
     BrandMapper brandMapper;
+    BrandRepositoryCustom brandRepositoryCustom;
 
-    private static final List<String> ALLOWED_SORT_FIELDS = List.of("name", "createdAt", "updatedAt", "productsCount");
     private boolean slugExist(String slug, UUID excludeId){
         return brandRepository.existsBySlugAndIdNot(slug,excludeId);
     }
@@ -57,52 +58,30 @@ public class BrandService {
         brandRepository.save(brand);
         return brandMapper.toDto(brand);
     }
-    public BrandDto findById(UUID brandId)
+    private BrandDto findById(UUID brandId)
     {
         Brand brand = brandRepository.findById(brandId).orElseThrow(()-> new NotFoundException("Brand not found!"));
         return brandMapper.toDto(brand);
     }
 
-    public PageResponse<BrandDto> search(String q, Pageable pageable,String sort) {
-        Specification<Brand> spec = buildSpecification(q, sort);
-
-        Page<Brand> brandPage =  brandRepository.findAll(spec, pageable);
-        Page<BrandDto> brandDtoPage = brandPage.map(brandMapper::toDto);
-        return new PageResponse<>(brandDtoPage);
+    public PageResponse<BrandDto> search(BrandFilter filter, Pageable pageable) {
+        Page<BrandDto> brandPage =  brandRepositoryCustom.listWithFilter(filter,pageable);
+//        Page<BrandDto> brandDtoPage = brandPage.map(brandMapper::toDto);
+        return new PageResponse<>(brandPage);
     }
 
-    private Specification<Brand> buildSpecification(String q, String sort) {
-        return (root,query,cb)->{
-            var predicates = cb.conjunction();
-            if(StringUtils.hasText(q))
-            {
-                String pattern = "%" + q.toLowerCase() + "%";
-                predicates = cb.and(predicates,cb.or(
-                        cb.like(cb.lower(root.get("name")),pattern),
-                        cb.like(cb.lower(root.get("description")),pattern)
-                ));
-            }
+    private BrandDto findBySlug(String slug) {
+        Brand brand = brandRepository.findBySlug(slug).orElseThrow(()-> new NotFoundException("Brand not found!"));
+        return brandMapper.toDto(brand);
+    }
 
-            if (StringUtils.hasText(sort))
-            {
-                String[] sortParams = sort.split(",");
-                if(sortParams.length == 2)
-                {
-                    String sortField = sortParams[0];
-                    String sortDirection = sortParams[1];
-                    if (!ALLOWED_SORT_FIELDS.contains(sortField))
-                        throw new BadRequestException("Invalid sort field: " + sortField);
-                    if(sortDirection.equalsIgnoreCase("asc"))
-                    {
-                        query.orderBy(cb.asc(root.get(sortField)));
-                    }
-                    else if(sortDirection.equalsIgnoreCase("desc"))
-                    {
-                        query.orderBy(cb.desc(root.get(sortField)));
-                    }
-                }
-            }
-            return predicates;
-        };
+    public BrandDto findBySlugOrId(String slugOrId) {
+        try{
+            UUID id = UUID.fromString(slugOrId);
+            return findById(id);
+        }catch (Exception e)
+        {
+            return findBySlug(slugOrId);
+        }
     }
 }

@@ -1,6 +1,6 @@
 package com.example.backend.controller.user;
 
-import com.example.backend.dto.CustomUserDetail;
+import com.example.backend.dto.response.auth.CustomUserDetail;
 import com.example.backend.dto.response.user.OauthProviderResponse;
 import com.example.backend.dto.response.user.UserAddress;
 import com.example.backend.dto.response.user.UserProfileDto;

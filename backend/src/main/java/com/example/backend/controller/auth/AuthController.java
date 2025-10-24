@@ -1,11 +1,12 @@
 package com.example.backend.controller.auth;
 
-import com.example.backend.dto.request.LoginRequest;
-import com.example.backend.dto.request.RegisterRequest;
-import com.example.backend.dto.response.LoginResponse;
-import com.example.backend.dto.response.LogoutResponse;
-import com.example.backend.dto.response.RefreshTokenResponse;
-import com.example.backend.dto.response.RegisterResponse;
+
+import com.example.backend.dto.request.auth.LoginRequest;
+import com.example.backend.dto.request.auth.RegisterRequest;
+import com.example.backend.dto.response.auth.LoginResponse;
+import com.example.backend.dto.response.auth.LogoutResponse;
+import com.example.backend.dto.response.auth.RefreshTokenResponse;
+import com.example.backend.dto.response.auth.RegisterResponse;
 import com.example.backend.service.auth.AuthService;
 import com.example.backend.util.CookieUtil;
 import jakarta.servlet.http.HttpServletRequest;

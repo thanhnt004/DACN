@@ -1,7 +1,7 @@
 package com.example.backend.service.auth;
 
-import com.example.backend.dto.CustomUserDetail;
-import com.example.backend.dto.request.ChangePasswordRequest;
+import com.example.backend.dto.response.auth.CustomUserDetail;
+import com.example.backend.dto.request.auth.ChangePasswordRequest;
 import com.example.backend.excepton.*;
 import com.example.backend.model.User;
 import com.example.backend.repository.UserRepository;
@@ -15,9 +15,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.Objects;
 
 @Service

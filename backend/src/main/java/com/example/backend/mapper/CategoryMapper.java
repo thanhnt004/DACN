@@ -1,8 +1,8 @@
 package com.example.backend.mapper;
 
-import com.example.backend.dto.request.product.CategoryCreateRequest;
-import com.example.backend.dto.request.product.CategoryUpdateRequest;
-import com.example.backend.dto.response.product.CategoryDto;
+import com.example.backend.dto.request.catalog.category.CategoryCreateRequest;
+import com.example.backend.dto.request.catalog.category.CategoryUpdateRequest;
+import com.example.backend.dto.response.catalog.category.CategoryResponse;
 import com.example.backend.model.product.Category;
 import org.mapstruct.*;
 
@@ -12,10 +12,10 @@ import java.util.List;
 public interface CategoryMapper {
 
     @Mapping(target = "children", ignore = true)
-    @Mapping(target = "productCount", ignore = true)
-    CategoryDto toDto(Category entity);
+    @Mapping(target = "productsCount", ignore = true)
+    CategoryResponse toDto(Category entity);
 
-    List<CategoryDto> toDto(List<Category> entities);
+    List<CategoryResponse> toDto(List<Category> entities);
 
     // mapping từ request -> entity (dùng khi create)
     @Mapping(target = "id", ignore = true)

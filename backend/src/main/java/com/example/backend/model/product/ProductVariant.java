@@ -87,4 +87,9 @@ public class ProductVariant {
     // One-to-one inventory
     @OneToOne(mappedBy = "variant", cascade = CascadeType.ALL, orphanRemoval = true)
     private Inventory inventory;
+    public void setInventory(Inventory inventory)
+    {
+        this.inventory = inventory;
+        inventory.setVariant(this);
+    }
 }
