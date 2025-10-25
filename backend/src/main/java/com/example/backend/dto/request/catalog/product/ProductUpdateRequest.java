@@ -1,5 +1,6 @@
 package com.example.backend.dto.request.catalog.product;
 
+import com.example.backend.model.product.ProductStatus;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
@@ -21,6 +22,8 @@ public class ProductUpdateRequest {
     private String gender;
     private String seoTitle;
     private String seoDescription;
+    private String primaryImageUrl;
+    private ProductStatus status;
     private List<ProductImageRequest> images;
     @NotNull
     private Integer version;

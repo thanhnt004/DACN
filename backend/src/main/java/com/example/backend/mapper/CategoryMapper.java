@@ -24,6 +24,7 @@ public interface CategoryMapper {
     @Mapping(target = "deletedAt", ignore = true)
     @Mapping(target = "parent", ignore = true)
     @Mapping(target = "children", ignore = true)
+    @Mapping(target = "products", ignore = true)
     Category toEntity(CategoryCreateRequest req);
 
     // update: dùng @MappingTarget

@@ -10,10 +10,13 @@ import lombok.Data;
 public class VariantUpdateRequest {
     private String barcode;
     private Long priceAmount;
+    private String sku;
     private Long compareAtAmount;
     @Pattern(regexp = "ACTIVE|DISCONTINUED")
     private String status;
     private Integer weightGrams;
     @NotNull
     private Integer version;
+
+    private InventoryRequest inventory;
 }

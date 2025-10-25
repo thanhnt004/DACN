@@ -1,9 +1,12 @@
 package com.example.backend.service.product;
 
+import com.example.backend.controller.catalog.product.Options;
 import com.example.backend.controller.catalog.product.ProductFilter;
 import com.example.backend.dto.request.catalog.product.ProductCreateRequest;
 import com.example.backend.dto.request.catalog.product.ProductImageRequest;
 import com.example.backend.dto.request.catalog.product.ProductUpdateRequest;
+import com.example.backend.dto.response.catalog.ColorDto;
+import com.example.backend.dto.response.catalog.SizeDto;
 import com.example.backend.dto.response.catalog.product.ProductDetailResponse;
 import com.example.backend.dto.response.catalog.product.ProductSummaryResponse;
 import com.example.backend.dto.response.wraper.PageResponse;
@@ -58,8 +61,8 @@ public class ProductService {
         List<UUID> productIds = page.getContent().stream().map(Product::getId).toList();
         Map<UUID, List<String>> colorsMap =new HashMap<>();
         productIds.forEach(id->{
-            List<String> hexCodes = variantRepository.getColorsByProductId(id);
-            colorsMap.put(id,hexCodes);
+            List<ColorDto> colors = variantRepository.getColorsByProductId(id);
+            colorsMap.put(id,colors.stream().map(ColorDto::getHexCode).toList());
         });
 
         return new PageResponse<>(page.map(p -> toSummaryResponse(p, colorsMap.getOrDefault(p.getId(), List.of()))));
@@ -83,13 +86,13 @@ public class ProductService {
         return productMapper.toDto(product);
     }
     @Transactional
-    public ProductDetailResponse update(ProductUpdateRequest request)
+    public ProductDetailResponse update(ProductUpdateRequest request,UUID id)
     {
-        Product exist = productRepository.findById(request.getId()).orElseThrow(
+        Product exist = productRepository.findById(id).orElseThrow(
                 ()->new NotFoundException("Product not found!")
         );
         if (StringUtils.hasText(request.getSlug()))
-            request.setSlug(SlugUtil.uniqueSlug(request.getSlug(),(v)->this.slugExist(v,request.getId())));
+            request.setSlug(SlugUtil.uniqueSlug(request.getSlug(),(v)->this.slugExist(v,id)));
         productMapper.updateFromDto(request,exist);
         if (request.getImages()!=null)
         {
@@ -129,6 +132,13 @@ public class ProductService {
         }
         Set<String> includeSet = normalizeIncludes(includes);
         ProductDetailResponse response = productMapper.toDto(product);
+        List<ColorDto> colorDto = variantRepository.getColorsByProductId(product.getId());
+        List<SizeDto> sizeDto = variantRepository.getSizesByProductId(product.getId());
+        Options options = Options.builder()
+                .color(colorDto)
+                .size(sizeDto)
+                .build();
+        response.setOptions(options);
         if (includeSet.contains("variants"))
             response.setVariants(variantsMapper.toResponse(product.getVariants()));
         if (includeSet.contains("categories"))

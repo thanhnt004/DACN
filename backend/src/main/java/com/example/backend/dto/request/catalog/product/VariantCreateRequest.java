@@ -30,5 +30,5 @@ public class VariantCreateRequest {
     @Pattern(regexp = "ACTIVE|DISCONTINUED")
     private String status = "ACTIVE";
 
-    private InventoryRequest inventoryRequest;
+    private InventoryRequest inventory;
 }

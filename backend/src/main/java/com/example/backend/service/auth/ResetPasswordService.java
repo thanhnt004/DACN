@@ -4,7 +4,7 @@ import com.example.backend.dto.response.auth.CustomUserDetail;
 import com.example.backend.dto.request.auth.ChangePasswordRequest;
 import com.example.backend.excepton.*;
 import com.example.backend.model.User;
-import com.example.backend.repository.UserRepository;
+import com.example.backend.repository.user.UserRepository;
 import com.example.backend.service.EmailService;
 import com.example.backend.util.CryptoUtils;
 import lombok.RequiredArgsConstructor;

@@ -1,5 +1,6 @@
 package com.example.backend.dto.response.catalog.product;
 
+import com.example.backend.controller.catalog.product.Options;
 import com.example.backend.dto.response.catalog.BrandDto;
 import com.example.backend.dto.response.catalog.category.CategoryResponse;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -25,8 +26,10 @@ public class ProductDetailResponse {
     private String seoTitle;
     private String seoDescription;
     private Integer version;
-    private BrandDto brand;
 
+    private Options options;
+
+    private UUID brandId;
     private List<CategoryResponse> categories;
     private List<ProductImageResponse> images;
     private List<VariantResponse> variants;

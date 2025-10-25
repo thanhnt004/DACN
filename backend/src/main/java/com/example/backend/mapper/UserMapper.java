@@ -7,7 +7,7 @@ import com.example.backend.model.User;
 import org.mapstruct.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring",unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface UserMapper {
 
     @Mapping(target = "passwordHash", ignore = true)

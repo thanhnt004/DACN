@@ -3,16 +3,20 @@ package com.example.backend.mapper;
 import com.example.backend.dto.request.catalog.product.VariantCreateRequest;
 import com.example.backend.dto.request.catalog.product.VariantUpdateRequest;
 import com.example.backend.dto.response.catalog.product.VariantResponse;
+import com.example.backend.model.product.Inventory;
 import com.example.backend.model.product.ProductVariant;
-import org.mapstruct.BeanMapping;
-import org.mapstruct.Mapper;
-import org.mapstruct.MappingTarget;
-import org.mapstruct.NullValuePropertyMappingStrategy;
+import com.example.backend.model.product.Size_;
+import org.mapstruct.*;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface ProductVariantMapper {
+    @Mapping(target = "productId",source = "productVariant.product.id")
+    @Mapping(target = "sizeId",source = "productVariant.size.id")
+    @Mapping(target = "colorId",source = "productVariant.color.id")
+    @Mapping(target = "inventory",ignore = true)
     VariantResponse toResponse(ProductVariant productVariant);
     List<VariantResponse> toResponse(List<ProductVariant> productVariant);
 

@@ -27,13 +27,13 @@ public class Inventory {
     private ProductVariant variant;
 
     @Column(name = "quantity_on_hand", nullable = false)
-    private int quantityOnHand = 0;
+    private int quantityOnHand ;
 
     @Column(name = "quantity_reserved", nullable = false)
-    private int quantityReserved = 0;
+    private int quantityReserved ;
 
     @Column(name = "reorder_level", nullable = false)
-    private int reorderLevel = 0;
+    private int reorderLevel;
 
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)

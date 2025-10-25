@@ -15,7 +15,10 @@ public class ProductImageRequest {
 
     private int position = 0;
 
-    private UUID colorId;
+    private String publicId;
 
     private boolean isDefault;
+
+    private UUID colorId;
+
 }

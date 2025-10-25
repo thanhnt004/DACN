@@ -1,5 +1,7 @@
 package com.example.backend.repository.catalog.product;
 
+import com.example.backend.dto.response.catalog.ColorDto;
+import com.example.backend.dto.response.catalog.SizeDto;
 import com.example.backend.model.product.ProductVariant;
 import com.example.backend.model.product.VariantStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,12 +24,20 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     boolean existsByColor_IdAndSize_Id(UUID colorId, UUID sizeId);
 
     @Query("""
-        select c.hexCode 
+        select new com.example.backend.dto.response.catalog.ColorDto(
+            c.id,
+            c.name,
+            c.hexCode
+        )
         from ProductVariant v
         join v.product p
         join v.color c
         where p.id in :productIds
         group by c.hexCode
          """)
-    List<String> getColorsByProductId(UUID productId);
+    List<ColorDto> getColorsByProductId(UUID productId);
+    @Query("""
+    
+""")
+    List<SizeDto> getSizesByProductId(UUID productId);
 }

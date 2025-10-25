@@ -7,7 +7,13 @@ import org.mapstruct.*;
 
 @Mapper(componentModel = "spring")
 public interface InventoryMapper {
+    @Mapping(target = "variantId", expression = "java(inventory.getVariant().getId())")
+    @Mapping(target = "available", expression = "java(inventory.getQuantityOnHand() - inventory.getQuantityReserved())")
     InventoryResponse toDto(Inventory inventory);
+
+    @Mapping(target = "id",ignore = true)
+    @Mapping(target = "variant",ignore = true)
+    @Mapping(target = "updatedAt",ignore = true)
     Inventory toEntity(InventoryRequest request);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)

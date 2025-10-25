@@ -14,6 +14,6 @@ public class ProductImageResponse {
     private String imageUrl;
     private String alt;
     private Integer position;
-    private UUID colorId;
     private boolean isDefault;
+    private UUID colorId;
 }

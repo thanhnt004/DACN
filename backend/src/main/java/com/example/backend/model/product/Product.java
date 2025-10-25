@@ -95,10 +95,12 @@ public class Product {
     // Images
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("position ASC, createdAt ASC")
+    @Builder.Default
     private List<ProductImage> images = new ArrayList<>();
 
     // Variants
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<ProductVariant> variants = new ArrayList<>();
 
     public void addImage(ProductImage img) {

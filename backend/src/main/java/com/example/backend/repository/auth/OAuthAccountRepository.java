@@ -1,4 +1,4 @@
-package com.example.backend.repository;
+package com.example.backend.repository.auth;
 
 import com.example.backend.model.OAuthAccount;
 import org.springframework.data.jpa.repository.JpaRepository;

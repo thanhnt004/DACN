@@ -31,13 +31,11 @@ public class ProductImage {
     private String alt;
 
     @Column(nullable = false)
-    @Builder.Default
-    private int position = 0;
+    private int position;
 
     private String publicId;
 
-    @Builder.Default
-    private boolean isDefault = false;
+    private boolean isDefault ;
 
     private UUID colorId;
 

@@ -14,7 +14,7 @@ import com.example.backend.model.RefreshToken;
 import com.example.backend.model.enumrator.Role;
 import com.example.backend.model.User;
 import com.example.backend.model.enumrator.UserStatus;
-import com.example.backend.repository.UserRepository;
+import com.example.backend.repository.user.UserRepository;
 import com.example.backend.util.CookieUtil;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;

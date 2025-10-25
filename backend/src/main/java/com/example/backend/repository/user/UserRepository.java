@@ -1,4 +1,4 @@
-package com.example.backend.repository;
+package com.example.backend.repository.user;
 
 import com.example.backend.dto.response.user.UserAuthenDTO;
 import com.example.backend.model.User;

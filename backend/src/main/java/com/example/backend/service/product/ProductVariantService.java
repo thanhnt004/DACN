@@ -2,17 +2,17 @@ package com.example.backend.service.product;
 
 import com.example.backend.dto.request.catalog.product.VariantCreateRequest;
 import com.example.backend.dto.request.catalog.product.VariantUpdateRequest;
+import com.example.backend.dto.response.catalog.product.InventoryResponse;
 import com.example.backend.dto.response.catalog.product.VariantResponse;
 import com.example.backend.excepton.BadRequestException;
 import com.example.backend.excepton.NotFoundException;
 import com.example.backend.mapper.InventoryMapper;
 import com.example.backend.mapper.ProductVariantMapper;
-import com.example.backend.model.product.Inventory;
-import com.example.backend.model.product.Product;
-import com.example.backend.model.product.ProductVariant;
-import com.example.backend.model.product.VariantStatus;
+import com.example.backend.model.product.*;
+import com.example.backend.repository.catalog.product.ColorRepository;
 import com.example.backend.repository.catalog.product.ProductRepository;
 import com.example.backend.repository.catalog.product.ProductVariantRepository;
+import com.example.backend.repository.catalog.product.SizeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +27,8 @@ import java.util.UUID;
 public class ProductVariantService {
     private final ProductVariantRepository productVariantRepository;
     private final ProductRepository productRepository;
+    private final SizeRepository sizeRepository;
+    private final ColorRepository colorRepository;
     private final ProductVariantMapper mapper;
     private final InventoryMapper inventoryMapper;
     public void deleteVariant(UUID variantId,UUID productId)
@@ -42,14 +44,33 @@ public class ProductVariantService {
     {
         validateSku(request.getSku());
         validateExist(request.getColorId(),request.getSizeId());
+
         //get product
         Product product = productRepository.findById(productId).orElseThrow(()->new NotFoundException("Product not found!"));
+        Size size = null;
+        if (request.getSizeId() != null) {
+            size = sizeRepository.findById(request.getSizeId())
+                    .orElseThrow(() -> new NotFoundException("Size not found"));
+        }
+
+        Color color = null;
+        if (request.getColorId() != null) {
+            color = colorRepository.findById(request.getColorId())
+                    .orElseThrow(() -> new NotFoundException("Color not found"));
+        }
         ProductVariant newVariant = mapper.toEntity(request);
+        newVariant.setSize(size);
+        newVariant.setColor(color);
         product.addVariant(newVariant);
-        newVariant.setInventory(inventoryMapper.toEntity(request.getInventoryRequest()));
+        if (request.getInventory() != null) {
+            newVariant.setInventory(inventoryMapper.toEntity(request.getInventory()));
+        }
         newVariant = productVariantRepository.save(newVariant);
         productRepository.save(product);
-        return mapper.toResponse(newVariant);
+        InventoryResponse inventoryResponse = inventoryMapper.toDto(newVariant.getInventory());
+        VariantResponse response = mapper.toResponse(newVariant);
+        response.setInventory(inventoryResponse);
+        return response;
     }
 
     private void validateSku(String sku)

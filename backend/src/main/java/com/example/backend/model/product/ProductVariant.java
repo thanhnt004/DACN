@@ -67,6 +67,7 @@ public class ProductVariant {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
+    @Builder.Default
     private VariantStatus status = VariantStatus.ACTIVE;
 
     @UpdateTimestamp

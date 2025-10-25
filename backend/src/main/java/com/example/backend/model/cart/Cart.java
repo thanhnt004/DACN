@@ -20,9 +20,9 @@ public class Cart {
     @Id
     @GeneratedValue
     private UUID id;
-    private UUID cartToken;
     @Enumerated(EnumType.STRING)
-    private CartStatus status;
+    @Builder.Default
+    private CartStatus status = CartStatus.ACTIVE;
     @CreationTimestamp
     private LocalDateTime createdAt;
     @UpdateTimestamp

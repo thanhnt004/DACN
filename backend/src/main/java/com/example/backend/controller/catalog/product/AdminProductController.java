@@ -5,6 +5,7 @@ import com.example.backend.dto.request.catalog.product.ProductUpdateRequest;
 import com.example.backend.dto.response.catalog.product.ProductDetailResponse;
 import com.example.backend.model.product.ProductStatus;
 import com.example.backend.service.product.ProductService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,15 +22,15 @@ public class AdminProductController {
     private final ProductService productService;
 
     @PostMapping
-    public ResponseEntity<ProductDetailResponse> createProduct(@RequestBody ProductCreateRequest request) {
+    public ResponseEntity<ProductDetailResponse> createProduct(@Valid  @RequestBody ProductCreateRequest request) {
         ProductDetailResponse response = productService.create(request);
         URI location = URI.create("/api/v1/products/"+response.getId());
         return ResponseEntity.created(location).body(response);
     }
     @PutMapping(value = "/{id}")
-    public ResponseEntity<ProductDetailResponse> update(@RequestBody ProductUpdateRequest request)
+    public ResponseEntity<ProductDetailResponse> update(@Valid @RequestBody ProductUpdateRequest request,@PathVariable UUID id)
     {
-        ProductDetailResponse response = productService.update(request);
+        ProductDetailResponse response = productService.update(request,id);
         return ResponseEntity.ok(response);
     }
     @DeleteMapping(value = "/{id}")

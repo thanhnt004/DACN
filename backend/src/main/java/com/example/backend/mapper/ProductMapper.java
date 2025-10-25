@@ -15,8 +15,8 @@ public interface ProductMapper {
     @Mapping(target = "images",ignore = true)
     @Mapping(target = "categories",ignore = true)
     @Mapping(target = "variants",ignore = true)
+    @Mapping(target = "options",ignore = true)
     ProductDetailResponse toDto(Product product);
-
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "images",ignore = true)

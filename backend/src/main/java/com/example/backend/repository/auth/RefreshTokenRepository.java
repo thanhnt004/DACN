@@ -1,4 +1,4 @@
-package com.example.backend.repository;
+package com.example.backend.repository.auth;
 
 import com.example.backend.model.RefreshToken;
 import com.example.backend.model.User;

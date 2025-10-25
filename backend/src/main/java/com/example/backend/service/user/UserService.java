@@ -1,7 +1,7 @@
 package com.example.backend.service.user;
 
 import com.example.backend.dto.response.user.UserAuthenDTO;
-import com.example.backend.repository.UserRepository;
+import com.example.backend.repository.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
