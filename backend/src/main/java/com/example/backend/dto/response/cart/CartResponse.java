@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -14,9 +15,8 @@ import java.util.UUID;
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class CartResponse {
     private UUID id;
-    private UUID cartToken;
-    private Cart.CartStatus status;
-    private CartItemResponse cartItem;
+    private List<CartItemResponse> items;
+    private Cart.CartStatus cartStatus;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

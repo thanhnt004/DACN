@@ -9,7 +9,9 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import javax.swing.text.html.Option;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ProductVariantRepository extends JpaRepository<ProductVariant, UUID> {
@@ -33,11 +35,23 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
         join v.product p
         join v.color c
         where p.id in :productIds
-        group by c.hexCode
+        group by c.id, c.name, c.hexCode
          """)
     List<ColorDto> getColorsByProductId(UUID productId);
     @Query("""
-    
+     select new com.example.backend.dto.response.catalog.SizeDto(
+            s.id,
+            s.code,
+            s.name
+        )
+        from ProductVariant v
+        join v.product p
+        join v.size s
+        where p.id in :productIds
+        group by s.id, s.code, s.name
 """)
     List<SizeDto> getSizesByProductId(UUID productId);
+
+    @Query("SELECT v.priceAmount FROM ProductVariant v WHERE v.id = :variantId")
+    Optional<Integer> getPriceById(UUID variantId);
 }

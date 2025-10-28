@@ -9,10 +9,16 @@ import java.util.UUID;
 @Builder
 public class CartItemResponse {
     private UUID id;
-    private int quantity;
-    private long unitPriceAmount;
+    private UUID productId;
     private String productName;
-    private CartItemResponse items;
-    private boolean isInStock;
+    private UUID variantId;
+    private String variantName;
     private String imageUrl;
+
+    private int quantity;
+    private int stockQuantity;
+
+    private long unitPriceAmount;
+    private boolean isInStock;
+
 }

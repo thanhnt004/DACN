@@ -1,5 +1,6 @@
 package com.example.backend.model.product;
 
+import com.example.backend.model.discount.Discount;
 import jakarta.persistence.*;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.ForeignKey;
@@ -88,7 +89,13 @@ public class Product {
             inverseJoinColumns = @JoinColumn(name = "category_id")
     )
     private List<Category> categories ;
-
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "discount_products",
+            joinColumns = @JoinColumn(name = "product_id"),
+            inverseJoinColumns = @JoinColumn(name = "discount_id")
+    )
+    private List<Discount> discounts ;
 
     private UUID brandId;
 

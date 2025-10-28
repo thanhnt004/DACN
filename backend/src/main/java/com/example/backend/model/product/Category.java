@@ -1,5 +1,6 @@
 package com.example.backend.model.product;
 
+import com.example.backend.model.discount.Discount;
 import jakarta.persistence.*;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.OrderBy;
@@ -56,4 +57,11 @@ public class Category {
 
     @ManyToMany(mappedBy = "categories", fetch = FetchType.LAZY)
     private List<Product> products;
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "discount_categories",
+            joinColumns = @JoinColumn(name = "category_id"),
+            inverseJoinColumns = @JoinColumn(name = "discount_id")
+    )
+    private List<Discount> discounts ;
 }
