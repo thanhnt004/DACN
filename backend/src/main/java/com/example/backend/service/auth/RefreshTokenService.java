@@ -52,6 +52,7 @@ public class RefreshTokenService {
     }
     public String rotateToken(RefreshToken refreshToken)
     {
+
         refreshToken.markRotated();
         refreshTokenRepository.save(refreshToken);
         return createToken(refreshToken.getUser());

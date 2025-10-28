@@ -24,7 +24,6 @@ import java.util.UUID;
 @Slf4j
 public class UserProfileController {
     private final UserManagerService userManagerService;
-    private final UserDetailService userDetailService;
 
     @GetMapping
     @PreAuthorize(value = "hasRole('CUSTOMER')")
