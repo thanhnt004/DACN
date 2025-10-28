@@ -1,5 +1,6 @@
 package com.example.backend.model.order;
 
+import com.example.backend.model.ShipmentItem;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

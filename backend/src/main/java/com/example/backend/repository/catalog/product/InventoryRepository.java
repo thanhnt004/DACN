@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,8 +22,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
      */
     @Modifying
     @Query("UPDATE Inventory i SET i.quantityReserved = i.quantityReserved + :quantity " +
-            "WHERE i.id = :variantId")
+            "WHERE i.id =:variantId")
     void reserveStock(@Param("variantId") UUID variantId, @Param("quantity") int quantity);
 
-    List<Inventory> findAllById(List<UUID> variantIds, LockModeType lockModeType);
 }

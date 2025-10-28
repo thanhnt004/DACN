@@ -17,8 +17,6 @@ public interface CartMapper {
 
     @Mapping(target = "items", source = "items")
     @Mapping(target = "cartStatus", source = "status")
-    @Mapping(target = "createdAt", expression = "java(toLocalDateTime(cart.getCreatedAt()))")
-    @Mapping(target = "updatedAt", expression = "java(toLocalDateTime(cart.getUpdatedAt()))")
     CartResponse toDto(Cart cart);
 
     default LocalDateTime toLocalDateTime(Instant instant) {

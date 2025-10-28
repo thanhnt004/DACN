@@ -12,6 +12,9 @@ app:
             VERIFY_EMAIL: 86400
     oauth2:
         provider: google,facebook
+    cookie:
+        domain: ${COOKIE_DOMAIN:localhost}
+        secure: ${COOKIE_SECURE:false}
 cloudinary:
     api-key: ${CLOUDINARY_API_KEY}
     api-secret: ${CLOUDINARY_API_SECRET}
@@ -137,3 +140,18 @@ upload:
             folder-pattern: products/%s/images
             max-size: 10000000
             transformations: c_limit,w_1200
+payment:
+    vnPay:
+        url: ${PAY_URL}
+        tmnCode: ${TMN_CODE}
+        secretKey: ${SECRET_KEY}
+        returnUrl: ${FRONTEND_URL}/payment_return?gateway=vnpay
+        version: ${VERSION}
+        command: ${COMMAND}
+        orderType: ${ORDER_TYPE}
+        max_time: ${MAX_TIME}
+
+# Login/Token config
+# Expiration for refresh tokens in seconds (default 14 days)
+REFRESH_TOKEN_EXPIRATION: ${REFRESH_TOKEN_EXPIRATION:1209600}
+

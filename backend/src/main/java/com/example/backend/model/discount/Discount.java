@@ -34,7 +34,8 @@ public class Discount {
     private String description;
 
     @Column(name = "type", nullable = false)
-    private String type;
+    @Enumerated(EnumType.STRING)
+    private DiscountType type;
 
     @Column(name = "value", nullable = false)
     private Integer value;
@@ -69,4 +70,8 @@ public class Discount {
     private List<Product> products;
     @ManyToMany(mappedBy = "discounts", fetch = FetchType.LAZY)
     private List<Category> categories ;
+    public enum DiscountType{
+        PERCENTAGE,
+        FIXED_AMOUNT
+    }
 }

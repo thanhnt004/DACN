@@ -97,6 +97,7 @@ public class AuthService {
         return LoginResponse.builder()
                 .accessToken(accessToken)
                 .expiresIn(accessTokenExpiration)
+                .isAdmin(currentUser.getRole().equals(Role.ADMIN))
                 .build();
     }
     @Transactional

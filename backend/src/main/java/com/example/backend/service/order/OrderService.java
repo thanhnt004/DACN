@@ -3,6 +3,7 @@ package com.example.backend.service.order;
 import com.example.backend.dto.request.order.DirectCheckoutRequest;
 import com.example.backend.dto.request.order.PlaceOrderRequest;
 import com.example.backend.dto.response.order.OrderConfirmationDto;
+import com.example.backend.dto.response.user.UserAddress;
 import com.example.backend.excepton.ConflictException;
 import com.example.backend.model.DiscountRedemption;
 import com.example.backend.model.User;
@@ -21,7 +22,11 @@ import com.example.backend.repository.discount.DiscountRedemptionRepository;
 import com.example.backend.repository.order.OrderItemRepository;
 import com.example.backend.repository.order.OrderRepository;
 import com.example.backend.repository.payment.PaymentRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.LockModeType;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -76,7 +81,7 @@ public class OrderService {
         return savedCart.getId();
     }
     @Transactional(isolation = Isolation.SERIALIZABLE) // Mức độ cô lập cao nhất
-    public OrderConfirmationDto placeOrder(PlaceOrderRequest dto, User user) {
+    public OrderConfirmationDto placeOrder(PlaceOrderRequest dto, User user) throws JsonProcessingException {
 
         // 1. Lấy giỏ hàng
         Cart cart = cartRepository.findById(dto.getCartId())
@@ -94,7 +99,7 @@ public class OrderService {
                 .toList();
 
         // Sử dụng PESSIMISTIC_WRITE để thực thi "SELECT ... FOR UPDATE"
-        List<Inventory> inventories = inventoryRepository.findAllById(variantIds, LockModeType.PESSIMISTIC_WRITE);
+        List<Inventory> inventories = inventoryRepository.findAllByIdInForUpdate(variantIds);
 
         // 3. Kiểm tra tồn kho (Lần 2 - Lần cuối cùng)
         for (CartItem item : cart.getItems()) {
@@ -122,8 +127,8 @@ public class OrderService {
         order.setOrderNumber(generateOrderNumber()); // (Hàm helper)
         order.setUser(user);
         order.setStatus(Order.OrderStatus.PENDING);
-
-        order.setShippingAddress(dto.getShippingAddress); // (Chuyển đổi sang JSON string nếu cần)
+        ObjectMapper mapper = new ObjectMapper();
+        order.setShippingAddress(mapper.writeValueAsString(dto.getShippingAddress())); // (Chuyển đổi sang JSON string nếu cần)
 
         order.setSubtotalAmount(subtotal);
         order.setShippingAmount(shipping);
@@ -186,5 +191,21 @@ public class OrderService {
                 payment.getStatus().name(),
                 paymentUrl
         );
+    }
+
+    private String generateOrderNumber() {
+        return "";
+    }
+
+    private Discount validateAndGetDiscount(String discountCode, long subtotal) {
+        return null;
+    }
+
+    private long getShippingFee(@NotNull @Valid UserAddress shippingAddress) {
+        return 0;
+    }
+
+    private long calculateSubtotal(Cart cart) {
+        return 0;
     }
 }

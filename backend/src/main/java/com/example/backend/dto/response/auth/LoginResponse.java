@@ -14,6 +14,7 @@ public class LoginResponse {
     private String tokenType = "Bearer"; // "Bearer"
     @Value("${ACCESS_TOKEN_EXPIRATION}")
     private Long expiresIn;
+    private boolean isAdmin = false;
     @Builder.Default
     private LocalDateTime loginAt = LocalDateTime.now();
 }
