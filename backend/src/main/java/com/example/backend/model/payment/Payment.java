@@ -30,7 +30,8 @@ public class Payment {
     private String provider;
 
     @Column(name = "status", nullable = false)
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private PaymentStatus status;
 
     @Column(name = "amount", nullable = false)
     private Long amount;
@@ -47,6 +48,10 @@ public class Payment {
     @Column(name = "error_message")
     private String errorMessage;
 
+    @Builder.Default
+    @Column(name = "expire_at")
+    private LocalDateTime expireAt = LocalDateTime.now().plusMinutes(15); // mặc định 15 phút
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -54,4 +59,10 @@ public class Payment {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+    public enum PaymentStatus {
+        PENDING,
+        AUTHORIZED,
+        CAPTURED,FAILED,
+        REFUNDED,CANCELLED
+    }
 }

@@ -1,5 +1,7 @@
 package com.example.backend.model.order;
 
+import com.example.backend.model.User;
+import com.example.backend.model.payment.Payment;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -7,6 +9,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -27,11 +30,16 @@ public class Order {
     @Column(name = "order_number", nullable = false, unique = true)
     private String orderNumber;
 
-    @Column(name = "user_id")
-    private UUID userId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id",nullable = false)
+    private User user;
+
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Payment> payments;
 
     @Column(name = "status", nullable = false)
-    private String status = "PENDING";
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status = OrderStatus.PENDING;
 
     @Column(name = "subtotal_amount", nullable = false)
     private Long subtotalAmount = 0L;
@@ -51,9 +59,6 @@ public class Order {
     // store jsonb as String for now; use custom type if you want to map to Map/POJO
     @Column(name = "shipping_address", columnDefinition = "jsonb")
     private String shippingAddress;
-
-    @Column(name = "billing_address", columnDefinition = "jsonb")
-    private String billingAddress;
 
     @Column(name = "notes")
     private String notes;
@@ -78,4 +83,21 @@ public class Order {
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
+    public enum OrderStatus{
+        PENDING,
+        PROCESSING,
+        SHIPPED,
+        DELIVERED,
+        CANCELLED,
+        REFUNDED
+    }
+    public void addItem(OrderItem item)
+    {
+        this.items.add(item);
+        item.setOrder(this);
+    }
+    public Payment getActivePayment()
+    {
+        return this.getPayments().stream().filter(pm->pm.getStatus().equals(Payment.PaymentStatus.PENDING)).toList().getFirst();
+    }
 }

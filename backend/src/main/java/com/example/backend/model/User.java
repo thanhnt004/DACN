@@ -3,6 +3,7 @@ package com.example.backend.model;
 import com.example.backend.model.cart.Cart;
 import com.example.backend.model.enumrator.Role;
 import com.example.backend.model.enumrator.UserStatus;
+import com.example.backend.model.order.Order;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -89,6 +90,8 @@ public class User {
     private List<Address> addresses;
     @OneToMany(mappedBy = "user",fetch = FetchType.LAZY,cascade = CascadeType.ALL)
     private List<Cart> carts;
+    @OneToMany(mappedBy = "user",fetch = FetchType.LAZY,cascade = CascadeType.ALL)
+    private List<Order> orders;
     public void addAddress(Address address)
     {
         List<Address> addresses = this.getAddresses();
