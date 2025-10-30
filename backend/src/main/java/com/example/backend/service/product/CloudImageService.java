@@ -29,46 +29,54 @@ public class CloudImageService {
     private final ImagePolicy imagePolicy;
     private final CloudinaryProps cloudinaryProps;
     private final Cloudinary cloudinary;
-    public ImageUploadResponse sign(ImageUploadRequest request){
+
+    public ImageUploadResponse sign(ImageUploadRequest request) {
         String type = request.getType();
         UUID targetId = request.getTargetId();
-        if (!StringUtils.hasText(type)||!imagePolicy.getType().containsKey(type))
+        if (!StringUtils.hasText(type) || !imagePolicy.getType().containsKey(type))
             throw new BadRequestException("Invalid image type");
-        if ("avatar".equals(type))
-        {
+        if ("avatar".equals(type)) {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
             if (authentication != null && authentication.getPrincipal() instanceof CustomUserDetail userDetail) {
                 UUID currentUserId = userDetail.getId();
                 if (!targetId.equals(currentUserId))
-                    throw new AuthenticationException(403,"forbidden");
+                    throw new AuthenticationException(403, "forbidden");
             } else {
-                // Handle the case where user is not authenticated or principal is not CustomUserDetail
-                throw new AuthenticationException(401,"User not properly authenticated");
+                // Handle the case where user is not authenticated or principal is not
+                // CustomUserDetail
+                throw new AuthenticationException(401, "User not properly authenticated");
             }
 
         }
         long timestamp = System.currentTimeMillis() / 1000L;
         Map<String, Object> paramsToSign = new HashMap<>();
         paramsToSign.put("timestamp", String.valueOf(timestamp));
-        String folder = String.format(imagePolicy.getType().get(type).folderPattern(),targetId != null ? targetId : "misc");
+        String folder = String.format(imagePolicy.getType().get(type).folderPattern(),
+                targetId != null ? targetId : "misc");
         paramsToSign.put("folder", folder);
+        String transformation = imagePolicy.getType().get(type).transformations();
+        log.info("Transformation: {}", transformation);
+        if (transformation != null && !transformation.isEmpty()) {
+            // key must be exactly "transformation" (singular) to match Cloudinary's expected param name
+            paramsToSign.put("transformation", transformation);
+        }
+        String signature = cloudinary.apiSignRequest(paramsToSign, cloudinaryProps.getApiSecret(), 1);
 
-        String signature = cloudinary.apiSignRequest(paramsToSign,cloudinaryProps.getApiSecret(), 1);
-
-        return ImageUploadResponse.create(cloudinaryProps,imagePolicy.getType().get(type),signature,folder);
+        return ImageUploadResponse.create(cloudinaryProps, imagePolicy.getType().get(type), signature, folder,
+                timestamp);
     }
+
     @Async
-    public void destroy(String publicId)  {
+    public void destroy(String publicId) {
         // options: version, invalidate, resource_type, type, etc.
         Map options = ObjectUtils.asMap(
-                "invalidate", true
-        );
+                "invalidate", true);
         Map result = null;
         try {
             result = cloudinary.uploader().destroy(publicId, options);
         } catch (IOException e) {
-            //fallback
+            // fallback
             log.warn("Remove image fail!");
         }
     }

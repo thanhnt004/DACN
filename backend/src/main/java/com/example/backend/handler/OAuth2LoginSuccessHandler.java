@@ -39,10 +39,14 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private final StateTokenService stateTokens;
     @Value("${app.oauth2.provider}")
     private final Set<String> providers;
+    @Value("${app.frontend.base-url}")
+    private String frontendUrl;
     private final CookieUtil cookieUtil;
+
     @Override
     @Transactional
-    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
+    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
+            Authentication authentication) {
         OAuth2User oUser = (OAuth2User) authentication.getPrincipal();
         String provider = inferProvider(request);
 
@@ -61,12 +65,12 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
             String mode = (String) claims.get("mode");
             String uid = (String) claims.get("uid");
             String prov = (String) claims.get("provider");
-            redirectOverride = Optional.ofNullable((String) claims.get("redirect")).filter(s -> !s.isBlank()).orElse(null);
+            redirectOverride = Optional.ofNullable((String) claims.get("redirect")).filter(s -> !s.isBlank())
+                    .orElse(null);
             if ("link".equals(mode) && provider.equals(prov)) {
                 UUID linkUserId = UUID.fromString(uid);
                 User targetUser = users.findById(linkUserId).orElseThrow(
-                        ()->new AuthenticationException(401,"Not found user!")
-                );
+                        () -> new AuthenticationException(401, "Not found user!"));
                 // Thực hiện liên kết/idempotent
                 oauthService.link(targetUser.getId(), provider, providerUserId, email, name);
                 issueCookieAndRedirect(response, provider, targetUser, redirectOverride);
@@ -79,10 +83,9 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         User user;
         if (byLink.isPresent()) {
             user = users.findById(byLink.get().getUserId()).orElseThrow(
-                    ()->new AuthenticationException(401,"User not found")
-            );
+                    () -> new AuthenticationException(401, "User not found"));
         } else {
-            //cập nhật user theo email hoặc tạo mới
+            // cập nhật user theo email hoặc tạo mới
             if (email != null && !email.isBlank()) {
                 user = users.findByEmailIgnoreCase(email).orElseGet(() -> User.builder()
                         .email(email)
@@ -108,43 +111,53 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         issueCookieAndRedirect(response, provider, user, redirectOverride);
     }
 
-    private void issueCookieAndRedirect(HttpServletResponse response, String provider, User user, String redirectOverride) {
+    private void issueCookieAndRedirect(HttpServletResponse response, String provider, User user,
+            String redirectOverride) {
         String rawRefresh = refreshTokenService.createToken(user);
         Cookie cookie = cookieUtil.createRefreshTokenCookie(rawRefresh);
         response.addCookie(cookie);
 
-        String url = redirectOverride
-                + "?provider=" + URLEncoder.encode(provider, StandardCharsets.UTF_8);
+        // Use redirectOverride if provided, otherwise default to frontend login page
+        String baseUrl = (redirectOverride != null && !redirectOverride.isBlank())
+                ? redirectOverride
+                : frontendUrl + "/login";
+
+        String url = baseUrl + "?provider=" + URLEncoder.encode(provider, StandardCharsets.UTF_8);
+
         try {
-            if(redirectOverride != null && !redirectOverride.isBlank())
-                response.sendRedirect(url);
+            response.sendRedirect(url);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     private String inferProvider(HttpServletRequest request) {
-        String registrationId = (String) request.getAttribute("org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter.CLIENT_REGISTRATION_ID");
-        if (registrationId != null) return registrationId;
+        String registrationId = (String) request.getAttribute(
+                "org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter.CLIENT_REGISTRATION_ID");
+        if (registrationId != null)
+            return registrationId;
         String uri = request.getRequestURI();
-        for(String provider:providers)
-        {
-            if (uri.contains(provider)) return provider;
+        for (String provider : providers) {
+            if (uri.contains(provider))
+                return provider;
         }
         return "oauth2";
     }
 
     private Optional<Cookie> readCookie(HttpServletRequest req, String name) {
-        if (req.getCookies() == null) return Optional.empty();
+        if (req.getCookies() == null)
+            return Optional.empty();
         for (Cookie c : req.getCookies()) {
-            if (name.equals(c.getName())) return Optional.of(c);
+            if (name.equals(c.getName()))
+                return Optional.of(c);
         }
         return Optional.empty();
     }
 
     private String extractProviderUserId(OAuth2User user, String provider) {
         Object id = user.getName();
-        if (id != null) return id.toString();
+        if (id != null)
+            return id.toString();
         throw new IllegalStateException("Cannot get user id from provider! " + provider);
     }
 
@@ -155,8 +168,9 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
     private String extractName(OAuth2User user, String provider) {
         Object name = user.getAttributes().get("name");
-        if (name != null) return name.toString();
-        //fallback for google
+        if (name != null)
+            return name.toString();
+        // fallback for google
         if ("google".equals(provider)) {
             Object given = user.getAttributes().get("given_name");
             Object family = user.getAttributes().get("family_name");

@@ -28,7 +28,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@SQLDelete(sql = "UPDATE product_variants SET deleted_at = now() WHERE id = ?")
+@SQLDelete(sql = "UPDATE product_variants SET deleted_at = now() WHERE id = ? and version = ?")
 @Where(clause = "deleted_at IS NULL")
 @DynamicUpdate
 public class ProductVariant {

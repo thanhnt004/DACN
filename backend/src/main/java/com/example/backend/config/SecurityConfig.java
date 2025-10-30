@@ -71,14 +71,6 @@ public class SecurityConfig {
                                         "/configuration/ui",
                                         "/configuration/security")
                                 .permitAll()
-                                .requestMatchers("/api/v1/me/**",
-                                        "/api/v1/me",
-                                        "/api/v1/products/**",
-                                        "/api/v1/categories/**",
-                                        "/api/v1/brands/**",
-                                        "/api/v1/cart/**",
-                                        "/api/v1/orders/**")
-                                .authenticated()
                                 .anyRequest().permitAll())
 
                 .oauth2Login(o -> o.successHandler(successHandler));
@@ -100,7 +92,7 @@ public class SecurityConfig {
         // Allow your frontend during development; adjust in prod
         cfg.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000", "${FRONTEND_URL}"));
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
+            cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With","X-Cart-ID"));
         cfg.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cfg);

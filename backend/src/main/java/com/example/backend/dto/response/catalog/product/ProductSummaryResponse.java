@@ -1,6 +1,7 @@
 package com.example.backend.dto.response.catalog.product;
 
 import com.example.backend.model.product.Gender;
+import com.example.backend.model.product.ProductStatus;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -17,6 +18,7 @@ public class ProductSummaryResponse {
     private double ratingAvg;
     private String imageUrl;
     private String name;
+    private ProductStatus status;
     private String gender;
     private long priceAmount;
     public ProductSummaryResponse(UUID id, String imageUrl, String name, Gender gender, Long priceAmount) {

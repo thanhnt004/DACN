@@ -19,11 +19,19 @@ public class ImageUploadResponse {
     private long maxSize;
     private List<String> allowedFormat;
     private String transformations;
-    public static ImageUploadResponse create(CloudinaryProps cloudinaryConfig, UploadConfig uploadConfig, String signature, String folder)
-    {
-        long timestamp = System.currentTimeMillis();
-        return new ImageUploadResponse(cloudinaryConfig.getCloudName(), cloudinaryConfig.getApiKey(), cloudinaryConfig.getUploadUrl(),
-                timestamp,signature,folder
-                ,uploadConfig.maxSize(),uploadConfig.allowedFormats(),uploadConfig.transformations());
+
+    public static ImageUploadResponse create(CloudinaryProps cloudinaryConfig, UploadConfig uploadConfig,
+            String signature, String folder, long timestamp) {
+        long safeTimestamp = timestamp > 0 ? timestamp : System.currentTimeMillis() / 1000L;
+        return new ImageUploadResponse(
+                cloudinaryConfig.getCloudName(),
+                cloudinaryConfig.getApiKey(),
+                cloudinaryConfig.getUploadUrl(),
+                safeTimestamp,
+                signature,
+                folder,
+                uploadConfig.maxSize(),
+                uploadConfig.allowedFormats(),
+                uploadConfig.transformations());
     }
 }

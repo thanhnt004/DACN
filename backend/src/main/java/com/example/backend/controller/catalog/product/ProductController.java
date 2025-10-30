@@ -28,7 +28,7 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
     @GetMapping(value = "/{slugOrId}")
-    public ResponseEntity<ProductDetailResponse> findBySlugOrId(@PathVariable String slugOrId, @RequestParam(required = false) List<String> includes)
+    public ResponseEntity<ProductDetailResponse> findBySlugOrId(@PathVariable String slugOrId, @RequestParam(defaultValue = "") List<String> includes)
     {
         return ResponseEntity.ok(productService.findBySlugOrId(slugOrId,includes));
     }

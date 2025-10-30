@@ -28,7 +28,7 @@ public class AdminUserController {
             summary = "Get list of all users with filters and sorting"
     )
     public ResponseEntity<?> getUserList(@RequestParam(value = "role",required = false) Role role,
-                                         @RequestParam(value = "isActive", required = false) boolean isActive,
+                                         @RequestParam(value = "isActive", required = false) Boolean isActive,
                                          @PageableDefault(size = 20, page = 0)Pageable page
                                          ){
         PageResponse<UserProfileDto> response = userManagerService.getUserList(

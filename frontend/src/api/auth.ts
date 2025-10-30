@@ -8,7 +8,9 @@ export interface LoginResponse {
     accessToken: string
     tokenType: 'Bearer'
     expiresIn: number
+    isAdmin: boolean
     loginAt: string
+    requireEmailVerification: boolean
 }
 
 export interface RegisterRequest {
@@ -46,4 +48,29 @@ export const register = async (payload: RegisterRequest) => {
     return res.data
 }
 
-export default { login, logout, refresh, register }
+export interface VerifyEmailRequest {
+    token: string
+}
+
+export interface VerifyEmailResponse {
+    status: 'verified' | 'already_verified'
+    userId?: string
+    email?: string
+    verifiedAt?: string
+}
+
+export const verifyEmail = async (payload: VerifyEmailRequest) => {
+    const res = await basicApi.post<VerifyEmailResponse>('/api/v1/auth/verify-email', payload)
+    return res.data
+}
+
+export interface ResendVerificationRequest {
+    email: string
+}
+
+export const resendVerification = async (payload: ResendVerificationRequest) => {
+    const res = await basicApi.post('/api/v1/auth/verify-email/resend', payload)
+    return res.data
+}
+
+export default { login, logout, refresh, register, verifyEmail, resendVerification }

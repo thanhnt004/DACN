@@ -29,7 +29,6 @@ public class User {
 
     @Id
     @GeneratedValue
-    @UuidGenerator
     private UUID id;
 
     @Column(nullable = false, length = 255)
@@ -96,6 +95,7 @@ public class User {
     {
         List<Address> addresses = this.getAddresses();
         addresses.add(address);
+        address.setUser(this);
     }
     public enum Gender{
         M,F,O
@@ -103,6 +103,10 @@ public class User {
     public boolean isDisable()
     {
         return this.status.equals(UserStatus.DISABLED);
+    }
+    public boolean isActive()
+    {
+        return this.status.equals(UserStatus.ACTIVE);
     }
     public boolean isLocked()
     {

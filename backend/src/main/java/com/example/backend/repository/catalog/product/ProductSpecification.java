@@ -8,11 +8,17 @@ import java.util.List;
 import java.util.UUID;
 
 public final class ProductSpecification {
-
+    public static Specification<Product> hasStatus(ProductStatus status){
+        return (r,cq,cb)->status == null? null: cb.equal(r.get(Product_.status),status);
+    }
+    public static Specification<Product> hasGender(Gender gender) {
+        return (root, query, builder) -> gender == null? null
+                : builder.equal(root.get(Product_.gender), gender);
+    }
     // Lọc theo UUID trực tiếp trên Product
     public static Specification<Product> hasBrand(UUID brandId) {
         return (root, query, builder) -> brandId == null? null
-                : builder.equal(root.get(Product_.brandId), brandId);
+                : builder.equal(root.get(Product_.brand), brandId);
     }
     // Lọc theo Khoảng giá (Price Range)
     public static Specification<Product> hasMinPrice(Long minPriceAmount) {

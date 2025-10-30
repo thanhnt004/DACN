@@ -15,6 +15,7 @@ public class ProductUpdateRequest {
     private String name;
     private String slug;
     private UUID brandId;
+    private List<UUID> categoryId;
     private String description;
     private String material;
     @Positive

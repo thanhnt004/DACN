@@ -37,12 +37,14 @@ public class BrandDto {
     private LocalDateTime updatedAt;
 
     private LocalDateTime deletedAt;
-    public BrandDto(UUID id,String name,String slug, String description,Integer productsCount)
+    public BrandDto(UUID id,String name,String slug, String description,Integer productsCount,LocalDateTime createdAt,LocalDateTime updatedAt)
     {
         this.id = id;
         this.name = name;
         this.slug = slug;
         this.description = description;
         this.productsCount = productsCount;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
     }
 }

@@ -40,43 +40,10 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final CartMapper cartMapper;
     private final AuthenUtil authenUtil;
-    private UUID createGuessCart(HttpServletResponse response) {
-        Cart cart = Cart.builder().build();
-        cart = cartRepository.save(cart);
-        response.addHeader("X-Cart-ID", cart.getId().toString());
-        return cart.getId();
-    }
 
-    public UUID createUserCart(CustomUserDetail userDetail) {
-        User user = userRepository.getReferenceById(userDetail.getId());
-        Cart cart = Cart.builder().build();
-        List<Cart> userCarts = cartRepository.findByUserId(user.getId());
-        if (!userCarts.isEmpty()) {
-            userCarts.forEach(
-                    existingCart -> {
-                        if (existingCart.getStatus() == Cart.CartStatus.ACTIVE) {
-                            throw new ConflictException("User already has an active cart");
-                        }
-                    }
-            );
-        }
-        cart.setUser(user);
-        cart = cartRepository.save(cart);
-        return cart.getId();
-    }
-
-    public UUID createCart(HttpServletResponse response) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication!= null && authentication.isAuthenticated() && authentication.getPrincipal() instanceof CustomUserDetail userDetail) {
-            return createUserCart(userDetail);
-        } else {
-            return createGuessCart(response);
-        }
-    }
-
-    public CartResponse getCart(Optional<UUID> guestCartId) {
+    public CartResponse getOrCreateCart(Optional<UUID> guestCartId) {
         Optional<User> user = authenUtil.getAuthenUser();
-        Cart cart  =findActiveCartOrThrow(user,guestCartId);
+        Cart cart  = findOrCreateActiveCart(user, guestCartId);
         return cartMapper.toDto(cart);
     }
 

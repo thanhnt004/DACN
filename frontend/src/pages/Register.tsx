@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as AuthApi from '../api/auth'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { SiFacebook, SiGoogle } from 'react-icons/si'
 
 const phoneRegex = /^(\+84|0)[1-9]\d{8,9}$/
 const schema = z.object({
@@ -43,8 +44,17 @@ export default function Register() {
         try {
             const res = await AuthApi.register(data)
             setServerMsg(res.message)
-            // After register, backend requires email verification. Navigate to login.
-            setTimeout(() => navigate('/login', { replace: true }), 800)
+
+            // Show message that email verification is required
+            if (res.emailVerificationRequired) {
+                setServerMsg('Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản.')
+                setTimeout(() => navigate('/resend-verification', {
+                    replace: true,
+                    state: { email: data.email }
+                }), 2000)
+            } else {
+                setTimeout(() => navigate('/login', { replace: true }), 800)
+            }
         } catch (e) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const err = e as any
@@ -52,12 +62,26 @@ export default function Register() {
         }
     }
 
+    const handleOAuthLogin = (provider: 'google' | 'facebook') => {
+        // Redirect đến backend OAuth endpoint
+        const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8089'
+        window.location.href = `${backendUrl}/oauth2/authorization/${provider}`
+    }
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
             <form onSubmit={handleSubmit(onSubmit)} className="w-full max-w-md bg-white shadow rounded p-6 space-y-4">
                 <h1 className="text-xl font-semibold text-center">Tạo tài khoản</h1>
-                {serverErr && <div className="text-red-600 text-sm">{serverErr}</div>}
-                {serverMsg && <div className="text-green-600 text-sm">{serverMsg}</div>}
+                {serverErr && (
+                    <div className="bg-red-50 border border-red-200 rounded p-3">
+                        <p className="text-red-600 text-sm">{serverErr}</p>
+                    </div>
+                )}
+                {serverMsg && (
+                    <div className="bg-green-50 border border-green-200 rounded p-3">
+                        <p className="text-green-600 text-sm">{serverMsg}</p>
+                    </div>
+                )}
 
                 <div>
                     <label className="block text-sm font-medium mb-1">Email</label>
@@ -91,6 +115,36 @@ export default function Register() {
                 >
                     {isSubmitting ? 'Đang tạo tài khoản…' : 'Đăng ký'}
                 </button>
+
+                {/* OAuth Divider */}
+                <div className="relative w-full flex items-center justify-center my-4">
+                    <div className="flex-grow h-[1px] bg-gray-300"></div>
+                    <span className="mx-4 text-sm text-gray-500 flex-shrink">
+                        Hoặc đăng ký bằng
+                    </span>
+                    <div className="flex-grow h-[1px] bg-gray-300"></div>
+                </div>
+
+                {/* OAuth Buttons */}
+                <div className="grid grid-cols-2 gap-3">
+                    <button
+                        type="button"
+                        onClick={() => handleOAuthLogin('google')}
+                        className="flex items-center justify-center gap-2 p-3 border border-gray-300 rounded-md hover:bg-gray-50 transition"
+                    >
+                        <SiGoogle className="text-blue-600 text-lg" />
+                        <span className="text-sm font-medium text-gray-700">Google</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleOAuthLogin('facebook')}
+                        className="flex items-center justify-center gap-2 p-3 border border-gray-300 rounded-md hover:bg-gray-50 transition"
+                    >
+                        <SiFacebook className="text-blue-600 text-lg" />
+                        <span className="text-sm font-medium text-gray-700">Facebook</span>
+                    </button>
+                </div>
+
                 <p className="text-sm text-center">
                     Đã có tài khoản? <Link className="text-blue-600" to="/login">Đăng nhập</Link>
                 </p>

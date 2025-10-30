@@ -99,7 +99,6 @@ public class EmailVerificationService {
         var token = tokenService.generateEmailVerifyToken(user.getId(), user.getEmail());
         var base = defaultFrontendBaseUrl;
         var url = base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
-
         // FE route expects /verify-email?token=...
         var encoded = URLEncoder.encode(token, StandardCharsets.UTF_8);
         return url + "/verify-email?token=" + encoded;

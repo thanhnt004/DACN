@@ -26,5 +26,5 @@ public class VariantResponse {
     private LocalDateTime deletedAt;
     private Integer version;
 
-    private InventoryResponse inventory; // optional khi include=inventory
+    private InventoryResponse inventory;
 }

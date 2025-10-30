@@ -56,7 +56,7 @@ public class AuthService {
         }
         User newUser = userMapper.toUser(request,passwordEncoder);
         newUser.setRole(Role.CUSTOMER);
-        newUser.setStatus(UserStatus.DISABLED);
+        newUser.setStatus(UserStatus.ACTIVE);
         newUser = userRepository.save(newUser);
         //send email
         emailVerificationService.sendVerificationEmailAsync(newUser.getId(), newUser.getEmail());
@@ -85,9 +85,8 @@ public class AuthService {
         SecurityContextHolder.getContext().setAuthentication(authentication);
         //get userdetails
         CustomUserDetail userDetail = (CustomUserDetail) authentication.getPrincipal();
+
         User currentUser = userRepository.findById(userDetail.getId()).orElseThrow(()->new NotFoundException("User not found!"));
-        if (currentUser.getEmailVerifiedAt()==null)
-            throw new AuthenticationException(401,"Email is not verified!");
         currentUser.setLastLoginAt(LocalDateTime.now());
         userRepository.save(currentUser);
         String accessToken = accessTokenService.generateAccessToken(currentUser);
@@ -95,6 +94,7 @@ public class AuthService {
 
         response.addCookie(cookieUtil.createRefreshTokenCookie(refreshToken));
         return LoginResponse.builder()
+                .requireEmailVerification(currentUser.getEmailVerifiedAt() == null)
                 .accessToken(accessToken)
                 .expiresIn(accessTokenExpiration)
                 .isAdmin(currentUser.getRole().equals(Role.ADMIN))

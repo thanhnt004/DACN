@@ -23,7 +23,7 @@ import java.util.UUID;
 public class CategoryController {
     private final CategoryService categoryService;
     @GetMapping("/{slugOrId}")
-    public ResponseEntity<CategoryResponse> getById(@PathVariable String slugOrId)
+    public ResponseEntity<CategoryResponse> getBySlugOrId(@PathVariable String slugOrId)
     {
         CategoryResponse categoryDto = categoryService.getBySlugOrId(slugOrId);
         return ResponseEntity.ok(categoryDto);
@@ -70,7 +70,7 @@ public class CategoryController {
     @PreAuthorize("hasRole('ADMIN') or hasRole('STAFF')")
     public ResponseEntity<String> delete(
             @PathVariable UUID id,
-            @RequestParam(required = false) Boolean force,
+            @RequestParam(defaultValue = "false") Boolean force,
             @RequestParam(required = false) UUID reassignTo
     )
     {

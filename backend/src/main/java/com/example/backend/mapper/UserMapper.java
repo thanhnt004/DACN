@@ -19,9 +19,9 @@ public interface UserMapper {
             builder.passwordHash(encoder.encode(request.getPassword()));
         }
     }
-
+    @Mapping(target = "isActive", expression = "java(currentUser.isActive())")
     UserProfileDto toUserProfile(User currentUser);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    void updateFromDto(User user,@MappingTarget UserProfileDto dto);
+    void updateFromDto(@MappingTarget User user, UserProfileDto dto);
 }

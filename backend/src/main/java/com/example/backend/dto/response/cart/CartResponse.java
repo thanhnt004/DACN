@@ -19,4 +19,6 @@ public class CartResponse {
     private Cart.CartStatus cartStatus;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    private List<String> warnings;
 }

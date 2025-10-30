@@ -17,7 +17,7 @@ import java.util.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@SQLDelete(sql = "UPDATE products SET deleted_at = now() WHERE id = ?")
+@SQLDelete(sql = "UPDATE categories SET deleted_at = now() WHERE id = ? and version = ?")
 @SQLRestriction(value = "deleted_at IS NULL")
 @Table(name = "categories")
 public class Category {
@@ -43,7 +43,8 @@ public class Category {
     private LocalDateTime updatedAt;
 
     private LocalDateTime deletedAt;
-
+    @Version
+    private Integer version;
 
     //relations
     @ManyToOne(fetch = FetchType.LAZY)

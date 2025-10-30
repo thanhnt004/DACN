@@ -11,12 +11,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = { InventoryMapper.class })
 public interface ProductVariantMapper {
     @Mapping(target = "productId",source = "productVariant.product.id")
     @Mapping(target = "sizeId",source = "productVariant.size.id")
     @Mapping(target = "colorId",source = "productVariant.color.id")
-    @Mapping(target = "inventory",ignore = true)
+    @Mapping(target = "inventory")
     VariantResponse toResponse(ProductVariant productVariant);
     List<VariantResponse> toResponse(List<ProductVariant> productVariant);
 

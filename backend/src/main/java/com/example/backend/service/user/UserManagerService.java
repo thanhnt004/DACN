@@ -10,6 +10,7 @@ import com.example.backend.mapper.AddressMapper;
 import com.example.backend.mapper.UserMapper;
 import com.example.backend.model.Address;
 import com.example.backend.model.User;
+import com.example.backend.model.User_;
 import com.example.backend.model.enumrator.Role;
 import com.example.backend.model.enumrator.UserStatus;
 import com.example.backend.repository.user.AddressRepository;
@@ -48,7 +49,7 @@ public class UserManagerService {
             if (role != null)
                 predicates.add(criteriaBuilder.equal(r.get("role"),role));
             if (isActive != null)
-                predicates.add(criteriaBuilder.equal(r.get("isActive"),isActive));
+                predicates.add(criteriaBuilder.equal(r.get(User_.STATUS),isActive? UserStatus.ACTIVE:UserStatus.DISABLED));
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
         Page<User> page = userRepository.findAll(specification,pageable);

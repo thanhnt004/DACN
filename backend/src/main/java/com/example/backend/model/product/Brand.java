@@ -36,6 +36,8 @@ public class Brand {
 
     private String description;
 
+    @OneToMany(mappedBy = "brand", fetch = FetchType.LAZY)
+    private List<Product> products;
     @CreationTimestamp
     private LocalDateTime createdAt;
 

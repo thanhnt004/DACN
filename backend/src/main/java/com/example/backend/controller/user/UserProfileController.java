@@ -26,7 +26,6 @@ public class UserProfileController {
     private final UserManagerService userManagerService;
 
     @GetMapping
-    @PreAuthorize(value = "hasRole('CUSTOMER')")
     public ResponseEntity<UserProfileDto> getUserProfile(@AuthenticationPrincipal CustomUserDetail userDetail)
     {
         Authentication a = SecurityContextHolder.getContext().getAuthentication();
@@ -35,40 +34,35 @@ public class UserProfileController {
         return ResponseEntity.ok(userManagerService.getUserProfile(userDetail));
     }
     @GetMapping(value = "/address")
-    @PreAuthorize(value = "hasRole('CUSTOMER')")
     public ResponseEntity<List<UserAddress>> getAddresses(@AuthenticationPrincipal CustomUserDetail userDetail)
     {
         return ResponseEntity.ok(userManagerService.getAddressList(userDetail));
     }
     @GetMapping(value = "/linked-account")
-    @PreAuthorize(value = "hasRole('CUSTOMER')")
+
     public ResponseEntity<List<OauthProviderResponse>> getLinkedProvider(@AuthenticationPrincipal CustomUserDetail userDetail)
     {
         return ResponseEntity.ok(userManagerService.getLinkedProvider(userDetail));
     }
     @PostMapping(value = "/address")
-    @PreAuthorize(value = "hasRole('CUSTOMER')")
     public ResponseEntity<?> addNewAddress(@AuthenticationPrincipal CustomUserDetail userDetail,@RequestBody UserAddress address)
     {
         userManagerService.addAddress(userDetail,address);
         return ResponseEntity.noContent().build();
     }
     @PutMapping
-    @PreAuthorize(value = "hasRole('CUSTOMER')")
     public ResponseEntity<?> updateProfile(@AuthenticationPrincipal CustomUserDetail userDetail,@RequestBody UserProfileDto dto)
     {
         userManagerService.updateProfile(userDetail,dto);
         return ResponseEntity.noContent().build();
     }
     @PutMapping(value = "/addresses/{addressId}")
-    @PreAuthorize(value = "hasRole('CUSTOMER')")
     public ResponseEntity<?> updateAddress( @RequestBody UserAddress dto, @PathVariable("addressId")UUID addressId)
     {
         userManagerService.updateAddress(dto,addressId);
         return ResponseEntity.noContent().build();
     }
     @DeleteMapping(value = "/addresses/{addressId}")
-    @PreAuthorize(value = "hasRole('CUSTOMER')")
     public ResponseEntity<?> deleteAddress(@PathVariable("addressId")UUID addressId)
     {
         userManagerService.deleteAddress(addressId);

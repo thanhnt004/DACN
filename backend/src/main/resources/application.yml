@@ -1,6 +1,6 @@
 app:
     frontend:
-        base-url: ${FRONTEND_URL};
+        base-url: ${FRONTEND_URL}
     jwt:
         alg: HS512
         issuer: 'NULL'

@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 @Builder
 @Entity
-@SQLDelete(sql = "UPDATE products SET deleted_at = now() WHERE id = ?")
+@SQLDelete(sql = "UPDATE products SET deleted_at = now() WHERE id = ? and version = ?")
 @SQLRestriction(value = "deleted_at IS NULL")
 @Table(name = "products")
 public class Product {
@@ -97,8 +97,11 @@ public class Product {
     )
     private List<Discount> discounts ;
 
-    private UUID brandId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "brand_id", insertable = false, updatable = false,
+            foreignKey = @ForeignKey(name = "products_brand_id_fkey"))
+    private Brand brand;
     // Images
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("position ASC, createdAt ASC")
@@ -134,10 +137,19 @@ public class Product {
         img.setProduct(this);
     }
     public void removeImage(ProductImage img) {
-        if (img.isDefault())
-
+        if (img.isDefault()) {
+            this.primaryImageUrl = null;
+            if (images.size() > 1) {
+                for (ProductImage productImage : images) {
+                    if (productImage.getId()==null||!productImage.getId().equals(img.getId())) {
+                        productImage.setDefault(true);
+                        this.primaryImageUrl = productImage.getImageUrl();
+                        break;
+                    }
+                }
+            }
+        }
         images.remove(img);
-        img.setProduct(null);
     }
 
     public void syncImage(List<ProductImage> images) {

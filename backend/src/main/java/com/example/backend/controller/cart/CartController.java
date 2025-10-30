@@ -2,6 +2,7 @@ package com.example.backend.controller.cart;
 
 import com.example.backend.dto.request.cart.CartItemRequest;
 import com.example.backend.dto.request.cart.UpdateCartItemVariantRequest;
+import com.example.backend.dto.request.order.DirectCheckoutRequest;
 import com.example.backend.dto.response.cart.CartResponse;
 import com.example.backend.service.cart.CartService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -19,13 +20,6 @@ import java.util.UUID;
 @RequestMapping(value = "/api/v1/carts")
 public class CartController {
     private final CartService cartService;
-    @PostMapping
-    public ResponseEntity<?> createCart(HttpServletResponse response)
-    {
-        UUID cardId = cartService.createCart(response);
-        URI location = URI.create("/api/v1/carts/%s".formatted(cardId));
-        return ResponseEntity.created(location).build();
-    }
     @PostMapping("/merge")
     public ResponseEntity<CartResponse> mergeCart(
             @RequestHeader(name = "X-Cart-ID", required = false) UUID guestCartId
@@ -34,10 +28,10 @@ public class CartController {
         return ResponseEntity.ok(mergedCart);
     }
     @GetMapping
-    public ResponseEntity<CartResponse> getCart(@RequestHeader(name = "X-Cart-ID", required = false) UUID guestCartId)
+    public ResponseEntity<CartResponse> getOrCreate(@RequestHeader(name = "X-Cart-ID", required = false) UUID guestCartId)
     {
         Optional<UUID> cartIdOptional = Optional.ofNullable(guestCartId);
-        CartResponse cartResponse=cartService.getCart(cartIdOptional);
+        CartResponse cartResponse=cartService.getOrCreateCart(cartIdOptional);
         return ResponseEntity.ok(cartResponse);
     }
     @PostMapping(value = "/items")

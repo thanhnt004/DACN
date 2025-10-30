@@ -22,7 +22,7 @@ public class DiscountCreateRequest {
     @Size(max = 255)
     String name;
     String description;
-    @NotBlank
+    @NotNull
     Discount.DiscountType type; // "PERCENTAGE", "FIXED_AMOUNT"
     @NotNull
     @Min(1)

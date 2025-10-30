@@ -40,6 +40,13 @@ public class ProductVariantController {
         URI location = new URI("/api/v1/admin/products/"+response.getProductId()+"/variants/"+response.getId());
         return ResponseEntity.created(location).body(response);
     }
+    @PostMapping("/{productId}/variants/bulk")
+    public ResponseEntity<List<VariantResponse>> addListVariant(@PathVariable UUID productId,
+                                                            @Valid @RequestBody List<VariantCreateRequest> request
+    ){
+        List<VariantResponse> response = productVariantService.addVariants(request,productId);
+        return ResponseEntity.ok(response);
+    }
     @PutMapping("/{productId}/variants/{variantId}")
     public ResponseEntity<VariantResponse> update(@PathVariable UUID productId,
                                                   @PathVariable UUID variantId,

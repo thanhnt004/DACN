@@ -43,7 +43,7 @@ public class ProductVariantService {
     public VariantResponse addVariant(VariantCreateRequest request,UUID productId)
     {
         validateSku(request.getSku());
-        validateExist(request.getColorId(),request.getSizeId());
+        validateExist(request.getColorId(),request.getSizeId(),productId);
 
         //get product
         Product product = productRepository.findById(productId).orElseThrow(()->new NotFoundException("Product not found!"));
@@ -72,14 +72,17 @@ public class ProductVariantService {
         response.setInventory(inventoryResponse);
         return response;
     }
-
+    public List<VariantResponse> addVariants(List<VariantCreateRequest> request,UUID productId)
+    {
+      return  request.stream().map(request1 -> addVariant(request1, productId)).toList();
+    }
     private void validateSku(String sku)
     {
         if (productVariantRepository.existsBySkuIgnoreCase(sku))
             throw new BadRequestException("Sku is existed!");
     }
-    private void validateExist(UUID colorId, UUID sizeId) {
-        if (productVariantRepository.existsByColor_IdAndSize_Id(colorId,sizeId))
+    private void validateExist(UUID colorId, UUID sizeId,UUID productId) {
+        if (productVariantRepository.existsByColor_IdAndSize_IdAndProductId(colorId,sizeId,productId))
             throw new BadRequestException("Variant is existed!");
     }
 

@@ -34,10 +34,10 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
         from ProductVariant v
         join v.product p
         join v.color c
-        where p.id in :productIds
+        where p.id = :productId
         group by c.id, c.name, c.hexCode
          """)
-    List<ColorDto> getColorsByProductId(UUID productId);
+    List<ColorDto> getColorsByProductId(@Param("productId") UUID productId);
     @Query("""
      select new com.example.backend.dto.response.catalog.SizeDto(
             s.id,
@@ -47,11 +47,13 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
         from ProductVariant v
         join v.product p
         join v.size s
-        where p.id in :productIds
+        where p.id = :productId
         group by s.id, s.code, s.name
 """)
-    List<SizeDto> getSizesByProductId(UUID productId);
+    List<SizeDto> getSizesByProductId(@Param("productId") UUID productId);
 
     @Query("SELECT v.priceAmount FROM ProductVariant v WHERE v.id = :variantId")
     Optional<Integer> getPriceById(UUID variantId);
+
+    boolean existsByColor_IdAndSize_IdAndProductId(UUID colorId, UUID sizeId,UUID productId);
 }

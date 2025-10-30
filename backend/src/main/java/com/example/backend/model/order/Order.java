@@ -1,5 +1,6 @@
 package com.example.backend.model.order;
 
+import com.example.backend.model.DiscountRedemption;
 import com.example.backend.model.User;
 import com.example.backend.model.payment.Payment;
 import jakarta.persistence.*;
@@ -83,6 +84,9 @@ public class Order {
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
+    @OneToMany(mappedBy = "order",cascade = CascadeType.PERSIST)
+    private List<DiscountRedemption> discountRedemptions;
+
     public enum OrderStatus{
         PENDING,
         PROCESSING,

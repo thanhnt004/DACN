@@ -2,6 +2,7 @@ package com.example.backend.service.order;
 
 import com.example.backend.dto.request.order.DirectCheckoutRequest;
 import com.example.backend.dto.request.order.PlaceOrderRequest;
+import com.example.backend.dto.response.order.CheckoutResponse;
 import com.example.backend.dto.response.order.OrderConfirmationDto;
 import com.example.backend.dto.response.user.UserAddress;
 import com.example.backend.excepton.ConflictException;
@@ -22,17 +23,19 @@ import com.example.backend.repository.discount.DiscountRedemptionRepository;
 import com.example.backend.repository.order.OrderItemRepository;
 import com.example.backend.repository.order.OrderRepository;
 import com.example.backend.repository.payment.PaymentRepository;
+import com.example.backend.util.AuthenUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.persistence.LockModeType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -46,40 +49,70 @@ public class OrderService {
     private final OrderItemRepository orderItemRepository;
     private final PaymentRepository paymentRepository;
     private final DiscountRedemptionRepository discountRedemptionRepository;
+
+    private final AuthenUtil authenUtil;
     @Transactional
-    public UUID prepareDirectCheckout(DirectCheckoutRequest dto, User user) {
-
-        // 1. Kiểm tra tồn kho (lần 1)
-        Inventory inventory = inventoryRepository.findById(dto.getVariantId())
-                .orElseThrow(() -> new RuntimeException("Inventory not found"));
-
-        if (dto.getQuantity() > inventory.getAvailableStock()) {
-            throw new ConflictException("Không đủ hàng");
-        }
-
-        // 2. Lấy thông tin variant
+    public CheckoutResponse directCheckOut(DirectCheckoutRequest dto) {
+        Optional<User> user =authenUtil.getAuthenUser();
         ProductVariant variant = variantRepository.findById(dto.getVariantId())
-                .orElseThrow(() -> new RuntimeException("Variant not found"));
-
-        // 3. Tạo giỏ hàng tạm thời
-        Cart tempCart = new Cart();
-        tempCart.setUser(user); // Sẽ là null nếu user là guest
-        tempCart.setStatus(Cart.CartStatus.CHECKOUT_SESSION); // Status đặc biệt
-        Cart savedCart = cartRepository.save(tempCart);
-
-        // 4. Tạo cart item
-        CartItem item = new CartItem();
-        item.setCart(savedCart);
-        item.setVariant(variant);
-        item.setQuantity(dto.getQuantity());
-        item.setUnitPriceAmount(variant.getPriceAmount()); // Lấy giá từ variant
-
-        // Thêm item vào list và lưu lại
-        savedCart.getItems().add(item);
-        cartRepository.save(savedCart);
-
-        return savedCart.getId();
+                .orElseThrow(() -> new RuntimeException("Product variant not found"));
+        Inventory inventory = variant.getInventory();
+        if (inventory.getAvailableStock() < dto.getQuantity()) {
+            throw new ConflictException("Insufficient stock for variant: " + variant.getSku());
+        }
+        //Tính giảm giá
+        long discountAmount = 0L;
+//        if (dto.getDiscountCode() != null && !dto.getDiscountCode().isEmpty()) {
+//            Discount discount = validateAndGetDiscount(dto.getDiscountCode(), variant.getPriceAmount() * dto.getQuantity());
+//            if (discount != null) {
+//                discountAmount = discount.getValue();
+//            }
+//        }
+        long shippingAmount = 0L; // Giả sử miễn phí vận chuyển
+        // Tạo đơn hàng trực tiếp (bỏ qua giỏ hàng)
+            Order order = Order.builder()
+                    .orderNumber(generateOrderNumber())
+                    .user(user.orElse(null))
+                    .status(Order.OrderStatus.PENDING)
+                    .subtotalAmount(variant.getPriceAmount() * dto.getQuantity())
+                    .shippingAmount(shippingAmount)
+                    .discountAmount(discountAmount)
+                    .totalAmount(variant.getPriceAmount() * dto.getQuantity() + shippingAmount - discountAmount)
+                    .build();
+            Order savedOrder = orderRepository.save(order);
+            // Tạo mục đơn hàng
+            OrderItem orderItem = OrderItem.builder()
+                    .order(savedOrder)
+                    .variant(variant)
+                    .quantity(dto.getQuantity())
+                    .unitPriceAmount(variant.getPriceAmount())
+                    .totalAmount(variant.getPriceAmount() * dto.getQuantity())
+                    .build();
+            orderItemRepository.save(orderItem);
+            // Cập nhật tồn kho
+            inventoryRepository.reserveStock(variant.getId(), dto.getQuantity());
+            // Tạo thanh toán
+            Payment payment = Payment.builder()
+                    .order(savedOrder)
+                    .provider(dto.getPaymentMethod())
+                    .amount(savedOrder.getTotalAmount())
+                    .status(Payment.PaymentStatus.PENDING)
+                    .build();
+            paymentRepository.save(payment);
+            return  CheckoutResponse.builder()
+                .status("SUCCESS")
+                .message("Đặt hàng thành công! Chúng tôi sẽ sớm liên hệ với bạn.")
+                .orderId(savedOrder.getId())
+                .orderNumber(savedOrder.getOrderNumber())
+                .totalAmount(savedOrder.getTotalAmount())
+                .paymentMethod("COD")
+                .paymentStatus("PENDING")
+                .orderStatus("PROCESSING")
+                .nextAction("REDIRECT_TO_SUCCESS")
+                // Không cần set paymentUrl, nó sẽ mặc định là null
+                .build();
     }
+
     @Transactional(isolation = Isolation.SERIALIZABLE) // Mức độ cô lập cao nhất
     public OrderConfirmationDto placeOrder(PlaceOrderRequest dto, User user) throws JsonProcessingException {
 
@@ -194,7 +227,13 @@ public class OrderService {
     }
 
     private String generateOrderNumber() {
-        return "";
+        String orderNumber = "";
+        do {
+            String randomPart = RandomStringUtils.randomAlphanumeric(8).toUpperCase();
+            orderNumber = "ORD-" + randomPart;
+        }while (orderRepository.existsByOrderNumber(orderNumber));
+
+        return orderNumber;
     }
 
     private Discount validateAndGetDiscount(String discountCode, long subtotal) {

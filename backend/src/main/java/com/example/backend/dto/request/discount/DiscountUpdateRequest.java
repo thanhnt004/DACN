@@ -6,9 +6,14 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Builder;
+import lombok.Data;
+import lombok.experimental.FieldDefaults;
 
 import java.time.LocalDateTime;
 
+@Data
+@Builder
+@FieldDefaults(level = lombok.AccessLevel.PRIVATE)
 public class DiscountUpdateRequest {
     @NotBlank
     @Size(max = 100)
@@ -17,7 +22,7 @@ public class DiscountUpdateRequest {
     @Size(max = 255)
     String name;
     String description;
-    @NotBlank
+    @NotNull
     Discount.DiscountType type; // "PERCENTAGE", "FIXED_AMOUNT"
     @NotNull
     @Min(1)
