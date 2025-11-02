@@ -204,9 +204,14 @@ export default function ProfilePage() {
         }
     }
 
-    const handleLinkOAuth = (provider: 'google' | 'facebook') => {
-        // Redirect to OAuth link flow
-        ProfileApi.linkOAuthAccount(provider)
+    const handleLinkOAuth = async (provider: 'google' | 'facebook') => {
+        try {
+            // Get OAuth URL from backend and redirect
+            await ProfileApi.linkOAuthAccount(provider)
+        } catch (error) {
+            console.error('Failed to initiate OAuth link:', error)
+            alert('❌ Không thể khởi tạo liên kết. Vui lòng thử lại.')
+        }
     }
 
     if (loading) {

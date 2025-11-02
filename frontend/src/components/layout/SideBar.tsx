@@ -90,7 +90,7 @@ const Sidebar: React.FC = () => {
                 </li>
                 <li>
                     <NavLink to="/admin/users" className={getNavLinkClass}>
-                        <span>Khách hàng</span>
+                        <span>Người dùng</span>
                     </NavLink>
                 </li>
                 <li>

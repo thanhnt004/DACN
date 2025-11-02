@@ -92,11 +92,14 @@ export const getOAuthAccounts = async () => {
     return res.data
 }
 
-// Link OAuth account - Redirect to OAuth flow
-export const linkOAuthAccount = (provider: 'google' | 'facebook') => {
-    const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8089'
+// Link OAuth account - Get OAuth URL from backend
+export const linkOAuthAccount = async (provider: 'google' | 'facebook') => {
     const redirectUrl = `${window.location.origin}/member/profile?linked=${provider}`
-    window.location.href = `${backendUrl}/api/v1/auth/oauth2/link/${provider}?redirect=${encodeURIComponent(redirectUrl)}`
+    const res = await api.get<{ authUrl: string }>(`/api/v1/auth/oauth2/link/${provider}`, {
+        params: { redirect: redirectUrl }
+    })
+    // Redirect to OAuth provider
+    window.location.href = res.data.authUrl
 }
 
 // Unlink OAuth account
