@@ -1,250 +1,216 @@
 package com.example.backend.service.order;
 
-import com.example.backend.dto.request.order.DirectCheckoutRequest;
-import com.example.backend.dto.request.order.PlaceOrderRequest;
-import com.example.backend.dto.response.order.CheckoutResponse;
-import com.example.backend.dto.response.order.OrderConfirmationDto;
-import com.example.backend.dto.response.user.UserAddress;
-import com.example.backend.excepton.ConflictException;
-import com.example.backend.model.DiscountRedemption;
+
+import com.example.backend.dto.response.checkout.CheckoutItemDetail;
+import com.example.backend.dto.response.checkout.CheckoutSession;
+import com.example.backend.excepton.NotFoundException;
 import com.example.backend.model.User;
-import com.example.backend.model.cart.Cart;
-import com.example.backend.model.cart.CartItem;
-import com.example.backend.model.discount.Discount;
 import com.example.backend.model.order.Order;
 import com.example.backend.model.order.OrderItem;
-import com.example.backend.model.payment.Payment;
-import com.example.backend.model.product.Inventory;
-import com.example.backend.model.product.ProductVariant;
-import com.example.backend.repository.cart.CartRepository;
-import com.example.backend.repository.catalog.product.InventoryRepository;
+import com.example.backend.repository.catalog.product.ProductRepository;
 import com.example.backend.repository.catalog.product.ProductVariantRepository;
-import com.example.backend.repository.discount.DiscountRedemptionRepository;
-import com.example.backend.repository.order.OrderItemRepository;
 import com.example.backend.repository.order.OrderRepository;
-import com.example.backend.repository.payment.PaymentRepository;
-import com.example.backend.util.AuthenUtil;
-import com.fasterxml.jackson.core.JsonProcessingException;
+import com.example.backend.repository.user.UserRepository;
+import com.example.backend.util.CookieUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.lang3.RandomStringUtils;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class OrderService {
-    private final CartRepository cartRepository;
-    private final ProductVariantRepository variantRepository;
-    private final InventoryRepository inventoryRepository;
     private final OrderRepository orderRepository;
-    private final OrderItemRepository orderItemRepository;
-    private final PaymentRepository paymentRepository;
-    private final DiscountRedemptionRepository discountRedemptionRepository;
+    private final ObjectMapper objectMapper;
+    private final UserRepository userRepository;
 
-    private final AuthenUtil authenUtil;
-    @Transactional
-    public CheckoutResponse directCheckOut(DirectCheckoutRequest dto) {
-        Optional<User> user =authenUtil.getAuthenUser();
-        ProductVariant variant = variantRepository.findById(dto.getVariantId())
-                .orElseThrow(() -> new RuntimeException("Product variant not found"));
-        Inventory inventory = variant.getInventory();
-        if (inventory.getAvailableStock() < dto.getQuantity()) {
-            throw new ConflictException("Insufficient stock for variant: " + variant.getSku());
-        }
-        //Tính giảm giá
-        long discountAmount = 0L;
-//        if (dto.getDiscountCode() != null && !dto.getDiscountCode().isEmpty()) {
-//            Discount discount = validateAndGetDiscount(dto.getDiscountCode(), variant.getPriceAmount() * dto.getQuantity());
-//            if (discount != null) {
-//                discountAmount = discount.getValue();
-//            }
-//        }
-        long shippingAmount = 0L; // Giả sử miễn phí vận chuyển
-        // Tạo đơn hàng trực tiếp (bỏ qua giỏ hàng)
-            Order order = Order.builder()
-                    .orderNumber(generateOrderNumber())
-                    .user(user.orElse(null))
-                    .status(Order.OrderStatus.PENDING)
-                    .subtotalAmount(variant.getPriceAmount() * dto.getQuantity())
-                    .shippingAmount(shippingAmount)
-                    .discountAmount(discountAmount)
-                    .totalAmount(variant.getPriceAmount() * dto.getQuantity() + shippingAmount - discountAmount)
-                    .build();
-            Order savedOrder = orderRepository.save(order);
-            // Tạo mục đơn hàng
-            OrderItem orderItem = OrderItem.builder()
-                    .order(savedOrder)
-                    .variant(variant)
-                    .quantity(dto.getQuantity())
-                    .unitPriceAmount(variant.getPriceAmount())
-                    .totalAmount(variant.getPriceAmount() * dto.getQuantity())
-                    .build();
-            orderItemRepository.save(orderItem);
-            // Cập nhật tồn kho
-            inventoryRepository.reserveStock(variant.getId(), dto.getQuantity());
-            // Tạo thanh toán
-            Payment payment = Payment.builder()
-                    .order(savedOrder)
-                    .provider(dto.getPaymentMethod())
-                    .amount(savedOrder.getTotalAmount())
-                    .status(Payment.PaymentStatus.PENDING)
-                    .build();
-            paymentRepository.save(payment);
-            return  CheckoutResponse.builder()
-                .status("SUCCESS")
-                .message("Đặt hàng thành công! Chúng tôi sẽ sớm liên hệ với bạn.")
-                .orderId(savedOrder.getId())
-                .orderNumber(savedOrder.getOrderNumber())
-                .totalAmount(savedOrder.getTotalAmount())
-                .paymentMethod("COD")
-                .paymentStatus("PENDING")
-                .orderStatus("PROCESSING")
-                .nextAction("REDIRECT_TO_SUCCESS")
-                // Không cần set paymentUrl, nó sẽ mặc định là null
-                .build();
-    }
+    private final ProductVariantRepository productVariantRepository;
+    private final ProductRepository productRepository;
 
-    @Transactional(isolation = Isolation.SERIALIZABLE) // Mức độ cô lập cao nhất
-    public OrderConfirmationDto placeOrder(PlaceOrderRequest dto, User user) throws JsonProcessingException {
-
-        // 1. Lấy giỏ hàng
-        Cart cart = cartRepository.findById(dto.getCartId())
-                .orElseThrow(() -> new RuntimeException("Cart not found"));
-
-        // (Thêm logic: Xác thực cart này thuộc về user hoặc là cart guest)
-
-        if (cart.getItems().isEmpty()) {
-            throw new RuntimeException("Giỏ hàng trống");
-        }
-
-        // 2. Lấy và KHÓA CÁC DÒNG TỒN KHO (Rất quan trọng)
-        List<UUID> variantIds = cart.getItems().stream()
-                .map(item -> item.getVariant().getId())
-                .toList();
-
-        // Sử dụng PESSIMISTIC_WRITE để thực thi "SELECT ... FOR UPDATE"
-        List<Inventory> inventories = inventoryRepository.findAllByIdInForUpdate(variantIds);
-
-        // 3. Kiểm tra tồn kho (Lần 2 - Lần cuối cùng)
-        for (CartItem item : cart.getItems()) {
-            Inventory inv = inventories.stream()
-                    .filter(i -> i.getId().equals(item.getVariant().getId()))
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Inventory data missing"));
-
-            if (item.getQuantity() > inv.getAvailableStock()) {
-                throw new ConflictException("Hết hàng cho: " + item.getVariant().getSku());
-                // Giao dịch sẽ tự động ROLLBACK
+    private final CookieUtil cookieUtil;
+    public Order createOrderFromSession(
+            CheckoutSession session,
+            HttpServletRequest httpRequest,
+            HttpServletResponse response
+    ) {
+        UUID guestId = null;
+        log.info("Creating order from session: sessionId={}, id={}",
+                session.getId(), session.getSessionToken());
+        Optional<User> userOptional = userRepository.findById(session.getUserId());
+        if (userOptional.isEmpty())
+        {
+            var guestIdCookie = cookieUtil.readCookie(httpRequest, "guest_id");
+            if (guestIdCookie.isEmpty())
+            {
+                guestId = UUID.randomUUID();
+                response.addCookie(cookieUtil.createGuestId(guestId));
+            }else {
+                guestId = UUID.fromString(guestIdCookie.get().getValue());
             }
         }
+        // 1. Generate order number
+        String orderNumber = generateOrderNumber();
 
-        // 4. Tính toán tổng tiền (Lần cuối - Server-side)
-        // (Đây là các hàm helper bạn tự viết)
-        long subtotal = calculateSubtotal(cart);
-        long shipping = getShippingFee(dto.getShippingAddress());
-        Discount validatedDiscount = validateAndGetDiscount(dto.getDiscountCode(), subtotal);
-        long discountAmount = (validatedDiscount != null) ? validatedDiscount.getValue() : 0;
-        long total = subtotal + shipping - discountAmount;
+        // 3. Tạo order
+        Order order = Order.builder()
+                .orderNumber(orderNumber)
+                .user(userOptional.orElse(null))
+                .guestId(guestId)
+                .status(Order.OrderStatus.PENDING)
+                .subtotalAmount(session.getSubtotalAmount())
+                .discountAmount(session.getDiscountAmount())
+                .shippingAmount(session.getShippingAmount())
+                .totalAmount(session.getTotalAmount())
+                .shippingAddress(session.getShippingAddress())
+                .notes(session.getNotes())
+                .placedAt(Instant.now())
+                .build();
 
-        // 5. Tạo `orders`
-        Order order = new Order();
-        order.setOrderNumber(generateOrderNumber()); // (Hàm helper)
-        order.setUser(user);
-        order.setStatus(Order.OrderStatus.PENDING);
-        ObjectMapper mapper = new ObjectMapper();
-        order.setShippingAddress(mapper.writeValueAsString(dto.getShippingAddress())); // (Chuyển đổi sang JSON string nếu cần)
+        // 4. Tạo order items
+        for (CheckoutItemDetail item : session.getItems()) {
+            OrderItem orderItem = OrderItem.builder()
+                    .product(productRepository.getReferenceById(item.getProductId()))
+                    .variant(productVariantRepository.getReferenceById(item.getVariantId()))
+                    .sku(item.getSku())
+                    .productName(item.getProductName())
+                    .variantName(item.getVariantName())
+                    .imageUrl(item.getImageUrl())
+                    .quantity(item.getQuantity())
+                    .unitPriceAmount(item.getUnitPriceAmount())
+                    .totalAmount(item.getTotalAmount())
+                    .build();
 
-        order.setSubtotalAmount(subtotal);
-        order.setShippingAmount(shipping);
-        order.setDiscountAmount(discountAmount);
-        order.setTotalAmount(total);
-
-        Order savedOrder = orderRepository.save(order);
-
-        // 6. Chuyển `cart_items` -> `order_items`
-        for (CartItem item : cart.getItems()) {
-            OrderItem orderItem = new OrderItem();
-            // ... (Copy dữ liệu từ CartItem và Variant sang OrderItem)
-            orderItem.setOrder(savedOrder);
-            orderItem.setVariant(item.getVariant());
-            orderItem.setQuantity(item.getQuantity());
-            orderItem.setUnitPriceAmount(item.getUnitPriceAmount());
-            orderItem.setTotalAmount(item.getQuantity() * item.getUnitPriceAmount());
-            orderItemRepository.save(orderItem);
+            order.addItem(orderItem);
         }
 
-        // 7. Cập nhật `inventory` (Tạo 'reserved' stock)
-        for (CartItem item : cart.getItems()) {
-            inventoryRepository.reserveStock(item.getVariant().getId(), item.getQuantity());
-            // (Bạn cũng có thể tạo 'inventory_reservations' ở đây)
-        }
+        // 5. Lưu order
+        order = orderRepository.save(order);
 
-        // 8. Ghi nhận `discount_redemptions`
-        if (validatedDiscount != null) {
-            DiscountRedemption redemption = new DiscountRedemption();
-            redemption.setDiscount(validatedDiscount);
-            redemption.setUser(user);
-            redemption.setOrder(savedOrder);
-            discountRedemptionRepository.save(redemption);
-        }
+        log.info("Order created: orderId={}, orderNumber={}",
+                order.getId(), order.getOrderNumber());
 
-        // 9. Cập nhật `carts` -> COMPLETED
-        cart.setStatus(Cart.CartStatus.CONVERTED);
-        cartRepository.save(cart);
-
-        // 10. Tạo `payments`
-        Payment payment = new Payment();
-        payment.setOrder(savedOrder);
-        payment.setProvider(dto.getPaymentMethod());
-        payment.setAmount(total);
-        payment.setStatus(Payment.PaymentStatus.PENDING);
-        paymentRepository.save(payment);
-
-        // 11. Giao dịch COMMIT tại đây
-
-        // 12. Trả về
-        String paymentUrl = null;
-        if (dto.getPaymentMethod().equals("VNPAY")) {
-            // paymentUrl = vnpayService.createPaymentUrl(savedOrder.getId(), total);
-        }
-
-        return new OrderConfirmationDto(
-                savedOrder.getId(),
-                savedOrder.getOrderNumber(),
-                savedOrder.getStatus().name(),
-                payment.getStatus().name(),
-                paymentUrl
-        );
+        return order;
+    }
+    public Page<Order> getOrdersByUserOrGuest(Optional<User> userOps,UUID guestId, String status, Pageable pageable) {
+        Specification<Order> spec = buildOrderSpecification(userOps, status, guestId);
+        return orderRepository.findAll(spec, pageable);
+    }
+    /**
+     * Get order by ID
+     */
+    @Transactional(readOnly = true)
+    public Order getOrderById(UUID orderId) {
+        return orderRepository.findById(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Không tìm thấy đơn hàng: " + orderId
+                ));
+    }
+    /**
+     * Get order by order number
+     */
+    @Transactional(readOnly = true)
+    public Order getOrderByNumber(String orderNumber) {
+        return orderRepository.findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new NotFoundException(
+                        "Không tìm thấy đơn hàng: " + orderNumber
+                ));
     }
 
+    /**
+     * Update order status
+     */
+    @Transactional
+    public void updateStatus(UUID orderId, Order.OrderStatus status) {
+        Order order = getOrderById(orderId);
+        order.setStatus(status);
+        orderRepository.save(order);
+
+        log.info("Order status updated: orderId={}, status={}", orderId, status);
+    }
+
+    /**
+     * Mark order as paid
+     */
+    @Transactional
+    public void markAsPaid(UUID orderId) {
+        Order order = getOrderById(orderId);
+        order.setPaidAt(Instant.now());
+        order.setStatus(Order.OrderStatus.CONFIRMED);
+        orderRepository.save(order);
+
+        log.info("Order marked as paid: orderId={}", orderId);
+    }
+
+    /**
+     * Generate unique order number
+     * Format: ORD-YYYYMMDD-XXXXXX
+     */
     private String generateOrderNumber() {
-        String orderNumber = "";
-        do {
-            String randomPart = RandomStringUtils.randomAlphanumeric(8).toUpperCase();
-            orderNumber = "ORD-" + randomPart;
-        }while (orderRepository.existsByOrderNumber(orderNumber));
+        String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String random = String.format("%06d", ThreadLocalRandom.current().nextInt(1000000));
+        String orderNumber = "ORD-" + date + "-" + random;
+
+        // Đảm bảo unique (retry nếu duplicate)
+        while (orderRepository.existsByOrderNumber(orderNumber)) {
+            random = String.format("%06d", ThreadLocalRandom.current().nextInt(1000000));
+            orderNumber = "ORD-" + date + "-" + random;
+        }
 
         return orderNumber;
     }
+    private Specification<Order> buildOrderSpecification(Optional<User> userOps, String status, UUID guestId) {
+        return (root, query, criteriaBuilder) -> {
+            var predicates = criteriaBuilder.conjunction();
 
-    private Discount validateAndGetDiscount(String discountCode, long subtotal) {
-        return null;
+            userOps.ifPresent(user ->
+                predicates.getExpressions().add(
+                    criteriaBuilder.equal(root.get("user"), user)
+                )
+            );
+
+            if (guestId != null) {
+                predicates.getExpressions().add(
+                    criteriaBuilder.equal(root.get("guestId"), guestId)
+                );
+            }
+
+            if (status != null && !status.isEmpty()) {
+                predicates.getExpressions().add(
+                    criteriaBuilder.equal(root.get("status"), Order.OrderStatus.valueOf(status))
+                );
+            }
+
+            return predicates;
+        };
     }
 
-    private long getShippingFee(@NotNull @Valid UserAddress shippingAddress) {
-        return 0;
-    }
+    public void mergeOrders(User user, UUID guestId) {
+        List<Order> guestOrders = orderRepository.findAll((root, query, criteriaBuilder) ->
+                criteriaBuilder.equal(root.get("guestId"), guestId)
+        );
 
-    private long calculateSubtotal(Cart cart) {
-        return 0;
+        for (Order order : guestOrders) {
+            order.setUser(user);
+            order.setGuestId(null);
+            orderRepository.save(order);
+            log.info("Merged guest order to user: orderId={}, userId={}", order.getId(), user.getId());
+        }
     }
 }

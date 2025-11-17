@@ -1,6 +1,7 @@
 package com.example.backend.dto.request.catalog.product;
 
 import com.example.backend.validate.ValidCompareAtPrice;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 
@@ -25,10 +26,12 @@ public class VariantCreateRequest {
     private Long compareAtAmount;
 
     @Positive(message = "Cân nặng (grams) phải > 0")
+    @NotNull
     private Integer weightGrams;
 
     @Pattern(regexp = "ACTIVE|DISCONTINUED")
     private String status = "ACTIVE";
 
+    @Valid
     private InventoryRequest inventory;
 }

@@ -88,6 +88,8 @@ public class ProductVariant {
     // One-to-one inventory
     @OneToOne(mappedBy = "variant", cascade = CascadeType.ALL, orphanRemoval = true)
     private Inventory inventory;
+    @OneToOne(mappedBy = "variant", cascade = CascadeType.ALL, orphanRemoval = true)
+    private ProductImage image;
     public void setInventory(Inventory inventory)
     {
         this.inventory = inventory;

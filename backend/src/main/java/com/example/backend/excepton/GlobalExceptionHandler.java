@@ -64,13 +64,4 @@ public class GlobalExceptionHandler {
                 "message", message));
     }
 
-    // Handle all other unhandled exceptions
-    @ExceptionHandler(value = Exception.class)
-    public ResponseEntity<ErrorResponse> handleGenericException(Exception e) {
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .message("Đã xảy ra lỗi: " + e.getMessage())
-                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                .build();
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-    }
 }

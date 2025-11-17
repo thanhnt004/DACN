@@ -1,5 +1,8 @@
 package com.example.backend.config;
 
+import com.example.backend.dto.response.checkout.CheckoutSession;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,6 +22,35 @@ import java.util.Map;
 
 @Configuration
 public class RedisConfig {
+    @Bean
+    public RedisTemplate<String, CheckoutSession> checkoutSessionRedisTemplate(
+            RedisConnectionFactory connectionFactory) {
+
+        RedisTemplate<String, CheckoutSession> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+
+        // Serializer cho key: String
+        StringRedisSerializer stringSerializer = new StringRedisSerializer();
+        template.setKeySerializer(stringSerializer);
+        template.setHashKeySerializer(stringSerializer);
+
+        // Serializer cho value: JSON với ObjectMapper tùy chỉnh
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.activateDefaultTyping(
+                objectMapper.getPolymorphicTypeValidator(),
+                ObjectMapper.DefaultTyping.NON_FINAL
+        );
+
+        GenericJackson2JsonRedisSerializer jsonSerializer =
+                new GenericJackson2JsonRedisSerializer(objectMapper);
+
+        template.setValueSerializer(jsonSerializer);
+        template.setHashValueSerializer(jsonSerializer);
+
+        template.afterPropertiesSet();
+    return template;
+    }
     @Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
@@ -53,6 +85,7 @@ public class RedisConfig {
         cacheConfigs.put("users", defaultCacheConfig().entryTtl(Duration.ofMinutes(30)));
         cacheConfigs.put("short-lived", defaultCacheConfig().entryTtl(Duration.ofSeconds(60)));
         cacheConfigs.put("products", defaultCacheConfig().entryTtl(Duration.ofHours(1)));
+        cacheConfigs.put("checkout:sessions", defaultCacheConfig().entryTtl(Duration.ofMinutes(60)));
 
         return RedisCacheManager.builder(RedisCacheWriter.nonLockingRedisCacheWriter(connectionFactory))
                 .cacheDefaults(defaultCacheConfig())

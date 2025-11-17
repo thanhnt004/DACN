@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -19,6 +20,7 @@ import java.util.UUID;
 public class OrderItem {
 
     @Id
+    @GeneratedValue
     @Column(name = "id", nullable = false)
     private UUID id;
 
@@ -49,16 +51,11 @@ public class OrderItem {
     @Column(name = "unit_price_amount", nullable = false)
     private Long unitPriceAmount;
 
-    @Column(name = "discount_amount", nullable = false)
-    private Long discountAmount = 0L;
-
-    @Column(name = "tax_amount", nullable = false)
-    private Long taxAmount = 0L;
-
     @Column(name = "total_amount", nullable = false)
     private Long totalAmount;
-
+    @Column(name = "image_url")
+    private String imageUrl;
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 }

@@ -1,27 +1,42 @@
 package com.example.backend.controller.order;
 
-import com.example.backend.dto.request.order.DirectCheckoutRequest;
-import com.example.backend.dto.response.order.CheckoutResponse;
+
+import com.example.backend.dto.response.checkout.OrderResponse;
+import com.example.backend.dto.response.wraper.PageResponse;
+import com.example.backend.service.facade.OrderFacadeService;
 import com.example.backend.service.order.OrderService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping(value = "/api/v1")
 public class OrderController {
-    private final OrderService orderService;
-
-    @PostMapping(value = "/checkout/direct")
-    public ResponseEntity<CheckoutResponse> checkoutDirectly(DirectCheckoutRequest request) {
-        return ResponseEntity.ok(orderService.directCheckOut(request));
-    }
+    private final OrderFacadeService orderFacadeService;
 //    @GetMapping(value = "/checkout/summary")
 //    public ResponseEntity<CheckoutResponse> summary( r) {
 //        return ResponseEntity.ok(orderService.directCheckOut(request));
 //    }
-
+    @GetMapping("/get-order-list")
+    public ResponseEntity<PageResponse<OrderResponse>> getOrderList(@RequestParam(value = "status") String status,
+                                                                    @PageableDefault(page = 0,size = 20) Pageable pageable,
+                                                                    HttpServletResponse response,
+                                                                    HttpServletRequest request
+    ) {
+    return ResponseEntity.ok(orderFacadeService.getOrderList(status,pageable,request,response));
+    }
+    @PostMapping("/merge-orders")
+    public ResponseEntity<?> mergeOrders(
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
+        orderFacadeService.mergeOrders(request,response);
+        return ResponseEntity.ok().build();
+    }
 }

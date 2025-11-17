@@ -1,4 +1,4 @@
-package com.example.backend.service.PaymentService;
+package com.example.backend.service.payment;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;

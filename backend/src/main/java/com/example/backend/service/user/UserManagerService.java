@@ -26,10 +26,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -100,7 +97,9 @@ public class UserManagerService {
         addressMapper.updateFromDto(dto,address);
         addressRepository.save(address);
     }
-
+    public Optional<Address> getDefaultAddress(User user) {
+        return addressRepository.findByUserAndIsDefaultShipping(user,true);
+    }
     public void deleteAddress(UUID addressId) {
         addressRepository.deleteById(addressId);
     }
@@ -117,4 +116,5 @@ public class UserManagerService {
         user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
     }
+
 }

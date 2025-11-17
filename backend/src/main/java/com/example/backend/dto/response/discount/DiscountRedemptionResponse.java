@@ -8,10 +8,14 @@ import java.util.UUID;
 
 @Data
 @Builder
-public class DiscountRedemptionResponse {
+public class
+DiscountRedemptionResponse {
         private UUID id;
         private UUID discountId;
         private UUID userId;
         private UUID orderId;
+        private String code;
+        private String description;
+        private Long amount;
         private LocalDateTime redeemedAt;
 }

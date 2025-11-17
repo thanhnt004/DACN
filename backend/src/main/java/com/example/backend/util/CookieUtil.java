@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
+import java.util.Optional;
+import java.util.UUID;
 
 @Component
 @Slf4j
@@ -42,19 +44,6 @@ public class CookieUtil {
         return cookie;
     }
 
-    public Cookie createExpiredRefreshTokenCookie() {
-        Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE, "");
-        cookie.setHttpOnly(true);
-        cookie.setSecure(isSecure);
-        cookie.setPath("/");
-        cookie.setMaxAge(0); // Expire immediately
-
-        if (!"localhost".equals(cookieDomain)) {
-            cookie.setDomain(cookieDomain);
-        }
-        return cookie;
-    }
-
     public String getRefreshTokenFromRequest(HttpServletRequest request) {
         if (request.getCookies() == null) {
             return null;
@@ -83,6 +72,25 @@ public class CookieUtil {
         cookie.setAttribute("SameSite", "Strict");
         return cookie;
     }
+    //Guest id
+    //OAuth state
+    public Cookie createGuestId(UUID guestId) {
+        Cookie cookie = new Cookie("guest_id", guestId.toString());
+        cookie.setHttpOnly(true);
+        cookie.setSecure(isSecure);
+        cookie.setPath("/");
+        cookie.setDomain(cookieDomain);
+        cookie.setMaxAge(2592000);
+        // Set domain if not localhost
+        if (!"localhost".equals(cookieDomain)) {
+            cookie.setDomain(cookieDomain);
+        }
+
+        // SameSite attribute (Spring Boot 2.6+)
+        cookie.setAttribute("SameSite", "Strict");
+        return cookie;
+    }
+    //Clear cookie
     public void clearCookie(HttpServletResponse response,String cookieName)
     {
         Cookie cookie = new Cookie(cookieName, "");
@@ -96,4 +104,14 @@ public class CookieUtil {
         }
         response.addCookie(cookie);
     }
+    public Optional<Cookie> readCookie(HttpServletRequest req, String name) {
+        if (req.getCookies() == null)
+            return Optional.empty();
+        for (Cookie c : req.getCookies()) {
+            if (name.equals(c.getName()))
+                return Optional.of(c);
+        }
+        return Optional.empty();
+    }
+
 }

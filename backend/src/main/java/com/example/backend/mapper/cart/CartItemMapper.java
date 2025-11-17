@@ -19,10 +19,8 @@ public interface CartItemMapper {
     @Mapping(target = "variantName", expression = "java(buildVariantName(cartItem.getVariant()))")
     @Mapping(target = "imageUrl", source = "variant.product.primaryImageUrl")
     @Mapping(target = "quantity", source = "quantity")
-    @Mapping(target = "stockQuantity", source = "variant.inventory.availableStock")
     @Mapping(target = "unitPriceAmount", source = "unitPriceAmount")
-    // isInStock tính dựa vào availableStock
-    @Mapping(target = "isInStock", expression = "java(isInStock(cartItem))")
+
     CartItemResponse toDto(CartItem cartItem);
 
     // helper default method: build variant name
@@ -43,10 +41,4 @@ public interface CartItemMapper {
         return sb.toString();
     }
 
-    default boolean isInStock(CartItem cartItem) {
-        if (cartItem == null) return false;
-        ProductVariant v = cartItem.getVariant();
-        if (v == null || v.getInventory() == null) return false;
-        return v.getInventory().getAvailableStock() > 0;
-    }
 }

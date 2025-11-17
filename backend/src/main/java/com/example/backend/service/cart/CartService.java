@@ -2,8 +2,9 @@ package com.example.backend.service.cart;
 
 import com.example.backend.dto.request.cart.CartItemRequest;
 import com.example.backend.dto.request.cart.UpdateCartItemVariantRequest;
-import com.example.backend.dto.response.auth.CustomUserDetail;
 import com.example.backend.dto.response.cart.CartResponse;
+import com.example.backend.dto.response.checkout.CheckoutItemDetail;
+import com.example.backend.dto.response.checkout.CheckoutSession;
 import com.example.backend.excepton.BadRequestException;
 import com.example.backend.excepton.ConflictException;
 import com.example.backend.excepton.NotFoundException;
@@ -18,17 +19,12 @@ import com.example.backend.repository.cart.CartRepository;
 import com.example.backend.repository.catalog.product.ProductVariantRepository;
 import com.example.backend.repository.user.UserRepository;
 import com.example.backend.util.AuthenUtil;
-import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -251,5 +247,25 @@ public class CartService {
         return cartRepository.save(cart); // Lưu toàn bộ
     }
 
-
+    public void clearCart(CheckoutSession checkoutSession) {
+        List<CheckoutItemDetail> items = checkoutSession.getItems();
+        if (items == null || items.isEmpty()) {
+            return; // Không có gì để xóa
+        }else {
+            Cart cart = cartRepository.findById(checkoutSession.getCartId())
+                    .orElseThrow(() -> new NotFoundException("Cart not found"));
+            removeItemsFromCart(cart, items.stream()
+                    .map(CheckoutItemDetail::getCartItemId)
+                    .filter(Objects::nonNull)
+                    .toList());
+            cartRepository.save(cart);
+        }
+    }
+    public void removeItemsFromCart(Cart cart, List<UUID> itemIds) {
+        for (UUID itemId : itemIds) {
+            Optional<CartItem> cartItemOpt = cartItemRepository.findById(itemId);
+            cartItemOpt.ifPresent(cart::removeItem);
+        }
+        cartRepository.save(cart);
+    }
 }

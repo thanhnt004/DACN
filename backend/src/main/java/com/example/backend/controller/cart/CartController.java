@@ -2,16 +2,13 @@ package com.example.backend.controller.cart;
 
 import com.example.backend.dto.request.cart.CartItemRequest;
 import com.example.backend.dto.request.cart.UpdateCartItemVariantRequest;
-import com.example.backend.dto.request.order.DirectCheckoutRequest;
 import com.example.backend.dto.response.cart.CartResponse;
 import com.example.backend.service.cart.CartService;
-import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.net.URI;
 import java.util.Optional;
 import java.util.UUID;
 

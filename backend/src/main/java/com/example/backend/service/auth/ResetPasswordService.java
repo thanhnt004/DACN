@@ -6,6 +6,7 @@ import com.example.backend.excepton.*;
 import com.example.backend.model.User;
 import com.example.backend.repository.user.UserRepository;
 import com.example.backend.service.EmailService;
+import com.example.backend.service.MessageService;
 import com.example.backend.util.CryptoUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,7 +22,7 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class ResetPasswordService {
     private final UserRepository userRepository;
-    private final EmailService emailService;
+    private final MessageService emailService;
     private final ResetPasswordTokenService tokenService;
     private final PasswordEncoder passwordEncoder;
     @Value("${app.frontend.base-url}")

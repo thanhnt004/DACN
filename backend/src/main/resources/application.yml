@@ -63,11 +63,11 @@ spring:
         username: ${POSTGRES_USER}
     devtools:
         restart:
-            enabled: false
+            enabled: true
     flyway:
         baseline-on-migrate: true
         baseline-version: 1
-        enabled: true
+        enabled: false
     jpa:
         database: postgresql
         hibernate:
@@ -155,3 +155,66 @@ payment:
 # Expiration for refresh tokens in seconds (default 14 days)
 REFRESH_TOKEN_EXPIRATION: ${REFRESH_TOKEN_EXPIRATION:1209600}
 
+resilience4j:
+    retry:
+        configs:
+            default:
+                max-attempts: 3
+                wait-duration: 1s
+                enable-exponential-backoff: true
+                exponential-backoff-multiplier: 2
+                retry-exceptions:
+                    - org.springframework.web.reactive.function.client.WebClientRequestException
+                    - java.util.concurrent.TimeoutException
+        instances:
+            payment-service:
+                base-config: default
+                max-attempts: 2
+            notification-service:
+                base-config: default
+            ghn:
+                base-config: default
+                max-attempts: 2
+    circuit-breaker:
+        configs:
+            default:
+                sliding-window-size: 10
+                minimum-number-of-calls: 5
+                permitted-number-of-calls-in-half-open-state: 3
+                automatic-transition-from-open-to-half-open-enabled: true
+                wait-duration-in-open-state: 30s
+                failure-rate-threshold: 50
+                record-exceptions:
+                    - org.springframework.web.reactive.function.client.WebClientResponseException
+                    - java.util.concurrent.TimeoutException
+        instances:
+            payment-service:
+                base-config: default
+            notification-service:
+                base-config: default
+
+        time-limiter:
+            instances:
+                payment-service:
+                    timeout-duration: 3s
+                notification-service:
+                    timeout-duration: 5s
+# GHN Service
+ghn:
+    api:
+        base-url: ${GHN_API_BASE_URL:https://dev-online-gateway.ghn.vn/shiip/public-api}
+        token: ${GHN_API_TOKEN}
+        shop-id: ${GHN_SHOP_ID}
+        urls:
+            provinces: "https://dev-online-gateway.ghn.vn/shiip/public-api/master-data/province"
+            districts: "https://dev-online-gateway.ghn.vn/shiip/public-api/master-data/district"
+            wards: "https://dev-online-gateway.ghn.vn/shiip/public-api/master-data/ward"
+            shop-info: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shop/all"
+            services: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/available-services"
+            fee: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/fee"
+            leadtime: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/leadtime"
+    defaults:
+        payment-type-id: 2 # 1: Người bán/Người gửi trả phí, 2: Người mua/Người nhận trả phí
+        required-note: KHONGCHOXEMHANG # CHOTHUHANG | CHOXEMHANGKHONGTHU | KHONGCHOXEMHANG
+        service-type-id: 2 # 2: Giao hàng tiêu chuẩn
+        timeout: 15s

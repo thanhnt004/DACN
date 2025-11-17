@@ -29,7 +29,6 @@ public class Address {
     private String ward;
     private String district;
     private String province;
-    private String city;
     @Builder.Default
     private boolean isDefaultShipping = false;
     @CreationTimestamp

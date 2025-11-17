@@ -37,7 +37,7 @@ public class Cart {
     private List<CartItem> items;
     public enum CartStatus
     {
-        ACTIVE,CONVERTED,ABANDONED,CHECKOUT_SESSION
+        ACTIVE,CONVERTED,ABANDONED
     }
     public void addItem(CartItem item) {
         items.add(item);

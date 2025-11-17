@@ -26,6 +26,6 @@ public class DiscountResponse {
     boolean active;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
-    List<UUID> productIds; // Chỉ trả về ID
-    List<UUID> categoryIds;// Chỉ trả về ID
+    List<UUID> productIds;
+    List<UUID> categoryIds;
 }

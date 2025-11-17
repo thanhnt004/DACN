@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
@@ -24,5 +25,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
     @Query("UPDATE Inventory i SET i.quantityReserved = i.quantityReserved + :quantity " +
             "WHERE i.id =:variantId")
     void reserveStock(@Param("variantId") UUID variantId, @Param("quantity") int quantity);
-
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT i FROM Inventory i WHERE i.id = :variantId")
+    Optional<Inventory> findByIdForUpdate(UUID variantId);
 }

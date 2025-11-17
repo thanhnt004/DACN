@@ -2,8 +2,10 @@ package com.example.backend.service.product;
 
 import com.example.backend.dto.request.catalog.product.VariantCreateRequest;
 import com.example.backend.dto.request.catalog.product.VariantUpdateRequest;
+import com.example.backend.dto.request.checkout.CheckOutItem;
 import com.example.backend.dto.response.catalog.product.InventoryResponse;
 import com.example.backend.dto.response.catalog.product.VariantResponse;
+import com.example.backend.dto.response.checkout.CheckoutItemDetail;
 import com.example.backend.excepton.BadRequestException;
 import com.example.backend.excepton.NotFoundException;
 import com.example.backend.mapper.InventoryMapper;
@@ -13,7 +15,10 @@ import com.example.backend.repository.catalog.product.ColorRepository;
 import com.example.backend.repository.catalog.product.ProductRepository;
 import com.example.backend.repository.catalog.product.ProductVariantRepository;
 import com.example.backend.repository.catalog.product.SizeRepository;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +29,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class ProductVariantService {
     private final ProductVariantRepository productVariantRepository;
     private final ProductRepository productRepository;
@@ -90,6 +96,18 @@ public class ProductVariantService {
         Product product = productRepository.findById(productId).orElseThrow(()->new NotFoundException("Product not found!"));
         ProductVariant productVariant = productVariantRepository.findById(variantId).orElseThrow(()->new NotFoundException("Product variant not found!"));
         mapper.updateFromDto(productVariant,request);
+        if (request.getInventory()!=null)
+        {
+            log.info("Updating inventory for variant {}", variantId);
+            if (productVariant.getInventory()==null)
+            {
+                productVariant.setInventory(inventoryMapper.toEntity(request.getInventory()));
+            }
+            else
+            {
+                inventoryMapper.updateFromDto(productVariant.getInventory(),request.getInventory());
+            }
+        }
         productVariant = productVariantRepository.save(productVariant);
         return mapper.toResponse(productVariant);
     }
@@ -125,5 +143,43 @@ public class ProductVariantService {
         VariantResponse response =  mapper.toResponse(productVariant);
         response.setInventory(inventoryMapper.toDto(productVariant.getInventory()));
         return response;
+    }
+
+    public List<CheckoutItemDetail> getItemsForCheckout(@NotEmpty(message = "Danh sách sản phẩm không được để trống!") @Valid List<CheckOutItem> items) {
+        return items.stream().map(item -> {
+            ProductVariant variant = productVariantRepository.findById(item.getVariantId())
+                    .orElseThrow(() -> new NotFoundException("Product variant not found: " + item.getVariantId()));
+
+            CheckoutItemDetail response = CheckoutItemDetail.builder()
+                    .variantId(variant.getId())
+                    .productId(variant.getProduct().getId())
+                    .productName(variant.getProduct().getName())
+                    .variantName(buildVariantName(variant))
+                    .sku(variant.getSku())
+                    .imageUrl(variant.getImage()!=null?variant.getImage().getImageUrl():null)
+                    .weight(variant.getWeightGrams())
+                    .unitPriceAmount(variant.getPriceAmount())
+                    .compareAtAmount(variant.getCompareAtAmount())
+                    .totalAmount(item.getQuantity()*variant.getPriceAmount())
+                    .build();
+            return response;
+        }).toList();
+    }
+
+    private String buildVariantName(ProductVariant variant) {
+        if (variant == null) return null;
+
+        StringBuilder sb = new StringBuilder();
+        if (variant.getColor() != null && variant.getColor().getName() != null) {
+            sb.append(variant.getColor().getName());
+        }
+        if (variant.getSize() != null && variant.getSize().getName() != null) {
+            if (!sb.isEmpty()) sb.append(" / ");
+            sb.append(variant.getSize().getName());
+        }
+        if (sb.isEmpty()) {
+            return variant.getSku();
+        }
+        return sb.toString();
     }
 }

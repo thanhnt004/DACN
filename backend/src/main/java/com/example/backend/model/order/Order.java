@@ -1,13 +1,17 @@
 package com.example.backend.model.order;
 
+import com.example.backend.dto.response.user.UserAddress;
 import com.example.backend.model.DiscountRedemption;
 import com.example.backend.model.User;
 import com.example.backend.model.payment.Payment;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +29,7 @@ import java.util.UUID;
 public class Order {
 
     @Id
+    @GeneratedValue
     @Column(name = "id", nullable = false)
     private UUID id;
 
@@ -34,7 +39,7 @@ public class Order {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id",nullable = false)
     private User user;
-
+    private UUID guestId;
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Payment> payments;
 
@@ -51,44 +56,54 @@ public class Order {
     @Column(name = "shipping_amount", nullable = false)
     private Long shippingAmount = 0L;
 
-    @Column(name = "tax_amount", nullable = false)
-    private Long taxAmount = 0L;
-
     @Column(name = "total_amount", nullable = false)
     private Long totalAmount = 0L;
 
-    // store jsonb as String for now; use custom type if you want to map to Map/POJO
     @Column(name = "shipping_address", columnDefinition = "jsonb")
-    private String shippingAddress;
+    @JdbcTypeCode(SqlTypes.JSON)
+    private UserAddress shippingAddress;
 
     @Column(name = "notes")
     private String notes;
 
     @Column(name = "placed_at")
-    private LocalDateTime placedAt;
+    private Instant placedAt;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 
     @Version
     @Column(name = "version", nullable = false)
     private Integer version = 0;
 
     @Column(name = "paid_at")
-    private LocalDateTime paidAt;
+    private Instant paidAt;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
     @OneToMany(mappedBy = "order",cascade = CascadeType.PERSIST)
     private List<DiscountRedemption> discountRedemptions;
 
+    public void addPayment(Payment payment) {
+        if (this.getPayments() == null) {
+            this.payments = new ArrayList<>();
+        }
+        this.payments.add(payment);
+        payment.setOrder(this);
+    }
+
+    public boolean isPaid() {
+        return this.getStatus() == OrderStatus.CONFIRMED;
+    }
+
     public enum OrderStatus{
         PENDING,
+        CONFIRMED,
         PROCESSING,
         SHIPPED,
         DELIVERED,
@@ -97,6 +112,7 @@ public class Order {
     }
     public void addItem(OrderItem item)
     {
+        this.items = new ArrayList<>();
         this.items.add(item);
         item.setOrder(this);
     }

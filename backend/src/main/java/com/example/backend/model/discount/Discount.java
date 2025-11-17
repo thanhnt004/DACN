@@ -5,8 +5,11 @@ import com.example.backend.model.product.Product;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
+import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -38,7 +41,8 @@ public class Discount {
     private DiscountType type;
 
     @Column(name = "value", nullable = false)
-    private Integer value;
+    @JdbcTypeCode(SqlTypes.INTEGER)
+    private Long value;
 
     @Column(name = "starts_at")
     private LocalDateTime startsAt;

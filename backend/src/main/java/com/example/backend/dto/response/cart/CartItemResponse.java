@@ -1,5 +1,6 @@
 package com.example.backend.dto.response.cart;
 
+import com.example.backend.dto.response.catalog.VariantStockStatus;
 import lombok.Builder;
 import lombok.Data;
 
@@ -9,16 +10,19 @@ import java.util.UUID;
 @Builder
 public class CartItemResponse {
     private UUID id;
-    private UUID productId;
-    private String productName;
     private UUID variantId;
+    private UUID productId;
+
+    private String productName;
     private String variantName;
+    private String sku;
     private String imageUrl;
 
-    private int quantity;
-    private int stockQuantity;
-
     private long unitPriceAmount;
-    private boolean isInStock;
+    private long compareAtAmount;
+    private long totalAmount;
 
+    private int quantity;
+    //    private int stockQuantity;
+    private VariantStockStatus stockStatus;
 }

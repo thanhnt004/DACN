@@ -25,7 +25,9 @@ public class ProductImage {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false, foreignKey = @ForeignKey(name = "fk_product_images_product"))
     private Product product;
-
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "variant_id", foreignKey = @ForeignKey(name = "fk_product_images_variant"))
+    private ProductVariant variant;
     @Column(name = "image_url", nullable = false)
     private String imageUrl;
 

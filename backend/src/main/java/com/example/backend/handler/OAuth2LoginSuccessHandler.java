@@ -37,6 +37,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private final OAuthAccountRepository oauthAccounts;
     private final OAuthAccountService oauthService;
     private final StateTokenService stateTokens;
+
     @Value("${app.oauth2.provider}")
     private final Set<String> providers;
     @Value("${app.frontend.base-url}")
@@ -58,7 +59,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
         String redirectOverride = null;
         // neu de link tai khoan
-        Optional<Cookie> linkStateCookie = readCookie(request, "oauth_link_state");
+        Optional<Cookie> linkStateCookie = cookieUtil.readCookie(request, "oauth_link_state");
         // Process link state safely
         if (linkStateCookie.isPresent()) {
             var claims = stateTokens.parse(linkStateCookie.get().getValue());
@@ -142,16 +143,6 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                 return provider;
         }
         return "oauth2";
-    }
-
-    private Optional<Cookie> readCookie(HttpServletRequest req, String name) {
-        if (req.getCookies() == null)
-            return Optional.empty();
-        for (Cookie c : req.getCookies()) {
-            if (name.equals(c.getName()))
-                return Optional.of(c);
-        }
-        return Optional.empty();
     }
 
     private String extractProviderUserId(OAuth2User user, String provider) {

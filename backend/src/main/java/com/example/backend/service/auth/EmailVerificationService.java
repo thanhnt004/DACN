@@ -5,7 +5,7 @@ import com.example.backend.model.EmailLog;
 import com.example.backend.model.enumrator.UserStatus;
 import com.example.backend.repository.EmailLogRepository;
 import com.example.backend.repository.user.UserRepository;
-import com.example.backend.service.EmailService;
+import com.example.backend.service.MessageService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +28,7 @@ import java.util.UUID;
 public class EmailVerificationService {
     private final UserRepository userRepository;
     private final EmailLogRepository emailLogRepository;
-    private final EmailService emailService;
+    private final MessageService emailService;
     private final EmailVerifyTokenService tokenService;
 
     @Value("${app.frontend.base-url}")

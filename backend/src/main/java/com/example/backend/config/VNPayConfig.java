@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Configuration
+@Getter
 public class VNPayConfig {
 
     @Getter

@@ -42,4 +42,10 @@ public class Inventory {
     public int getAvailableStock() {
         return quantityOnHand - quantityReserved;
     }
+    public boolean isInStock() {
+        return getAvailableStock() >= 0;
+    }
+    public boolean isBelowReorderLevel() {
+        return getAvailableStock() <= reorderLevel;
+    }
 }

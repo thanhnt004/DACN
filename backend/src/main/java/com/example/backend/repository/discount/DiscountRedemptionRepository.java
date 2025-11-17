@@ -11,4 +11,8 @@ import java.util.UUID;
 
 public interface DiscountRedemptionRepository extends JpaRepository<DiscountRedemption, UUID> {
     Page<DiscountRedemption> findByDiscountId(UUID id, Pageable pageable);
+
+    Long countByDiscountId(UUID id);
+
+    long countByDiscountIdAndUserId(UUID id, UUID userId);
 }

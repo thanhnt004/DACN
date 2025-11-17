@@ -4,9 +4,14 @@ import com.example.backend.model.order.Order;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -40,7 +45,8 @@ public class Payment {
     private String transactionId;
 
     @Column(name = "raw_response", columnDefinition = "jsonb")
-    private String rawResponse;
+    @JdbcTypeCode(SqlTypes.JSON)
+    private Map<String,Object> rawResponse;
 
     @Column(name = "error_code")
     private String errorCode;
@@ -50,19 +56,18 @@ public class Payment {
 
     @Builder.Default
     @Column(name = "expire_at")
-    private LocalDateTime expireAt = LocalDateTime.now().plusMinutes(15); // mặc định 15 phút
+    private Instant expireAt = Instant.now().plus(15, ChronoUnit.MINUTES);
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
     public enum PaymentStatus {
         PENDING,
-        AUTHORIZED,
         CAPTURED,FAILED,
-        REFUNDED,CANCELLED
+        REFUNDED
     }
 }

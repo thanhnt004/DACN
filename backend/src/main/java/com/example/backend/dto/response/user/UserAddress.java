@@ -14,6 +14,5 @@ public class UserAddress {
     private String ward;
     private String district;
     private String province;
-    private String city;
     private boolean isDefaultShipping = false;
 }

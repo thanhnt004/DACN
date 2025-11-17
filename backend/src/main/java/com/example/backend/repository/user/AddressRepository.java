@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface AddressRepository extends GenericRepository<Address> {
     List<Address> getAddressByUser(User user);
@@ -14,4 +15,6 @@ public interface AddressRepository extends GenericRepository<Address> {
     @Modifying
     @Query("UPDATE Address add SET add.isDefaultShipping = false where add.isDefaultShipping = true")
     void setDefaultShippingFalse();
+
+    Optional<Address> findByUserAndIsDefaultShipping(User user, boolean isDefaultShipping);
 }
