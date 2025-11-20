@@ -13,7 +13,6 @@ import com.example.backend.repository.order.OrderRepository;
 import com.example.backend.repository.user.UserRepository;
 import com.example.backend.util.CookieUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +44,10 @@ public class OrderService {
     private final ProductRepository productRepository;
 
     private final CookieUtil cookieUtil;
+    private final List<Order.OrderStatus> CANCELABLE_STATUSES = List.of(
+            Order.OrderStatus.PENDING,
+            Order.OrderStatus.CONFIRMED
+    );
     public Order createOrderFromSession(
             CheckoutSession session,
             HttpServletRequest httpRequest,
@@ -135,14 +138,17 @@ public class OrderService {
 
     /**
      * Update order status
+     *
+     * @return
      */
     @Transactional
-    public void updateStatus(UUID orderId, Order.OrderStatus status) {
+    public Order updateStatus(UUID orderId, Order.OrderStatus status) {
         Order order = getOrderById(orderId);
         order.setStatus(status);
         orderRepository.save(order);
 
         log.info("Order status updated: orderId={}, status={}", orderId, status);
+        return order;
     }
 
     /**
@@ -212,5 +218,36 @@ public class OrderService {
             orderRepository.save(order);
             log.info("Merged guest order to user: orderId={}, userId={}", order.getId(), user.getId());
         }
+    }
+
+    public Order getOrderDetailByUserOrGuest(Optional<User> userOps, UUID guestId, String orderId) {
+        Specification<Order> spec = buildOrderSpecification(userOps, null, guestId);
+        spec = spec.and((root, query, criteriaBuilder) ->
+                criteriaBuilder.equal(root.get("id"), UUID.fromString(orderId))
+        );
+
+        return orderRepository.findOne(spec)
+                .orElseThrow(() -> new NotFoundException(
+                        "Không tìm thấy đơn hàng: " + orderId
+                ));
+    }
+
+    public void cancelOrderByUserOrGuest(Optional<User> userOps, UUID guestId, String orderId) {
+        Order order = getOrderDetailByUserOrGuest(userOps, guestId, orderId);
+        if (order.getStatus() == Order.OrderStatus.CANCELLED) {
+            log.info("Order already cancelled: orderId={}", order.getId());
+            return;
+        }
+        if (!CANCELABLE_STATUSES.contains(order.getStatus())) {
+            throw new IllegalStateException("Cannot cancel order with status: " + order.getStatus());
+        }
+        order.setStatus(Order.OrderStatus.CANCELLED);
+        orderRepository.save(order);
+        log.info("Order cancelled: orderId={}", order.getId());
+    }
+
+    public Page<Order> getPageOrder(String status, Pageable pageable) {
+        Specification<Order> spec = buildOrderSpecification(Optional.empty(), status, null);
+        return orderRepository.findAll(spec, pageable);
     }
 }

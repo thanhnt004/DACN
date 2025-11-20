@@ -283,4 +283,50 @@ public class OrderFacadeService {
             orderService.mergeOrders(userOps.get(),guestId);
             }
     }
+
+    public OrderResponse getOrderDetail(String orderId, HttpServletRequest request, HttpServletResponse response) {
+        var userOps = authenUtil.getAuthenUser();
+        var guestIdCookie = cookieUtil.readCookie(request, "guest_id");
+        if (userOps.isEmpty() && guestIdCookie.isEmpty()) {
+            throw new AuthenticationException(401,"User not authenticated");
+        }
+        Order order;
+        if (guestIdCookie.isPresent())
+        {
+            UUID guestId = UUID.fromString(guestIdCookie.get().getValue());
+            //reset cookie to extend expiration
+            response.addCookie(cookieUtil.createGuestId(guestId));
+            order = orderService.getOrderDetailByUserOrGuest(userOps,guestId, orderId);
+        } else {
+            order = orderService.getOrderDetailByUserOrGuest(userOps,null, orderId);
+        }
+        return buildOrderResponse(order);
+    }
+
+    public void cancelOrder(String orderId, HttpServletRequest request, HttpServletResponse response) {
+        var userOps = authenUtil.getAuthenUser();
+        var guestIdCookie = cookieUtil.readCookie(request, "guest_id");
+        if (userOps.isEmpty() && guestIdCookie.isEmpty()) {
+            throw new AuthenticationException(401,"User not authenticated");
+        }
+        if (guestIdCookie.isPresent())
+        {
+            UUID guestId = UUID.fromString(guestIdCookie.get().getValue());
+            //reset cookie to extend expiration
+            response.addCookie(cookieUtil.createGuestId(guestId));
+            orderService.cancelOrderByUserOrGuest(userOps,guestId, orderId);
+        } else {
+            orderService.cancelOrderByUserOrGuest(userOps,null, orderId);
+        }
+    }
+
+    public PageResponse<OrderResponse> getOrderListByAdmin(String status, Pageable pageable, HttpServletRequest request, HttpServletResponse response) {
+        return new PageResponse<>(orderService.getPageOrder(status, pageable)
+                .map(this::buildOrderResponse));
+    }
+
+    public OrderResponse updateOrderStatusByAdmin(UUID orderId, Order.OrderStatus status, HttpServletRequest request, HttpServletResponse response) {
+        Order order = orderService.updateStatus(orderId, status);
+        return buildOrderResponse(order);
+    }
 }

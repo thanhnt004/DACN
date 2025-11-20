@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping(value = "/api/v1")
+@RequestMapping(value = "/api/v1/orders")
 public class OrderController {
     private final OrderFacadeService orderFacadeService;
 //    @GetMapping(value = "/checkout/summary")
@@ -31,6 +31,21 @@ public class OrderController {
     ) {
     return ResponseEntity.ok(orderFacadeService.getOrderList(status,pageable,request,response));
     }
+    @GetMapping("{orderId}")
+    public ResponseEntity<OrderResponse> getOrderDetail(@PathVariable("orderId") String orderId,
+                                                        HttpServletRequest request,
+                                                        HttpServletResponse response
+    ) {
+        return ResponseEntity.ok(orderFacadeService.getOrderDetail(orderId,request,response));
+    }
+    @PostMapping("{orderId}/cancel")
+    public ResponseEntity<?> cancelOrder(@PathVariable("orderId") String orderId,
+                                         HttpServletRequest request,
+                                         HttpServletResponse response
+    ) {
+        orderFacadeService.cancelOrder(orderId,request,response);
+        return ResponseEntity.ok().build();
+    }
     @PostMapping("/merge-orders")
     public ResponseEntity<?> mergeOrders(
             HttpServletRequest request,
@@ -39,4 +54,5 @@ public class OrderController {
         orderFacadeService.mergeOrders(request,response);
         return ResponseEntity.ok().build();
     }
+
 }

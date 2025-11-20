@@ -9,6 +9,7 @@ import com.example.backend.dto.response.checkout.OrderCreatedResponse;
 import com.example.backend.service.facade.CheckoutFacadeService;
 import com.example.backend.service.facade.OrderFacadeService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -132,11 +133,12 @@ public class CheckOutController
     @PostMapping("/sessions/{sessionId}/confirm")
     public ResponseEntity<OrderCreatedResponse> confirmCheckout(
             HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse,
             @PathVariable UUID sessionId,
             @RequestHeader("X-Session-Token") String sessionToken
     ) {
 
-        OrderCreatedResponse order = orderFacade.confirmCheckoutSession(sessionId,httpRequest);
+        OrderCreatedResponse order = orderFacade.confirmCheckoutSession(sessionId,httpRequest,httpResponse);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)

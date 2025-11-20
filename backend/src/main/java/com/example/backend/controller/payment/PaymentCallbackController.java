@@ -1,6 +1,7 @@
 package com.example.backend.controller.payment;
 
 import com.example.backend.service.payment.VNPayService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -29,11 +30,10 @@ public class PaymentCallbackController {
         }
         return emitter;
     }
-
     @PostMapping("/vnpay/ipn")
-    public ResponseEntity<String> vnpayIpn(@RequestParam Map<String, String> params) {
+    public ResponseEntity<String> vnpayIpn(@RequestParam Map<String, String> params, HttpServletRequest request) {
         log.info("Received VNPay callback: txnRef={}", params.get("vnp_TxnRef"));
-        return vnPayService.handleIpn(params);
+        return vnPayService.handleIpn(params,request);
     }
 
 }

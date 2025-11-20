@@ -1,10 +1,13 @@
 package com.example.backend.service.payment;
 
 import com.example.backend.config.VNPayConfig;
+import com.example.backend.dto.response.payment.PaymentStatusEvent;
 import com.example.backend.excepton.NotFoundException;
 import com.example.backend.model.order.Order;
 import com.example.backend.model.payment.Payment;
 import com.example.backend.service.order.OrderService;
+import com.example.backend.util.HeaderUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,9 +16,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -104,9 +109,17 @@ public class VNPayService {
         return computedHash.equals(vnpSecureHash);
     }
 
-    public ResponseEntity<String> handleIpn(Map<String, String> params) {
+    public ResponseEntity<String> handleIpn(Map<String, String> params, HttpServletRequest request) {
         String vnpSecureHash = params.remove("vnp_SecureHash");
+        String clientIp = HeaderUtil.getClientIp(request);
+        log.info("VNPay IPN from IP={}, txnRef={}",
+                clientIp, params.get("vnp_TxnRef"));
 
+        // 2. (Optional) Whitelist VNPay IPs
+        if (!isVNPayIP(clientIp)) {
+            log.warn("Received IPN from unknown IP: {}", clientIp);
+            // Có thể block hoặc chỉ log warning
+        }
         // Sort params theo đúng chuẩn VNPay
         List<String> fieldNames = new ArrayList<>(params.keySet());
         Collections.sort(fieldNames);
@@ -127,8 +140,7 @@ public class VNPayService {
         String orderNumber = params.get("vnp_OrderInfo");
         String paymentId = params.get("vnp_TxnRef");
         String transactionStatus = params.get("vnp_TransactionStatus");
-        String amount = params.get("vnp_Amount");
-
+        String responseCode = params.get("vnp_ResponseCode");
         Order order;
         //Tìm order trong DB
         try {
@@ -145,11 +157,22 @@ public class VNPayService {
         // Xử lý theo status VNPay
         if ("00".equals(transactionStatus)) {
             // Thành công
-            pushStatus(order.getId().toString(), "SUCCESS");
+            notifyPaymentStatus(paymentId, PaymentStatusEvent.builder()
+                    .orderId(String.valueOf(order.getId()))
+                    .status("PAID")
+                    .message("Thanh toán thành công")
+                    .timestamp(Instant.now())
+                    .build());
             orderService.markAsPaid(order.getId());
             paymentService.markPaymentCaptured(UUID.fromString(paymentId));
         } else {
-            pushStatus(order.getId().toString(), "FAILED");
+            notifyPaymentStatus(paymentId, PaymentStatusEvent.builder()
+                    .orderId(String.valueOf(order.getId()))
+                    .status("FAILED")
+                    .errorCode(responseCode)
+                    .message(("Loi thanh toán, mã lỗi: " + responseCode))
+                    .timestamp(Instant.now())
+                    .build());
             paymentService.markPaymentFailed(UUID.fromString(paymentId));
             return ResponseEntity.ok("03");
         }
@@ -159,36 +182,72 @@ public class VNPayService {
     // Lưu emitter theo orderId
     private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
 
-    // Thêm emitter mới
     public SseEmitter createEmitter(String orderId) {
-        SseEmitter emitter = new SseEmitter(0L); // 0 = không timeout
+        // Timeout 5 phút = 300,000ms
+        SseEmitter emitter = new SseEmitter(300_000L);
+
+        // Lưu emitter vào map
         emitters.put(orderId, emitter);
 
-        emitter.onCompletion(() -> emitters.remove(orderId));
-        emitter.onTimeout(() -> emitters.remove(orderId));
-        emitter.onError((e) -> emitters.remove(orderId));
+        // Cleanup khi complete/timeout/error
+        emitter.onCompletion(() -> {
+            log.info("SSE completed for order {}", orderId);
+            emitters.remove(orderId);
+        });
+
+        emitter.onTimeout(() -> {
+            log.warn("SSE timeout for order {}", orderId);
+            emitters.remove(orderId);
+            emitter.complete();
+        });
+
+        emitter.onError(e -> {
+            log.error("SSE error for order {}", orderId, e);
+            emitters.remove(orderId);
+        });
 
         return emitter;
     }
 
-    // Push trạng thái mới
-    public void pushStatus(String orderId, String status) {
+    /**
+     * Gửi cập nhật trạng thái payment cho tất cả clients đang lắng nghe orderId
+     */
+    public void notifyPaymentStatus(String orderId, PaymentStatusEvent event) {
         SseEmitter emitter = emitters.get(orderId);
-        if (emitter != null) {
-            try {
-                emitter.send(SseEmitter.event()
-                        .name("payment-status")
-                        .data(status));
-                // Nếu đã có kết quả cuối cùng, có thể close emitter
-                if ("SUCCESS".equals(status) || "FAILED".equals(status)) {
-                    emitter.complete();
-                    emitters.remove(orderId);
-                }
-            } catch (Exception e) {
-                emitter.completeWithError(e);
+        if (emitter == null) {
+            log.debug("No active SSE connection for order {}", orderId);
+            return;
+        }
+
+        try {
+            emitter.send(SseEmitter.event()
+                    .name("payment-status")
+                    .id(UUID.randomUUID().toString()) // Event ID cho client tracking
+                    .data(event));
+
+            log.info("Sent SSE event to order {}: {}", orderId, event.getStatus());
+
+            // Nếu là trạng thái cuối cùng (PAID/FAILED/CANCELLED), đóng connection
+            if (event.isFinal()) {
+                emitter.complete();
                 emitters.remove(orderId);
             }
+
+        } catch (IOException e) {
+            log.error("Failed to send SSE event for order {}", orderId, e);
+            emitter.completeWithError(e);
+            emitters.remove(orderId);
         }
+    }
+    private boolean isVNPayIP(String ip) {
+        // Danh sách IP của VNPay (lấy từ tài liệu)
+        Set<String> vnpayIPs = Set.of(
+                "113.160.92.202",
+                "113.52.45.78",
+                "203.171.19.146"
+                // ... thêm IPs khác
+        );
+        return vnpayIPs.contains(ip);
     }
 }
 
