@@ -2,7 +2,9 @@ package com.example.backend.service.cart;
 
 import com.example.backend.dto.request.cart.CartItemRequest;
 import com.example.backend.dto.request.cart.UpdateCartItemVariantRequest;
+import com.example.backend.dto.response.cart.CartItemResponse;
 import com.example.backend.dto.response.cart.CartResponse;
+import com.example.backend.dto.response.catalog.VariantStockStatus;
 import com.example.backend.dto.response.checkout.CheckoutItemDetail;
 import com.example.backend.dto.response.checkout.CheckoutSession;
 import com.example.backend.excepton.BadRequestException;
@@ -40,7 +42,26 @@ public class CartService {
     public CartResponse getOrCreateCart(Optional<UUID> guestCartId) {
         Optional<User> user = authenUtil.getAuthenUser();
         Cart cart  = findOrCreateActiveCart(user, guestCartId);
-        return cartMapper.toDto(cart);
+        return buildCartResponse(cart);
+    }
+
+    private CartResponse buildCartResponse(Cart cart) {
+        CartResponse cartResponse = cartMapper.toDto(cart);
+        for (CartItemResponse itemResponse : cartResponse.getItems()) {
+            ProductVariant variant = variantRepository.findById(itemResponse.getVariantId())
+                    .orElseThrow(() -> new NotFoundException("Variant not found for ID: " + itemResponse.getVariantId()));
+            int availableStock = variant.getInventory() != null ? variant.getInventory().getAvailableStock() : 0;
+            boolean inStock = availableStock > 0;
+
+            VariantStockStatus stockStatus = VariantStockStatus.builder()
+                    .inStock(inStock)
+                    .availableQuantity(availableStock)
+                    .message(inStock ? "In Stock" : "Out of Stock")
+                    .build();
+
+            itemResponse.setStockStatus(stockStatus);
+        }
+        return cartResponse;
     }
 
     public CartResponse addItemToCart(@Valid CartItemRequest cartItemRequest, Optional<UUID> guestCartId) {
@@ -53,7 +74,7 @@ public class CartService {
         //Upsert item
         cart = upsertItem(cart, variant, cartItemRequest.getQuantity());
 
-        return cartMapper.toDto(cartRepository.save(cart));
+        return buildCartResponse(cartRepository.save(cart));
     }
     public Cart findOrCreateActiveCart(Optional<User> user, Optional<UUID> guestCartId) {
         if (user.isPresent()) {
@@ -82,7 +103,7 @@ public class CartService {
         Optional<Cart> guestCartOpt = cartRepository.findByIdAndUserIdIsNullAndStatus(guestCartId, Cart.CartStatus.ACTIVE);
 
         if (guestCartOpt.isEmpty()) {
-            return cartMapper.toDto(userCart);
+            return buildCartResponse(userCart);
         }
 
         Cart guestCart = guestCartOpt.get();
@@ -106,7 +127,7 @@ public class CartService {
 
         // 4. Lưu giỏ hàng user (đã gộp) và Xóa giỏ hàng guest
         cartRepository.delete(guestCart);
-        return cartMapper.toDto(cartRepository.save(userCart)); // Lưu cart user
+        return buildCartResponse(cartRepository.save(userCart)); // Lưu cart user
     }
     @Transactional
     public CartResponse removeItemFromCart(UUID cartItemId, Optional<UUID> guestCartId) {
@@ -122,7 +143,7 @@ public class CartService {
 
         // 4. Lưu lại giỏ hàng và trả về DTO
         Cart savedCart = cartRepository.save(cart);
-        return cartMapper.toDto(savedCart);
+        return buildCartResponse(savedCart);
     }
     @Transactional
     public CartResponse updateCartItemVariant(UUID cartItemId, UpdateCartItemVariantRequest request,Optional<UUID> guestCartId) {
@@ -160,7 +181,7 @@ public class CartService {
         // Tái cấu trúc nhẹ logic từ 'addItemToCart'
         Cart updatedCart = upsertItem(cart, newVariant, request.getNewQuantity());
 
-        return cartMapper.toDto(updatedCart);
+        return buildCartResponse(updatedCart);
     }
     public CartResponse removeAllItem(Optional<UUID> cartIdOptional) {
         Optional<User> user =authenUtil.getAuthenUser();
@@ -172,7 +193,7 @@ public class CartService {
 
         // 3. Lưu lại giỏ hàng và trả về DTO
         Cart savedCart = cartRepository.save(cart);
-        return cartMapper.toDto(savedCart);
+        return buildCartResponse(savedCart);
     }
     /**
      * Create a new cart for the given user.
