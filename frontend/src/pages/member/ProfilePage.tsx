@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Edit, Facebook } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import * as ProfileApi from '../../api/profile'
 import type { UserProfile, Address, OAuthAccount } from '../../api/profile'
+import { useGhnLocationSelector } from '../../hooks/useGhnLocationSelector'
 
 export default function ProfilePage() {
     const [searchParams, setSearchParams] = useSearchParams()
@@ -31,7 +32,7 @@ export default function ProfilePage() {
         avatarUrl: ''
     })
 
-    const [addressForm, setAddressForm] = useState<Omit<Address, 'id'>>({
+    const createEmptyAddressForm = (): Omit<Address, 'id'> => ({
         fullName: '',
         phone: '',
         line1: '',
@@ -39,15 +40,25 @@ export default function ProfilePage() {
         ward: '',
         district: '',
         province: '',
-        city: '',
         isDefaultShipping: false
     })
+    const [addressForm, setAddressForm] = useState<Omit<Address, 'id'>>(createEmptyAddressForm())
+    const resetAddressForm = () => setAddressForm(createEmptyAddressForm())
 
     const [passwordForm, setPasswordForm] = useState({
         currentPassword: '',
         newPassword: '',
         newPasswordConfirm: ''
     })
+
+    const updateAddressLocation = useCallback(
+        (updates: Partial<Pick<Address, 'province' | 'district' | 'ward'>>) => {
+            setAddressForm(prev => ({ ...prev, ...updates }))
+        },
+        []
+    )
+
+    const addressLocationSelector = useGhnLocationSelector(updateAddressLocation)
 
     useEffect(() => {
         loadData()
@@ -110,23 +121,21 @@ export default function ProfilePage() {
         }
     }
 
+    const startAddAddress = () => {
+        setEditingAddress(null)
+        resetAddressForm()
+        addressLocationSelector.resetSelections()
+        setAddingAddress(true)
+    }
+
     const handleAddAddress = async () => {
         setSavingAddress(true)
         try {
             await ProfileApi.addAddress(addressForm)
             await loadData() // Reload addresses
             setAddingAddress(false)
-            setAddressForm({
-                fullName: '',
-                phone: '',
-                line1: '',
-                line2: '',
-                ward: '',
-                district: '',
-                province: '',
-                city: '',
-                isDefaultShipping: false
-            })
+            resetAddressForm()
+            addressLocationSelector.resetSelections()
             alert('✅ Thêm địa chỉ thành công!')
         } catch (error) {
             console.error('Failed to add address:', error)
@@ -142,6 +151,7 @@ export default function ProfilePage() {
             await ProfileApi.updateAddress(id, addressForm)
             await loadData() // Reload addresses
             setEditingAddress(null)
+            addressLocationSelector.resetSelections()
             alert('✅ Cập nhật địa chỉ thành công!')
         } catch (error) {
             console.error('Failed to update address:', error)
@@ -321,7 +331,7 @@ export default function ProfilePage() {
                                     <input
                                         type="text"
                                         value={addresses.find(a => a.isDefaultShipping)
-                                            ? `${addresses.find(a => a.isDefaultShipping)?.line1}, ${addresses.find(a => a.isDefaultShipping)?.ward}, ${addresses.find(a => a.isDefaultShipping)?.district}, ${addresses.find(a => a.isDefaultShipping)?.city}`
+                                            ? `${addresses.find(a => a.isDefaultShipping)?.line1}, ${addresses.find(a => a.isDefaultShipping)?.ward}, ${addresses.find(a => a.isDefaultShipping)?.district}, ${addresses.find(a => a.isDefaultShipping)?.province}`
                                             : 'Chưa có'}
                                         disabled
                                         className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50"
@@ -376,7 +386,7 @@ export default function ProfilePage() {
                                 <span className="text-gray-600">Địa chỉ mặc định:</span>
                                 <span className="ml-4 font-medium">
                                     {addresses.find(a => a.isDefaultShipping)
-                                        ? `${addresses.find(a => a.isDefaultShipping)?.line1}, ${addresses.find(a => a.isDefaultShipping)?.ward}, ${addresses.find(a => a.isDefaultShipping)?.district}, ${addresses.find(a => a.isDefaultShipping)?.city}`
+                                        ? `${addresses.find(a => a.isDefaultShipping)?.line1}, ${addresses.find(a => a.isDefaultShipping)?.ward}, ${addresses.find(a => a.isDefaultShipping)?.district}, ${addresses.find(a => a.isDefaultShipping)?.province}`
                                         : 'Chưa có'}
                                 </span>
                             </div>
@@ -390,7 +400,7 @@ export default function ProfilePage() {
                 <div className="p-6 border-b border-gray-200 flex items-center justify-between">
                     <h2 className="text-xl font-bold text-gray-900">Sổ địa chỉ</h2>
                     <button
-                        onClick={() => setAddingAddress(true)}
+                        onClick={startAddAddress}
                         className="text-red-600 hover:text-red-700 text-sm font-medium"
                     >
                         + Thêm địa chỉ
@@ -429,37 +439,47 @@ export default function ProfilePage() {
                                     onChange={(e) => setAddressForm({ ...addressForm, line2: e.target.value })}
                                     className="w-full border border-gray-300 rounded px-3 py-2"
                                 />
-                                <div className="grid grid-cols-2 gap-3">
-                                    <input
-                                        type="text"
-                                        placeholder="Phường/Xã"
-                                        value={addressForm.ward}
-                                        onChange={(e) => setAddressForm({ ...addressForm, ward: e.target.value })}
+                                <div>
+                                    <select
+                                        value={addressLocationSelector.selectedProvinceId}
+                                        onChange={(e) => addressLocationSelector.handleProvinceChange(e.target.value)}
                                         className="w-full border border-gray-300 rounded px-3 py-2"
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Quận/Huyện"
-                                        value={addressForm.district}
-                                        onChange={(e) => setAddressForm({ ...addressForm, district: e.target.value })}
-                                        className="w-full border border-gray-300 rounded px-3 py-2"
-                                    />
+                                    >
+                                        <option value="">Chọn tỉnh/Thành phố</option>
+                                        {addressLocationSelector.provinceOptions.map((province) => (
+                                            <option key={province.id} value={province.id}>
+                                                {province.name}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
-                                    <input
-                                        type="text"
-                                        placeholder="Tỉnh/Thành phố"
-                                        value={addressForm.province}
-                                        onChange={(e) => setAddressForm({ ...addressForm, province: e.target.value })}
+                                    <select
+                                        value={addressLocationSelector.selectedDistrictId}
+                                        onChange={(e) => addressLocationSelector.handleDistrictChange(e.target.value)}
                                         className="w-full border border-gray-300 rounded px-3 py-2"
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Thành phố"
-                                        value={addressForm.city}
-                                        onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
+                                        disabled={!addressLocationSelector.selectedProvinceId}
+                                    >
+                                        <option value="">Chọn quận/Huyện</option>
+                                        {addressLocationSelector.districtOptions.map((district) => (
+                                            <option key={district.id} value={district.id}>
+                                                {district.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <select
+                                        value={addressLocationSelector.selectedWardCode}
+                                        onChange={(e) => addressLocationSelector.handleWardChange(e.target.value)}
                                         className="w-full border border-gray-300 rounded px-3 py-2"
-                                    />
+                                        disabled={!addressLocationSelector.selectedDistrictId}
+                                    >
+                                        <option value="">Chọn phường/Xã</option>
+                                        {addressLocationSelector.wardOptions.map((ward) => (
+                                            <option key={ward.code} value={ward.code}>
+                                                {ward.name}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <label className="flex items-center gap-2">
                                     <input
@@ -480,17 +500,8 @@ export default function ProfilePage() {
                                     <button
                                         onClick={() => {
                                             setAddingAddress(false)
-                                            setAddressForm({
-                                                fullName: '',
-                                                phone: '',
-                                                line1: '',
-                                                line2: '',
-                                                ward: '',
-                                                district: '',
-                                                province: '',
-                                                city: '',
-                                                isDefaultShipping: false
-                                            })
+                                            resetAddressForm()
+                                            addressLocationSelector.resetSelections()
                                         }}
                                         disabled={savingAddress}
                                         className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -516,6 +527,7 @@ export default function ProfilePage() {
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => {
+                                            setAddingAddress(false)
                                             setEditingAddress(address.id!)
                                             setAddressForm({
                                                 fullName: address.fullName,
@@ -525,9 +537,13 @@ export default function ProfilePage() {
                                                 ward: address.ward,
                                                 district: address.district,
                                                 province: address.province,
-                                                city: address.city,
                                                 isDefaultShipping: address.isDefaultShipping
                                             })
+                                            void addressLocationSelector.initializeFromNames(
+                                                address.province,
+                                                address.district,
+                                                address.ward
+                                            )
                                         }}
                                         className="text-blue-600 hover:text-blue-700 text-sm"
                                     >
@@ -573,38 +589,56 @@ export default function ProfilePage() {
                                         onChange={(e) => setAddressForm({ ...addressForm, line2: e.target.value })}
                                         className="w-full border border-gray-300 rounded px-3 py-2"
                                     />
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <input
-                                            type="text"
-                                            placeholder="Phường/Xã"
-                                            value={addressForm.ward}
-                                            onChange={(e) => setAddressForm({ ...addressForm, ward: e.target.value })}
+                                    <div>
+                                        <select
+                                            value={addressLocationSelector.selectedProvinceId}
+                                            onChange={(e) => addressLocationSelector.handleProvinceChange(e.target.value)}
                                             className="w-full border border-gray-300 rounded px-3 py-2"
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="Quận/Huyện"
-                                            value={addressForm.district}
-                                            onChange={(e) => setAddressForm({ ...addressForm, district: e.target.value })}
-                                            className="w-full border border-gray-300 rounded px-3 py-2"
-                                        />
+                                        >
+                                            <option value="">Chọn tỉnh/Thành phố</option>
+                                            {addressLocationSelector.provinceOptions.map((province) => (
+                                                <option key={province.id} value={province.id}>
+                                                    {province.name}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <input
-                                            type="text"
-                                            placeholder="Tỉnh/Thành phố"
-                                            value={addressForm.province}
-                                            onChange={(e) => setAddressForm({ ...addressForm, province: e.target.value })}
+                                        <select
+                                            value={addressLocationSelector.selectedDistrictId}
+                                            onChange={(e) => addressLocationSelector.handleDistrictChange(e.target.value)}
                                             className="w-full border border-gray-300 rounded px-3 py-2"
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="Thành phố"
-                                            value={addressForm.city}
-                                            onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
+                                            disabled={!addressLocationSelector.selectedProvinceId}
+                                        >
+                                            <option value="">Chọn quận/Huyện</option>
+                                            {addressLocationSelector.districtOptions.map((district) => (
+                                                <option key={district.id} value={district.id}>
+                                                    {district.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <select
+                                            value={addressLocationSelector.selectedWardCode}
+                                            onChange={(e) => addressLocationSelector.handleWardChange(e.target.value)}
                                             className="w-full border border-gray-300 rounded px-3 py-2"
-                                        />
+                                            disabled={!addressLocationSelector.selectedDistrictId}
+                                        >
+                                            <option value="">Chọn phường/Xã</option>
+                                            {addressLocationSelector.wardOptions.map((ward) => (
+                                                <option key={ward.code} value={ward.code}>
+                                                    {ward.name}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
+                                    <label className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={addressForm.isDefaultShipping}
+                                            onChange={(e) => setAddressForm({ ...addressForm, isDefaultShipping: e.target.checked })}
+                                        />
+                                        <span className="text-sm">Đặt làm địa chỉ giao hàng mặc định</span>
+                                    </label>
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => handleUpdateAddress(address.id!)}
@@ -614,7 +648,10 @@ export default function ProfilePage() {
                                             {savingAddress ? 'Đang lưu...' : 'Cập nhật'}
                                         </button>
                                         <button
-                                            onClick={() => setEditingAddress(null)}
+                                            onClick={() => {
+                                                setEditingAddress(null)
+                                                addressLocationSelector.resetSelections()
+                                            }}
                                             disabled={savingAddress}
                                             className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
@@ -629,8 +666,7 @@ export default function ProfilePage() {
                                         {address.line1}
                                         {address.line2 && `, ${address.line2}`}
                                     </p>
-                                    <p>{address.ward}, {address.district}, {address.city}</p>
-                                    {address.province && <p>{address.province}</p>}
+                                    <p>{address.ward}, {address.district}, {address.province}</p>
                                 </div>
                             )}
                         </div>

@@ -9,7 +9,6 @@ export interface Address {
     ward?: string
     district?: string
     province?: string
-    city?: string
     isDefaultShipping: boolean
 }
 

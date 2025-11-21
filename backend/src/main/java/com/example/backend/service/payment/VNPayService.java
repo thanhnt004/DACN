@@ -5,6 +5,7 @@ import com.example.backend.dto.response.payment.PaymentStatusEvent;
 import com.example.backend.excepton.NotFoundException;
 import com.example.backend.model.order.Order;
 import com.example.backend.model.payment.Payment;
+import com.example.backend.repository.payment.PaymentRepository;
 import com.example.backend.service.order.OrderService;
 import com.example.backend.util.HeaderUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,8 +13,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.convert.ConversionService;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -27,12 +30,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import static com.example.backend.util.VNPayUtil.hmacSHA512;
 
 @Service
-@RequiredArgsConstructor@Slf4j
+@RequiredArgsConstructor
+@Slf4j
 public class VNPayService {
 
     private final VNPayConfig vnPayConfig;
     private final OrderService orderService;
-    private final PaymentService paymentService;
+    private final PaymentRepository paymentRepository;
     @Value("${payment.vnPay.max_time}")
     private int maxPaymentTime;
 
@@ -83,33 +87,8 @@ public class VNPayService {
         }
     }
 
-    public boolean verifyCallback(Map<String, String> params) {
-        String vnpSecureHash = params.get("vnp_SecureHash");
-        params.remove("vnp_SecureHash");
-        params.remove("vnp_SecureHashType");
-
-        // Build query string
-        StringBuilder query = new StringBuilder();
-        List<String> fieldNames = new ArrayList<>(params.keySet());
-        Collections.sort(fieldNames);
-
-        for (String fieldName : fieldNames) {
-            String fieldValue = params.get(fieldName);
-            if (fieldValue != null && fieldValue.length() > 0) {
-                if (query.length() > 0) {
-                    query.append('&');
-                }
-                query.append(fieldName).append('=').append(fieldValue);
-            }
-        }
-
-        String queryString = query.toString();
-        String computedHash = hmacSHA512(vnPayConfig.getSecretKey(), queryString);
-
-        return computedHash.equals(vnpSecureHash);
-    }
-
-    public ResponseEntity<String> handleIpn(Map<String, String> params, HttpServletRequest request) {
+    @Transactional
+    public ResponseEntity<Map<String, String>> handleIpn(Map<String, String> params, HttpServletRequest request) {
         String vnpSecureHash = params.remove("vnp_SecureHash");
         String clientIp = HeaderUtil.getClientIp(request);
         log.info("VNPay IPN from IP={}, txnRef={}",
@@ -126,14 +105,15 @@ public class VNPayService {
 
         StringBuilder hashData = new StringBuilder();
         for (String fieldName : fieldNames) {
-            if (hashData.length() > 0) hashData.append("&");
+            if (hashData.length() > 0)
+                hashData.append("&");
             hashData.append(fieldName).append("=").append(params.get(fieldName));
         }
 
         // Tạo hash để so sánh
         String signed = hmacSHA512(vnPayConfig.getSecretKey(), hashData.toString());
         if (!signed.equals(vnpSecureHash)) {
-            return ResponseEntity.ok("97"); // Sai chữ ký
+            return rsp("97", "Invalid Signature"); // Sai chữ ký
         }
 
         // Lấy dữ liệu cần thiết
@@ -142,43 +122,58 @@ public class VNPayService {
         String transactionStatus = params.get("vnp_TransactionStatus");
         String responseCode = params.get("vnp_ResponseCode");
         Order order;
-        //Tìm order trong DB
+        // Tìm order trong DB
         try {
             order = orderService.getOrderByNumber(orderNumber);
 
-        }catch (NotFoundException e)
-        {
-            return ResponseEntity.ok("01");
+        } catch (NotFoundException e) {
+            return rsp("01", "Order not found");
         }
 
-        //Check idempotent
-        if (order.isPaid()) return ResponseEntity.ok("02");
+        // Check idempotent
+        if (order.isPaid())
+            return rsp("02", "Already confirmed");
 
         // Xử lý theo status VNPay
         if ("00".equals(transactionStatus)) {
             // Thành công
-            notifyPaymentStatus(paymentId, PaymentStatusEvent.builder()
+            notifyPaymentStatus(String.valueOf(order.getId()), PaymentStatusEvent.builder()
                     .orderId(String.valueOf(order.getId()))
                     .status("PAID")
                     .message("Thanh toán thành công")
                     .timestamp(Instant.now())
                     .build());
             orderService.markAsPaid(order.getId());
-            paymentService.markPaymentCaptured(UUID.fromString(paymentId));
+            Payment payment = paymentRepository.findById(UUID.fromString(paymentId))
+                    .orElseThrow(() -> new NotFoundException("Payment not found: " + paymentId));
+            payment.setStatus(Payment.PaymentStatus.CAPTURED);
+            paymentRepository.save(payment);
         } else {
-            notifyPaymentStatus(paymentId, PaymentStatusEvent.builder()
+            notifyPaymentStatus(String.valueOf(order.getId()), PaymentStatusEvent.builder()
                     .orderId(String.valueOf(order.getId()))
                     .status("FAILED")
                     .errorCode(responseCode)
                     .message(("Loi thanh toán, mã lỗi: " + responseCode))
                     .timestamp(Instant.now())
                     .build());
-            paymentService.markPaymentFailed(UUID.fromString(paymentId));
-            return ResponseEntity.ok("03");
+            Payment payment = paymentRepository.findById(UUID.fromString(paymentId))
+                    .orElseThrow(() -> new NotFoundException("Payment not found: " + paymentId));
+            payment.setStatus(Payment.PaymentStatus.FAILED);
+            paymentRepository.save(payment);
         }
 
-        return ResponseEntity.ok("00");
+        return rsp("00", "Confirm Success");
     }
+
+    private ResponseEntity<Map<String, String>> rsp(String code, String message) {
+        Map<String, String> body = new HashMap<>();
+        body.put("RspCode", code);
+        body.put("Message", message);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
+    }
+
     // Lưu emitter theo orderId
     private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
 
@@ -219,35 +214,37 @@ public class VNPayService {
             return;
         }
 
-        try {
-            emitter.send(SseEmitter.event()
-                    .name("payment-status")
-                    .id(UUID.randomUUID().toString()) // Event ID cho client tracking
-                    .data(event));
+        synchronized (emitter) {
+            try {
+                emitter.send(SseEmitter.event()
+                        .name("payment-status")
+                        .id(UUID.randomUUID().toString()) // Event ID cho client tracking
+                        .data(event));
 
-            log.info("Sent SSE event to order {}: {}", orderId, event.getStatus());
+                log.info("Sent SSE event to order {}: {}", orderId, event.getStatus());
 
-            // Nếu là trạng thái cuối cùng (PAID/FAILED/CANCELLED), đóng connection
-            if (event.isFinal()) {
-                emitter.complete();
+                // Nếu là trạng thái cuối cùng (PAID/FAILED/CANCELLED), đóng connection
+                if (event.isFinal()) {
+                    emitter.complete();
+                    emitters.remove(orderId);
+                }
+
+            } catch (IOException e) {
+                log.error("Failed to send SSE event for order {}", orderId, e);
+                emitter.completeWithError(e);
                 emitters.remove(orderId);
             }
-
-        } catch (IOException e) {
-            log.error("Failed to send SSE event for order {}", orderId, e);
-            emitter.completeWithError(e);
-            emitters.remove(orderId);
         }
     }
+
     private boolean isVNPayIP(String ip) {
         // Danh sách IP của VNPay (lấy từ tài liệu)
         Set<String> vnpayIPs = Set.of(
                 "113.160.92.202",
                 "113.52.45.78",
                 "203.171.19.146"
-                // ... thêm IPs khác
+        // ... thêm IPs khác
         );
         return vnpayIPs.contains(ip);
     }
 }
-

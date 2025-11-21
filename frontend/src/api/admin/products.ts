@@ -189,22 +189,22 @@ export const changeProductStatus = async (id: string, status: ProductStatus) => 
 }
 
 export const getProductVariants = async (productId: string) => {
-    const res = await api.get<VariantResponse[]>(`/api/v1/admin/products/${productId}/variants`)
+    const res = await api.get<VariantResponse[]>(`/api/v1/products/${productId}/variants`)
     return res.data
 }
 
 export const createVariant = async (productId: string, data: VariantCreateRequest) => {
-    const res = await api.post<VariantResponse>(`/api/v1/admin/products/${productId}/variants`, data)
+    const res = await api.post<VariantResponse>(`/api/v1/products/${productId}/variants`, data)
     return res.data
 }
 
 export const updateVariant = async (productId: string, variantId: string, data: VariantUpdateRequest) => {
-    const res = await api.put<VariantResponse>(`/api/v1/admin/products/${productId}/variants/${variantId}`, data)
+    const res = await api.put<VariantResponse>(`/api/v1/products/${productId}/variants/${variantId}`, data)
     return res.data
 }
 
 export const deleteVariant = async (productId: string, variantId: string) => {
-    await api.delete(`/api/v1/admin/products/${productId}/variants/${variantId}`)
+    await api.delete(`/api/v1/products/${productId}/variants/${variantId}`)
 }
 
 export const getProductImages = async (productId: string) => {

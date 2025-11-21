@@ -70,13 +70,16 @@ export default function ProductCreate() {
         compareAtAmount?: number
         weightGrams?: number
         status: ProductsApi.VariantStatus
-        inventory?: { quantityOnHand: number }
+        inventory?: { quantityOnHand: number; reorderLevel: number }
     }>>([])
     const [savingVariants, setSavingVariants] = useState(false)
 
     // Variant creation
     const [selectedSizes, setSelectedSizes] = useState<string[]>([])
     const [selectedColors, setSelectedColors] = useState<string[]>([])
+    const [defaultWeight, setDefaultWeight] = useState<string>('200')
+    const [defaultInventory, setDefaultInventory] = useState<string>('10')
+    const [defaultReorderLevel, setDefaultReorderLevel] = useState<string>('5')
 
     // Variant editing
     const [editingVariantId, setEditingVariantId] = useState<string | null>(null)
@@ -88,6 +91,7 @@ export default function ProductCreate() {
         weightGrams: string
         status: ProductsApi.VariantStatus
         quantityOnHand: string
+        reorderLevel: string
     }>({
         sku: '',
         barcode: '',
@@ -96,6 +100,7 @@ export default function ProductCreate() {
         weightGrams: '',
         status: 'ACTIVE',
         quantityOnHand: '',
+        reorderLevel: '',
     })
     const [editLoading, setEditLoading] = useState(false)
 
@@ -429,6 +434,8 @@ export default function ProductCreate() {
 
             const product = await ProductsApi.createProduct(productData)
             setCreatedProduct(product)
+            // Update slug in form data in case backend modified it (e.g. for uniqueness)
+            setFormData(prev => ({ ...prev, slug: product.slug }))
             alert('Tạo bản nháp sản phẩm thành công! Bạn có thể tiếp tục chỉnh sửa và tạo biến thể.')
         } catch (error) {
             console.error('Error creating product:', error)
@@ -580,15 +587,21 @@ export default function ProductCreate() {
                     color?.name?.slice(0, 3).toUpperCase()
                 ].filter(Boolean).join('-')
 
+                // Auto-generate barcode: 893 + timestamp (last 9 digits) + random (1 digit)
+                const barcode = `893${Date.now().toString().slice(-9)}${Math.floor(Math.random() * 10)}`
+
                 newVariants.push({
                     id: `temp-${Date.now()}-${sizeId}-${colorId}`, // temporary ID
                     sku,
+                    barcode,
                     sizeId,
                     colorId,
                     priceAmount: parseInt(formData.priceAmount),
+                    weightGrams: parseInt(defaultWeight) || 200,
                     status: 'ACTIVE',
                     inventory: {
-                        quantityOnHand: 0
+                        quantityOnHand: parseInt(defaultInventory) || 0,
+                        reorderLevel: parseInt(defaultReorderLevel) || 5
                     }
                 })
             }
@@ -673,7 +686,7 @@ export default function ProductCreate() {
                     inventory: {
                         quantityOnHand: unsavedVariant.inventory?.quantityOnHand || 0,
                         quantityReserved: 0,
-                        reorderLevel: 5
+                        reorderLevel: unsavedVariant.inventory?.reorderLevel || 5
                     }
                 }
 
@@ -712,6 +725,7 @@ export default function ProductCreate() {
             weightGrams: variant.weightGrams?.toString() || '',
             status: variant.status || 'ACTIVE',
             quantityOnHand: variant.inventory?.quantityOnHand?.toString() || '0',
+            reorderLevel: variant.inventory?.reorderLevel?.toString() || '5',
         })
 
         // Show inline form
@@ -803,6 +817,7 @@ export default function ProductCreate() {
                     status: editFormData.status,
                     inventory: {
                         quantityOnHand: parseInt(editFormData.quantityOnHand),
+                        reorderLevel: parseInt(editFormData.reorderLevel),
                     },
                 }
             }
@@ -869,6 +884,7 @@ export default function ProductCreate() {
                 version: variant.version || 0,
                 inventory: {
                     quantityOnHand: parseInt(editFormData.quantityOnHand),
+                    reorderLevel: parseInt(editFormData.reorderLevel),
                 },
             }
 
@@ -905,6 +921,7 @@ export default function ProductCreate() {
             weightGrams: variant.weightGrams?.toString() || '',
             status: variant.status || 'ACTIVE',
             quantityOnHand: variant.inventory?.quantityOnHand?.toString() || '0',
+            reorderLevel: variant.inventory?.reorderLevel?.toString() || '5',
         })
 
         // Show inline form
@@ -1233,6 +1250,45 @@ export default function ProductCreate() {
                                                     <span>{color.name}</span>
                                                 </label>
                                             ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded border border-gray-200">
+                                        <div className="col-span-2 text-sm font-medium text-gray-700 mb-2">
+                                            Thiết lập mặc định cho các biến thể
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-600 mb-1">Khối lượng (gram)</label>
+                                            <input
+                                                type="number"
+                                                value={defaultWeight}
+                                                onChange={(e) => setDefaultWeight(e.target.value)}
+                                                className="w-full border rounded px-3 py-2 text-sm"
+                                                placeholder="200"
+                                                min="0"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-600 mb-1">Tồn kho ban đầu</label>
+                                            <input
+                                                type="number"
+                                                value={defaultInventory}
+                                                onChange={(e) => setDefaultInventory(e.target.value)}
+                                                className="w-full border rounded px-3 py-2 text-sm"
+                                                placeholder="10"
+                                                min="0"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-600 mb-1">Mức đặt hàng lại</label>
+                                            <input
+                                                type="number"
+                                                value={defaultReorderLevel}
+                                                onChange={(e) => setDefaultReorderLevel(e.target.value)}
+                                                className="w-full border rounded px-3 py-2 text-sm"
+                                                placeholder="5"
+                                                min="0"
+                                            />
                                         </div>
                                     </div>
 

@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -94,5 +95,13 @@ public class DiscountController {
 
         PageResponse<DiscountRedemptionResponse> redemptions = discountService.getRedemptions(id, pageable);
         return ResponseEntity.ok(redemptions);
+    }
+    @GetMapping("/get-available")
+    public ResponseEntity<List<DiscountResponse>> getAvailableForProduct(
+            @RequestBody List<UUID> productIds,
+            @PageableDefault(size = 20) Pageable pageable)
+    {
+        List<DiscountResponse> discounts = discountService.getAvailable(productIds);
+        return ResponseEntity.ok(discounts);
     }
 }

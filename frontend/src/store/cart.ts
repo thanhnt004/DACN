@@ -42,6 +42,21 @@ export const useCartStore = create<CartState>((set, get) => ({
             set({ cart, loading: false })
         } catch (error: any) {
             console.error('Error adding to cart:', error)
+
+            // Retry logic: if it failed, maybe the cart ID is bad or expired.
+            // Try clearing it and retrying.
+            if (CartApi.getGuestCartId()) {
+                console.log('Retrying add to cart without guest ID...')
+                CartApi.clearGuestCartId()
+                try {
+                    const cart = await CartApi.addItemToCart({ variantId, quantity })
+                    set({ cart, loading: false })
+                    return // Success on retry
+                } catch (retryError) {
+                    console.error('Retry failed:', retryError)
+                }
+            }
+
             set({ error: error.message || 'Failed to add item to cart', loading: false })
             throw error
         }
@@ -62,7 +77,7 @@ export const useCartStore = create<CartState>((set, get) => ({
     updateCartItem: async (itemId: string, variantId: string, quantity: number) => {
         set({ loading: true, error: null })
         try {
-            const cart = await CartApi.updateCartItem(itemId, { variantId, quantity })
+            const cart = await CartApi.updateCartItem(itemId, { newVariantId: variantId, newQuantity: quantity })
             set({ cart, loading: false })
         } catch (error: any) {
             console.error('Error updating cart item:', error)

@@ -31,7 +31,7 @@ public class PaymentCallbackController {
         return emitter;
     }
     @PostMapping("/vnpay/ipn")
-    public ResponseEntity<String> vnpayIpn(@RequestParam Map<String, String> params, HttpServletRequest request) {
+    public ResponseEntity<Map<String, String>> vnpayIpn(@RequestParam Map<String, String> params, HttpServletRequest request) {
         log.info("Received VNPay callback: txnRef={}", params.get("vnp_TxnRef"));
         return vnPayService.handleIpn(params,request);
     }

@@ -1,5 +1,6 @@
 package com.example.backend.dto.response.user;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.util.UUID;
@@ -14,5 +15,6 @@ public class UserAddress {
     private String ward;
     private String district;
     private String province;
+    @JsonProperty("isDefaultShipping")
     private boolean isDefaultShipping = false;
 }

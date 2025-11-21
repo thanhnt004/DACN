@@ -8,13 +8,14 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface AddressRepository extends GenericRepository<Address> {
     List<Address> getAddressByUser(User user);
 
     @Modifying
-    @Query("UPDATE Address add SET add.isDefaultShipping = false where add.isDefaultShipping = true")
-    void setDefaultShippingFalse();
+    @Query("UPDATE Address add SET add.isDefaultShipping = false where add.isDefaultShipping = true and add.user.id = :userId")
+    void setDefaultShippingFalse(UUID userId);
 
     Optional<Address> findByUserAndIsDefaultShipping(User user, boolean isDefaultShipping);
 }

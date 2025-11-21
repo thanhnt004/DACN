@@ -147,14 +147,14 @@ export default function CartPage() {
                                                         </p>
 
                                                         {/* Stock Status */}
-                                                        {!item.isInStock && (
+                                                        {!item.stockStatus.inStock && (
                                                             <p className="text-sm text-red-600 mt-1">
                                                                 Hết hàng
                                                             </p>
                                                         )}
-                                                        {item.isInStock && item.quantity > item.stockQuantity && (
+                                                        {item.stockStatus.inStock && item.quantity > item.stockStatus.availableQuantity && (
                                                             <p className="text-sm text-orange-600 mt-1">
-                                                                Chỉ còn {item.stockQuantity} sản phẩm
+                                                                Chỉ còn {item.stockStatus.availableQuantity} sản phẩm
                                                             </p>
                                                         )}
                                                     </div>
@@ -194,7 +194,7 @@ export default function CartPage() {
                                                                         item.quantity + 1
                                                                     )
                                                                 }
-                                                                disabled={!item.isInStock || item.quantity >= item.stockQuantity}
+                                                                disabled={!item.stockStatus.inStock || item.quantity >= item.stockStatus.availableQuantity}
                                                                 className="px-3 py-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                                                             >
                                                                 <Plus className="w-4 h-4" />

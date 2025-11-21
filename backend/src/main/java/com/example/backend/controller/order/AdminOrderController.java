@@ -15,26 +15,28 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
-@RequestMapping(value = "/api/v1/orders")
+@RequestMapping(value = "/api/v1/admin/orders")
 @RestController
 @PreAuthorize("hasRole('ADMIN')")
 @RequiredArgsConstructor
 public class AdminOrderController {
     private final OrderFacadeService orderFacadeService;
+
     @GetMapping("/get-order-list")
     public ResponseEntity<PageResponse<OrderResponse>> getOrderList(@RequestParam(value = "status") String status,
-                                                                    @PageableDefault(page = 0,size = 20) Pageable pageable,
-                                                                    HttpServletResponse response,
-                                                                    HttpServletRequest request
-    ) {
-        return ResponseEntity.ok(orderFacadeService.getOrderListByAdmin(status,pageable,request,response));
+            @RequestParam(value = "paymentType", required = false) String paymentType,
+            @PageableDefault(page = 0, size = 20) Pageable pageable,
+            HttpServletResponse response,
+            HttpServletRequest request) {
+        return ResponseEntity
+                .ok(orderFacadeService.getOrderListByAdmin(status, paymentType, pageable, request, response));
     }
+
     @PutMapping("{orderId}/status")
     public ResponseEntity<OrderResponse> updateOrderStatus(@PathVariable("orderId") UUID orderId,
-                                                           @RequestParam("status") Order.OrderStatus status,
-                                                           HttpServletRequest request,
-                                                           HttpServletResponse response
-    ) {
-        return ResponseEntity.ok(orderFacadeService.updateOrderStatusByAdmin(orderId,status,request,response));
+            @RequestParam("status") Order.OrderStatus status,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        return ResponseEntity.ok(orderFacadeService.updateOrderStatusByAdmin(orderId, status, request, response));
     }
 }

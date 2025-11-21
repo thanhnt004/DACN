@@ -78,7 +78,7 @@ public class UserManagerService {
         User currentUser = userRepository.findById(userDetail.getId()).orElseThrow(()->new NotFoundException("User not found!"));
         Address newAddress = addressMapper.toEntity(address);
         if (address.isDefaultShipping())
-            addressRepository.setDefaultShippingFalse();
+            addressRepository.setDefaultShippingFalse(currentUser.getId());
         currentUser.addAddress(newAddress);
         userRepository.save(currentUser);
     }
@@ -93,7 +93,7 @@ public class UserManagerService {
     public void updateAddress(UserAddress dto, UUID addressId) {
         Address address = addressRepository.findById(addressId).orElseThrow(()->new NotFoundException("Cannot found this address"));
         if (dto.isDefaultShipping())
-            addressRepository.setDefaultShippingFalse();
+            addressRepository.setDefaultShippingFalse(address.getUser().getId());
         addressMapper.updateFromDto(dto,address);
         addressRepository.save(address);
     }

@@ -1,9 +1,18 @@
 package com.example.backend.service.shipping;
 
 public class GhnApiException extends RuntimeException {
-    private Exception exception;
-    public GhnApiException(String message,Exception e) {
-        super(message);
+    private final Exception exception;
+
+    public GhnApiException(String message) {
+        this(message, null);
+    }
+
+    public GhnApiException(String message, Exception e) {
+        super(message, e);
         this.exception = e;
+    }
+
+    public Exception getException() {
+        return exception;
     }
 }

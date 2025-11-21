@@ -6,8 +6,14 @@ export interface CartItemRequest {
 }
 
 export interface UpdateCartItemVariantRequest {
-    variantId: string
-    quantity: number
+    newVariantId: string
+    newQuantity: number
+}
+
+export interface VariantStockStatus {
+    inStock: boolean
+    availableQuantity: number
+    message?: string
 }
 
 export interface CartItemResponse {
@@ -16,11 +22,15 @@ export interface CartItemResponse {
     productName: string
     variantId: string
     variantName?: string
+    sku?: string
     imageUrl?: string
-    quantity: number
-    stockQuantity: number
+
     unitPriceAmount: number
-    isInStock: boolean
+    compareAtAmount?: number
+    totalAmount?: number
+
+    quantity: number
+    stockStatus: VariantStockStatus
 }
 
 export interface CartResponse {

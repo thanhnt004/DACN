@@ -6,6 +6,7 @@ import com.example.backend.dto.response.discount.DiscountRedemptionResponse;
 import com.example.backend.dto.response.discount.DiscountResponse;
 import com.example.backend.dto.response.discount.DiscountResult;
 import com.example.backend.dto.response.wraper.PageResponse;
+import com.example.backend.excepton.BadRequestException;
 import com.example.backend.excepton.ConflictException;
 import com.example.backend.excepton.NotFoundException;
 import com.example.backend.mapper.discount.DiscountMapper;
@@ -209,5 +210,15 @@ public class DiscountService {
             }
         }
         return valid;
+    }
+
+    public List<DiscountResponse> getAvailable(List<UUID> productIds) {
+        List<Product> products = productRepository.findAllById(productIds);
+        if (products.isEmpty())
+            throw new BadRequestException("Products not found");
+        List<Category> categories = productRepository.findDistinctCategoriesByProductIds(productIds);
+        List<Discount> discounts = discountRepository.findApplicableAndGlobalDiscounts(productIds,categories.stream().map(Category::getId).toList(),LocalDateTime.now());
+        return discounts.stream().map(discountMapper::toDto).toList();
+
     }
 }

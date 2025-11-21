@@ -17,6 +17,7 @@ import ProductDetail from './pages/ProductDetail'
 import ProductsPage from './pages/ProductsPage'
 import CategoryProductsPage from './pages/CategoryProductsPage'
 import CartPage from './pages/CartPage'
+import CheckoutPage from './pages/CheckoutPage'
 import OrderManager from './pages/admin/OrderManager'
 import UserManager from './pages/admin/UserManager'
 import DiscountManager from './pages/admin/DiscountManager'
@@ -30,6 +31,7 @@ import DeactivateAccount from './pages/member/DeactivateAccount'
 import VerifyEmail from './pages/VerifyEmail'
 import ResendVerification from './pages/ResendVerification'
 import EmailVerificationRequired from './pages/EmailVerificationRequired'
+import MemberOrders from './pages/member/MemberOrders'
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const isAuth = useAuthStore((s) => s.isAuthenticated)
@@ -57,6 +59,7 @@ function App() {
         <Route path="/categories/:slug" element={<CategoryProductsPage />} />
         <Route path="/products/:slug" element={<ProductDetail />} />
         <Route path="/cart" element={<CartPage />} />
+        <Route path="/checkout" element={<CheckoutPage />} />
 
         {/* Member Routes */}
         <Route
@@ -70,7 +73,7 @@ function App() {
           <Route index element={<MemberDashboard />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="deactivate" element={<DeactivateAccount />} />
-          <Route path="orders" element={<div className="bg-white rounded-lg shadow-sm p-8">Lịch sử mua hàng</div>} />
+          <Route path="orders" element={<MemberOrders />} />
           <Route path="support" element={<div className="bg-white rounded-lg shadow-sm p-8">Góp ý - Phản hồi - Hỗ trợ</div>} />
           <Route path="terms" element={<div className="bg-white rounded-lg shadow-sm p-8">Điều khoản sử dụng</div>} />
         </Route>

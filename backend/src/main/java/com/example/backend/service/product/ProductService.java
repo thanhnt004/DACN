@@ -11,6 +11,7 @@ import com.example.backend.dto.response.catalog.product.ProductDetailResponse;
 import com.example.backend.dto.response.catalog.product.ProductSummaryResponse;
 import com.example.backend.dto.response.wraper.PageResponse;
 import com.example.backend.excepton.BadRequestException;
+import com.example.backend.excepton.ConflictException;
 import com.example.backend.excepton.NotFoundException;
 import com.example.backend.mapper.CategoryMapper;
 import com.example.backend.mapper.ImageMapper;
@@ -24,7 +25,6 @@ import com.example.backend.repository.catalog.categoty.CategoryRepository;
 import com.example.backend.repository.catalog.product.ProductRepository;
 import com.example.backend.repository.catalog.product.ProductSpecification;
 import com.example.backend.repository.catalog.product.ProductVariantRepository;
-import com.example.backend.util.SlugUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
@@ -52,7 +52,10 @@ public class ProductService {
     private static final Set<String> ALLOWED_INCLUDES = Set.of("variants", "images", "categories", "options");
 
     private boolean slugExist(String slug, UUID excludedId) {
-        return productRepository.existsBySlugIgnoreCaseAndIdNot(slug, excludedId);
+        if (excludedId == null) {
+            return productRepository.existsBySlugIncludeDeleted(slug);
+        }
+        return productRepository.existsBySlugAndIdNotIncludeDeleted(slug, excludedId);
     }
 
     public PageResponse<ProductSummaryResponse> list(ProductFilter filter, Pageable pageable) {
@@ -73,8 +76,10 @@ public class ProductService {
 
     public ProductDetailResponse create(ProductCreateRequest productCreateRequest) {
         Product product = productMapper.toEntity(productCreateRequest);
-        String slug = SlugUtil.uniqueSlug(productCreateRequest.getSlug(), (v) -> this.slugExist(v, null));
-        product.setSlug(slug);
+        if (slugExist(productCreateRequest.getSlug(), null)) {
+            throw new ConflictException("Slug already exists");
+        }
+        product.setSlug(productCreateRequest.getSlug());
         if (product.getSeoTitle().isBlank())
             product.setSeoTitle(product.getName());
 
@@ -97,8 +102,11 @@ public class ProductService {
     public ProductDetailResponse update(ProductUpdateRequest request, UUID id) {
         Product exist = productRepository.findById(id).orElseThrow(
                 () -> new NotFoundException("Product not found!"));
-        if (StringUtils.hasText(request.getSlug()))
-            request.setSlug(SlugUtil.uniqueSlug(request.getSlug(), (v) -> this.slugExist(v, id)));
+        if (StringUtils.hasText(request.getSlug())) {
+            if (slugExist(request.getSlug(), id)) {
+                throw new ConflictException("Slug already exists");
+            }
+        }
         productMapper.updateFromDto(request, exist);
 
         // Handle categories

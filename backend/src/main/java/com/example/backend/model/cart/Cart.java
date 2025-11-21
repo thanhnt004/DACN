@@ -2,7 +2,6 @@ package com.example.backend.model.cart;
 
 import com.example.backend.model.User;
 import jakarta.persistence.*;
-import jdk.dynalink.linker.LinkerServices;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -26,6 +25,7 @@ public class Cart {
     @Builder.Default
     private CartStatus status = CartStatus.ACTIVE;
     @CreationTimestamp
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
     @UpdateTimestamp
     private LocalDateTime updatedAt;
@@ -40,6 +40,10 @@ public class Cart {
         ACTIVE,CONVERTED,ABANDONED
     }
     public void addItem(CartItem item) {
+        items = this.getItems();
+        if (items==null){
+            items=new java.util.ArrayList<>();
+        }
         items.add(item);
         item.setCart(this);
     }

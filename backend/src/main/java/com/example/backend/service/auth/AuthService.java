@@ -46,19 +46,17 @@ public class AuthService {
     private Long accessTokenExpiration;
     private final PasswordEncoder passwordEncoder;
 
-    public RegisterResponse register(RegisterRequest request)
-    {
-        //check exist
+    public RegisterResponse register(RegisterRequest request) {
+        // check exist
         User user = userRepository.findByEmail(request.getEmail()).orElse(null);
-        if(user != null)
-        {
-            throw new AuthenticationException(409,"Email is used by another account");
+        if (user != null) {
+            throw new AuthenticationException(409, "Email is used by another account");
         }
-        User newUser = userMapper.toUser(request,passwordEncoder);
+        User newUser = userMapper.toUser(request, passwordEncoder);
         newUser.setRole(Role.CUSTOMER);
         newUser.setStatus(UserStatus.ACTIVE);
         newUser = userRepository.save(newUser);
-        //send email
+        // send email
         emailVerificationService.sendVerificationEmailAsync(newUser.getId(), newUser.getEmail());
         return RegisterResponse.builder()
                 .userId(newUser.getId().toString())
@@ -67,26 +65,24 @@ public class AuthService {
                 .email(newUser.getEmail())
                 .build();
     }
-    public LoginResponse login(LoginRequest request, HttpServletResponse response)
-    {
+
+    public LoginResponse login(LoginRequest request, HttpServletResponse response) {
         Authentication authentication;
         try {
             authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             request.getIdentifier(),
-                            request.getPassword()
-                    )
-            );
+                            request.getPassword()));
+        } catch (RuntimeException e) {
+            throw new AuthenticationException(401, e.getMessage());
         }
-        catch (RuntimeException e) {
-            throw new AuthenticationException(401,e.getMessage());
-        }
-        //set context
+        // set context
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        //get userdetails
+        // get userdetails
         CustomUserDetail userDetail = (CustomUserDetail) authentication.getPrincipal();
 
-        User currentUser = userRepository.findById(userDetail.getId()).orElseThrow(()->new NotFoundException("User not found!"));
+        User currentUser = userRepository.findById(userDetail.getId())
+                .orElseThrow(() -> new NotFoundException("User not found!"));
         currentUser.setLastLoginAt(LocalDateTime.now());
         userRepository.save(currentUser);
         String accessToken = accessTokenService.generateAccessToken(currentUser);
@@ -100,23 +96,22 @@ public class AuthService {
                 .isAdmin(currentUser.getRole().equals(Role.ADMIN))
                 .build();
     }
+
     @Transactional
-    public RefreshTokenResponse refreshToken(String token, HttpServletResponse response)
-    {
-        //check exist
+    public RefreshTokenResponse refreshToken(String token, HttpServletResponse response) {
+        // check exist
         RefreshToken refreshToken = refreshTokenService.findByRawToken(token);
-        //Check expiry
+        // Check expiry
         refreshTokenService.verifyToken(refreshToken);
-        //Check user state
+        // Check user state
         User user = refreshToken.getUser();
-        if (user.isDisable()||user.isLocked())
-        {
-            refreshTokenService.revokeAllByUser(user,"Account is disable!");
-            throw new AuthenticationException(401,"Account is "+user.getStatus().toString());
+        if (user.isDisable() || user.isLocked()) {
+            refreshTokenService.revokeAllByUser(user, "Account is disable!");
+            throw new AuthenticationException(401, "Account is " + user.getStatus().toString());
         }
-        //gen AC
+        // gen AC
         String accessToken = accessTokenService.generateAccessToken(user);
-        //Rotate(gen and save RT)
+        // Rotate(gen and save RT)
         String newToken = refreshTokenService.rotateToken(refreshToken);
 
         response.addCookie(cookieUtil.createRefreshTokenCookie(newToken));
@@ -124,37 +119,36 @@ public class AuthService {
         return RefreshTokenResponse.builder()
                 .accessToken(accessToken)
                 .expiresIn(accessTokenExpiration)
+                .isAdmin(user.getRole().equals(Role.ADMIN))
                 .build();
     }
+
     @Transactional
-    public LogoutResponse logOut(String token, HttpServletResponse response)
-    {
+    public LogoutResponse logOut(String token, HttpServletResponse response) {
         RefreshToken refreshToken = refreshTokenService.findByRawToken(token);
-        if(refreshTokenService.revokeToken(refreshToken,"Logout"))
-        {
-           cookieUtil.clearCookie(response,CookieUtil.REFRESH_TOKEN_COOKIE);
+        if (refreshTokenService.revokeToken(refreshToken, "Logout")) {
+            cookieUtil.clearCookie(response, CookieUtil.REFRESH_TOKEN_COOKIE);
             return LogoutResponse.builder()
                     .message("Log out successful!")
                     .build();
-        }
-        else return LogoutResponse.builder()
-                .message("Log out fail!!")
-                .build();
+        } else
+            return LogoutResponse.builder()
+                    .message("Log out fail!!")
+                    .build();
     }
+
     @Transactional
-    public LogoutResponse logOutAll(String token,HttpServletResponse response)
-    {
+    public LogoutResponse logOutAll(String token, HttpServletResponse response) {
         RefreshToken refreshToken = refreshTokenService.findByRawToken(token);
-        if(refreshTokenService.revokeAllByUser(refreshToken.getUser(),"Log out")>0)
-        {
-            cookieUtil.clearCookie(response,CookieUtil.REFRESH_TOKEN_COOKIE);
+        if (refreshTokenService.revokeAllByUser(refreshToken.getUser(), "Log out") > 0) {
+            cookieUtil.clearCookie(response, CookieUtil.REFRESH_TOKEN_COOKIE);
             return LogoutResponse.builder()
                     .message("Log out successful!")
                     .build();
-        }
-        else return LogoutResponse.builder()
-                .message("Log out fail!!")
-                .build();
+        } else
+            return LogoutResponse.builder()
+                    .message("Log out fail!!")
+                    .build();
     }
 
 }

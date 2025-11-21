@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import * as ProductsApi from '../api/admin/products'
 import { Header } from '../components/layout/Header'
 import Footer from '../components/layout/Footer'
@@ -8,6 +8,7 @@ import { useCartStore } from '../store/cart'
 
 export default function ProductDetail() {
     const { slug } = useParams()
+    const navigate = useNavigate()
     const [product, setProduct] = useState<ProductsApi.ProductDetailResponse | null>(null)
     const [loading, setLoading] = useState(false)
     const [selectedImage, setSelectedImage] = useState(0)
@@ -141,7 +142,9 @@ export default function ProductDetail() {
             await fetchCart()
         } catch (error) {
             console.error('Error adding to cart:', error)
-            alert('Có lỗi khi thêm vào giỏ hàng. Vui lòng thử lại.')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const message = (error as any)?.message || 'Có lỗi khi thêm vào giỏ hàng. Vui lòng thử lại.'
+            alert(message)
         } finally {
             setAddingToCart(false)
         }
@@ -166,18 +169,16 @@ export default function ProductDetail() {
             return
         }
 
-        // Add to cart first, then redirect to checkout
-        setAddingToCart(true)
-        try {
-            await addToCart(variant.id, quantity)
-            await fetchCart()
-            // Redirect to checkout page
-            window.location.href = '/checkout'
-        } catch (error) {
-            console.error('Error adding to cart:', error)
-            alert('Có lỗi khi thêm vào giỏ hàng. Vui lòng thử lại.')
-            setAddingToCart(false)
-        }
+        // Navigate to checkout with the item details in state
+        // This bypasses the cart
+        navigate('/checkout', {
+            state: {
+                buyNowItem: {
+                    variantId: variant.id,
+                    quantity: quantity,
+                }
+            }
+        })
     }
 
     if (loading) return (
@@ -262,8 +263,8 @@ export default function ProductDetail() {
                                             key={img.id}
                                             onClick={() => setSelectedImage(idx)}
                                             className={`aspect-square rounded-lg overflow-hidden border-2 transition ${selectedImage === idx
-                                                    ? 'border-red-600'
-                                                    : 'border-gray-200 hover:border-gray-400'
+                                                ? 'border-red-600'
+                                                : 'border-gray-200 hover:border-gray-400'
                                                 }`}
                                         >
                                             <img
@@ -338,10 +339,10 @@ export default function ProductDetail() {
                                                     onClick={() => isAvailable && setSelectedColor(color.id)}
                                                     disabled={!isAvailable}
                                                     className={`relative w-12 h-12 rounded-lg border-2 transition ${selectedColor === color.id
-                                                            ? 'border-red-600'
-                                                            : isAvailable
-                                                                ? 'border-gray-300 hover:border-gray-400'
-                                                                : 'border-gray-200 opacity-40 cursor-not-allowed'
+                                                        ? 'border-red-600'
+                                                        : isAvailable
+                                                            ? 'border-gray-300 hover:border-gray-400'
+                                                            : 'border-gray-200 opacity-40 cursor-not-allowed'
                                                         }`}
                                                     title={isAvailable ? color.name : `${color.name} (Hết hàng)`}
                                                 >
@@ -377,10 +378,10 @@ export default function ProductDetail() {
                                                     onClick={() => isAvailable && setSelectedSize(size.id)}
                                                     disabled={!isAvailable}
                                                     className={`px-6 py-3 rounded-lg border-2 transition font-medium ${selectedSize === size.id
-                                                            ? 'border-red-600 bg-red-50 text-red-600'
-                                                            : isAvailable
-                                                                ? 'border-gray-300 hover:border-gray-400 text-gray-900'
-                                                                : 'border-gray-200 text-gray-400 opacity-50 cursor-not-allowed line-through'
+                                                        ? 'border-red-600 bg-red-50 text-red-600'
+                                                        : isAvailable
+                                                            ? 'border-gray-300 hover:border-gray-400 text-gray-900'
+                                                            : 'border-gray-200 text-gray-400 opacity-50 cursor-not-allowed line-through'
                                                         }`}
                                                     title={isAvailable ? size.code : `${size.code} (Hết hàng)`}
                                                 >

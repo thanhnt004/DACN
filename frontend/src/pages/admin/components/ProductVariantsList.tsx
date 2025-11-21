@@ -15,7 +15,7 @@ interface ProductVariantsListProps {
         compareAtAmount?: number
         weightGrams?: number
         status: ProductsApi.VariantStatus
-        inventory?: { quantityOnHand: number }
+        inventory?: { quantityOnHand: number; reorderLevel: number }
     }>
     savingVariants: boolean
     sizes: CatalogApi.SizeDto[]
@@ -30,6 +30,7 @@ interface ProductVariantsListProps {
         weightGrams: string
         status: ProductsApi.VariantStatus
         quantityOnHand: string
+        reorderLevel: string
     }
     editLoading: boolean
     colorImages: Record<string, string[]>
@@ -51,6 +52,7 @@ interface ProductVariantsListProps {
         weightGrams: string
         status: ProductsApi.VariantStatus
         quantityOnHand: string
+        reorderLevel: string
     }) => void
 }
 
@@ -232,7 +234,7 @@ export default function ProductVariantsList({
                                                                     </div>
                                                                     <p className="text-sm text-gray-600">SKU: {variant.sku}</p>
                                                                     <p className="text-sm text-gray-600">
-                                                                        Tồn kho: {variant.inventory?.quantityOnHand ?? 0} |
+                                                                        Tồn kho: {variant.inventory?.quantityOnHand ?? 0} (Min: {variant.inventory?.reorderLevel ?? 5}) |
                                                                         Giá: {variant.priceAmount?.toLocaleString()} VNĐ
                                                                     </p>
                                                                 </div>
@@ -335,6 +337,18 @@ export default function ProductVariantsList({
                                                                             required
                                                                         />
                                                                     </div>
+                                                                    <div>
+                                                                        <label className="block text-sm font-medium mb-1">
+                                                                            Mức đặt hàng lại *
+                                                                        </label>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={editFormData.reorderLevel}
+                                                                            onChange={(e) => onEditFormDataChange({ ...editFormData, reorderLevel: e.target.value })}
+                                                                            className="w-full border rounded px-3 py-2"
+                                                                            required
+                                                                        />
+                                                                    </div>
                                                                     <div className="col-span-2">
                                                                         <label className="block text-sm font-medium mb-1">
                                                                             Trạng thái
@@ -385,7 +399,7 @@ export default function ProductVariantsList({
                                                                     </p>
                                                                     <p className="text-sm text-gray-600">SKU: {variant.sku}</p>
                                                                     <p className="text-sm text-gray-600">
-                                                                        Tồn kho: {variant.inventory?.quantityOnHand ?? 0} |
+                                                                        Tồn kho: {variant.inventory?.quantityOnHand ?? 0} (Min: {variant.inventory?.reorderLevel ?? 5}) |
                                                                         Giá: {variant.priceAmount?.toLocaleString()} VNĐ
                                                                     </p>
                                                                 </div>
@@ -484,6 +498,18 @@ export default function ProductVariantsList({
                                                                             type="number"
                                                                             value={editFormData.quantityOnHand}
                                                                             onChange={(e) => onEditFormDataChange({ ...editFormData, quantityOnHand: e.target.value })}
+                                                                            className="w-full border rounded px-3 py-2"
+                                                                            required
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="block text-sm font-medium mb-1">
+                                                                            Mức đặt hàng lại *
+                                                                        </label>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={editFormData.reorderLevel}
+                                                                            onChange={(e) => onEditFormDataChange({ ...editFormData, reorderLevel: e.target.value })}
                                                                             className="w-full border rounded px-3 py-2"
                                                                             required
                                                                         />

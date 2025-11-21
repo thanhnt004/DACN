@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -41,25 +42,60 @@ public class CartService {
 
     public CartResponse getOrCreateCart(Optional<UUID> guestCartId) {
         Optional<User> user = authenUtil.getAuthenUser();
-        Cart cart  = findOrCreateActiveCart(user, guestCartId);
+        Cart cart = findOrCreateActiveCart(user, guestCartId);
         return buildCartResponse(cart);
     }
 
     private CartResponse buildCartResponse(Cart cart) {
         CartResponse cartResponse = cartMapper.toDto(cart);
+
+        // Map variant info from the entity directly to avoid N+1 queries
+        Map<UUID, CartItem> cartItemMap = new HashMap<>();
+        if (cart.getItems() != null) {
+            for (CartItem item : cart.getItems()) {
+                if (item.getVariant() != null) {
+                    cartItemMap.put(item.getVariant().getId(), item);
+                }
+            }
+        }
+
         for (CartItemResponse itemResponse : cartResponse.getItems()) {
-            ProductVariant variant = variantRepository.findById(itemResponse.getVariantId())
-                    .orElseThrow(() -> new NotFoundException("Variant not found for ID: " + itemResponse.getVariantId()));
-            int availableStock = variant.getInventory() != null ? variant.getInventory().getAvailableStock() : 0;
-            boolean inStock = availableStock > 0;
+            // Find the corresponding entity item to get the variant
+            // We use the variant ID from the response to find the original entity item (or
+            // rather its variant)
+            // But wait, itemResponse has variantId.
 
-            VariantStockStatus stockStatus = VariantStockStatus.builder()
-                    .inStock(inStock)
-                    .availableQuantity(availableStock)
-                    .message(inStock ? "In Stock" : "Out of Stock")
-                    .build();
+            // Optimization: Use the variant from the loaded Cart entity instead of querying
+            // DB
+            // We need to find the CartItem entity that corresponds to this itemResponse.
+            // Assuming itemResponse.getId() matches CartItem.getId()
 
-            itemResponse.setStockStatus(stockStatus);
+            CartItem cartItemEntity = cart.getItems().stream()
+                    .filter(item -> item.getId().equals(itemResponse.getId()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (cartItemEntity != null && cartItemEntity.getVariant() != null) {
+                ProductVariant variant = cartItemEntity.getVariant();
+                Inventory inventory = variant.getInventory();
+                int availableStock = inventory != null ? inventory.getAvailableStock() : 0;
+                boolean inStock = availableStock > 0;
+
+                VariantStockStatus stockStatus = VariantStockStatus.builder()
+                        .inStock(inStock)
+                        .availableQuantity(availableStock)
+                        .message(inStock ? "In Stock" : "Out of Stock")
+                        .build();
+
+                itemResponse.setStockStatus(stockStatus);
+            } else {
+                // Fallback if something is inconsistent, though shouldn't happen
+                itemResponse.setStockStatus(VariantStockStatus.builder()
+                        .inStock(false)
+                        .availableQuantity(0)
+                        .message("Unknown")
+                        .build());
+            }
         }
         return cartResponse;
     }
@@ -69,13 +105,14 @@ public class CartService {
 
         Cart cart = findOrCreateActiveCart(user, guestCartId);
         // Logic to add item to cart goes here
-        //Lấy variant
+        // Lấy variant
         ProductVariant variant = variantRepository.getReferenceById(cartItemRequest.getVariantId());
-        //Upsert item
+        // Upsert item
         cart = upsertItem(cart, variant, cartItemRequest.getQuantity());
 
         return buildCartResponse(cartRepository.save(cart));
     }
+
     public Cart findOrCreateActiveCart(Optional<User> user, Optional<UUID> guestCartId) {
         if (user.isPresent()) {
             return cartRepository.findByUserIdAndStatus(user.get().getId(), Cart.CartStatus.ACTIVE)
@@ -87,8 +124,9 @@ public class CartService {
             return createNewCart(null);
         }
     }
+
     @Transactional
-    public CartResponse mergeCarts( UUID guestCartId) {
+    public CartResponse mergeCarts(UUID guestCartId) {
 
         // 1. Lấy (hoặc tạo) giỏ hàng của USER
         Optional<User> userOpt = authenUtil.getAuthenUser();
@@ -100,38 +138,54 @@ public class CartService {
                 .orElseGet(() -> createNewCart(user)); // Tạo cart mới nếu user chưa có
 
         // 2. Lấy giỏ hàng của GUEST
-        Optional<Cart> guestCartOpt = cartRepository.findByIdAndUserIdIsNullAndStatus(guestCartId, Cart.CartStatus.ACTIVE);
+        Optional<Cart> guestCartOpt = cartRepository.findByIdAndUserIdIsNullAndStatus(guestCartId,
+                Cart.CartStatus.ACTIVE);
 
         if (guestCartOpt.isEmpty()) {
             return buildCartResponse(userCart);
         }
 
         Cart guestCart = guestCartOpt.get();
-        List<CartItem> guestItems = guestCart.getItems();
+        // Create a copy of the list to avoid ConcurrentModificationException when
+        // modifying the list during iteration
+        List<CartItem> guestItems = new ArrayList<>(guestCart.getItems());
 
         // 3. Chuyển các item từ giỏ guest sang giỏ user
         for (CartItem guestItem : guestItems) {
             Optional<CartItem> userItemOpt = cartItemRepository.findByCartAndVariant(userCart, guestItem.getVariant());
             int currentQuantityInCart = userItemOpt.map(CartItem::getQuantity).orElse(0);
             int newTotalQuantityInCart = currentQuantityInCart + guestItem.getQuantity();
-            checkInventoryAvailability(guestItem.getVariant(),newTotalQuantityInCart);
+
+            // Check inventory for the TOTAL quantity
+            checkInventoryAvailability(guestItem.getVariant(), newTotalQuantityInCart);
+
             if (userItemOpt.isPresent()) {
                 CartItem userItem = userItemOpt.get();
-                userItem.setQuantity(userItem.getQuantity() + guestItem.getQuantity());
+                userItem.setQuantity(newTotalQuantityInCart);
                 cartItemRepository.save(userItem);
-            } else {
+
+                // Remove from guest cart since we merged it into existing item
                 guestCart.removeItem(guestItem);
-                userCart.addItem(guestItem);     // Thêm vào cart mới
+                // We can delete the guest item explicitly as it's no longer needed
+                cartItemRepository.delete(guestItem);
+            } else {
+                // Move item to user cart
+                guestCart.removeItem(guestItem);
+                userCart.addItem(guestItem); // Re-parenting
+                // No need to save guestItem explicitly, saving userCart will cascade
             }
         }
 
         // 4. Lưu giỏ hàng user (đã gộp) và Xóa giỏ hàng guest
+        // If guestCart is empty now, we can delete it.
+        // Even if not empty (should be empty), we delete it.
         cartRepository.delete(guestCart);
         return buildCartResponse(cartRepository.save(userCart)); // Lưu cart user
     }
+
     @Transactional
     public CartResponse removeItemFromCart(UUID cartItemId, Optional<UUID> guestCartId) {
-        Optional<User> user =authenUtil.getAuthenUser();
+        Optional<User> user = authenUtil.getAuthenUser();
         // 1. Tìm giỏ hàng (nếu không thấy sẽ báo lỗi)
         Cart cart = findActiveCartOrThrow(user, guestCartId);
 
@@ -145,8 +199,10 @@ public class CartService {
         Cart savedCart = cartRepository.save(cart);
         return buildCartResponse(savedCart);
     }
+
     @Transactional
-    public CartResponse updateCartItemVariant(UUID cartItemId, UpdateCartItemVariantRequest request,Optional<UUID> guestCartId) {
+    public CartResponse updateCartItemVariant(UUID cartItemId, UpdateCartItemVariantRequest request,
+            Optional<UUID> guestCartId) {
         Optional<User> user = authenUtil.getAuthenUser();
         // 1. Tìm giỏ hàng
         Cart cart = findActiveCartOrThrow(user, guestCartId);
@@ -160,31 +216,34 @@ public class CartService {
                 .orElseThrow(() -> new RuntimeException("New Variant not found"));
 
         // *** Logic "Đổi Variant" phức tạp ***
-        // Nếu variant mới (size L) giống variant cũ (size M) -> đây chỉ là update quantity.
+        // Nếu variant mới (size L) giống variant cũ (size M) -> đây chỉ là update
+        // quantity.
         // Nếu variant mới (size L) khác variant cũ (size M):
-        //   a. Ta phải xóa item cũ (size M).
-        //   b. Ta phải "UPSERT" (thêm/gộp) item mới (size L).
+        // a. Ta phải xóa item cũ (size M).
+        // b. Ta phải "UPSERT" (thêm/gộp) item mới (size L).
 
         // 4. Xóa item CŨ khỏi giỏ hàng
         // (Hibernate sẽ xóa nó khi transaction kết thúc)
         cart.removeItem(oldItem);
         // Quan trọng: Phải flush để xóa ngay, tránh lỗi unique constraint
         cartItemRepository.delete(oldItem);
+        cartItemRepository.flush();
 
         // 5. [TÁI SỬ DỤNG LOGIC]
         // Gọi lại hàm 'addItemToCart' nội bộ (hoặc tái cấu trúc logic check)
         // để "Upsert" variant MỚI vào.
         // Đây là cách an toàn nhất để đảm bảo:
-        //   - Kiểm tra tồn kho cho variant MỚI.
-        //   - Gộp số lượng nếu variant MỚI đã có sẵn trong giỏ.
+        // - Kiểm tra tồn kho cho variant MỚI.
+        // - Gộp số lượng nếu variant MỚI đã có sẵn trong giỏ.
 
         // Tái cấu trúc nhẹ logic từ 'addItemToCart'
         Cart updatedCart = upsertItem(cart, newVariant, request.getNewQuantity());
 
         return buildCartResponse(updatedCart);
     }
+
     public CartResponse removeAllItem(Optional<UUID> cartIdOptional) {
-        Optional<User> user =authenUtil.getAuthenUser();
+        Optional<User> user = authenUtil.getAuthenUser();
         // 1. Tìm giỏ hàng (nếu không thấy sẽ báo lỗi)
         Cart cart = findActiveCartOrThrow(user, cartIdOptional);
 
@@ -195,6 +254,7 @@ public class CartService {
         Cart savedCart = cartRepository.save(cart);
         return buildCartResponse(savedCart);
     }
+
     /**
      * Create a new cart for the given user.
      * If user is null, the cart is created for a guest.
@@ -206,17 +266,24 @@ public class CartService {
                 .build();
         return cartRepository.save(cart);
     }
-    //Kiểm tra tồn kho
+
+    // Kiểm tra tồn kho
     private void checkInventoryAvailability(ProductVariant variant, int desiredQuantity) {
         Inventory inventory = variant.getInventory();
+        if (inventory == null) {
+            // If inventory record is missing, assume 0 stock or throw error.
+            // Assuming 0 stock is safer.
+            throw new BadRequestException(
+                    "Không tìm thấy thông tin tồn kho cho sản phẩm " + variant.getSku());
+        }
         int availableStock = inventory.getAvailableStock();
         if (desiredQuantity > availableStock) {
             throw new BadRequestException(
                     "Không đủ hàng cho sản phẩm " + variant.getSku() +
-                            ". Chỉ còn " + availableStock + " sản phẩm có sẵn."
-            );
+                            ". Chỉ còn " + availableStock + " sản phẩm có sẵn.");
         }
     }
+
     private Cart findActiveCartOrThrow(Optional<User> user, Optional<UUID> guestCartId) {
         Optional<Cart> cartOpt;
         if (user.isPresent()) {
@@ -247,8 +314,7 @@ public class CartService {
         // 3. Kiểm tra tồn kho
         if (newTotalQuantityInCart > availableStock) {
             throw new ConflictException(
-                    "Không đủ hàng. Chỉ còn " + availableStock + " sản phẩm có sẵn."
-            );
+                    "Không đủ hàng. Chỉ còn " + availableStock + " sản phẩm có sẵn.");
         }
 
         // 4. Logic Upsert
@@ -268,25 +334,22 @@ public class CartService {
         return cartRepository.save(cart); // Lưu toàn bộ
     }
 
+    @Transactional
     public void clearCart(CheckoutSession checkoutSession) {
         List<CheckoutItemDetail> items = checkoutSession.getItems();
         if (items == null || items.isEmpty()) {
             return; // Không có gì để xóa
-        }else {
+        } else {
             Cart cart = cartRepository.findById(checkoutSession.getCartId())
                     .orElseThrow(() -> new NotFoundException("Cart not found"));
-            removeItemsFromCart(cart, items.stream()
+
+            Set<UUID> idsToRemove = items.stream()
                     .map(CheckoutItemDetail::getCartItemId)
                     .filter(Objects::nonNull)
-                    .toList());
+                    .collect(Collectors.toSet());
+
+            cart.getItems().removeIf(item -> idsToRemove.contains(item.getId()));
             cartRepository.save(cart);
         }
-    }
-    public void removeItemsFromCart(Cart cart, List<UUID> itemIds) {
-        for (UUID itemId : itemIds) {
-            Optional<CartItem> cartItemOpt = cartItemRepository.findById(itemId);
-            cartItemOpt.ifPresent(cart::removeItem);
-        }
-        cartRepository.save(cart);
     }
 }
