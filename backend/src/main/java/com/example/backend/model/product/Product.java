@@ -12,7 +12,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.awt.*;
 import java.math.BigInteger;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -71,12 +71,12 @@ public class Product {
     private String primaryImageUrl;
 
     @CreationTimestamp
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @UpdateTimestamp
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 
-    private LocalDateTime deletedAt;
+    private Instant deletedAt;
 
     @Version
     private Integer version;

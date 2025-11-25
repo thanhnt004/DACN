@@ -2,7 +2,7 @@ package com.example.backend.service.product;
 
 import com.example.backend.dto.request.catalog.product.ProductImageRequest;
 import com.example.backend.dto.response.catalog.product.ProductImageResponse;
-import com.example.backend.excepton.NotFoundException;
+import com.example.backend.exception.NotFoundException;
 import com.example.backend.mapper.ImageMapper;
 import com.example.backend.model.product.Product;
 import com.example.backend.model.product.ProductImage;

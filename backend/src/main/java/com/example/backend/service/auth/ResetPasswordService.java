@@ -2,10 +2,9 @@ package com.example.backend.service.auth;
 
 import com.example.backend.dto.response.auth.CustomUserDetail;
 import com.example.backend.dto.request.auth.ChangePasswordRequest;
-import com.example.backend.excepton.*;
+import com.example.backend.exception.*;
 import com.example.backend.model.User;
 import com.example.backend.repository.user.UserRepository;
-import com.example.backend.service.EmailService;
 import com.example.backend.service.MessageService;
 import com.example.backend.util.CryptoUtils;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +43,7 @@ public class ResetPasswordService {
         //used dung redis
         //expiry
         if (tokenService.isExpired(token))
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN.value(), "Token expired");
+            throw new com.example.backend.exception.auth.TokenExpiredException("Token đặt lại mật khẩu đã hết hạn");
 
     }
     @Transactional

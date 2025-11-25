@@ -2,8 +2,8 @@ package com.example.backend.service.order;
 
 import com.example.backend.dto.response.checkout.CheckoutItemDetail;
 import com.example.backend.dto.response.checkout.CheckoutSession;
-import com.example.backend.excepton.BadRequestException;
-import com.example.backend.excepton.NotFoundException;
+import com.example.backend.exception.BadRequestException;
+import com.example.backend.exception.NotFoundException;
 import com.example.backend.model.User;
 import com.example.backend.model.order.Order;
 import com.example.backend.model.order.OrderItem;

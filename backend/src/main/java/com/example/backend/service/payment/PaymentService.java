@@ -1,12 +1,11 @@
 package com.example.backend.service.payment;
 
 import com.example.backend.dto.response.checkout.PaymentMethodResponse;
-import com.example.backend.excepton.NotFoundException;
+import com.example.backend.exception.NotFoundException;
 import com.example.backend.model.order.Order;
 import com.example.backend.model.payment.Payment;
 import com.example.backend.repository.order.OrderRepository;
 import com.example.backend.repository.payment.PaymentRepository;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,9 +16,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor

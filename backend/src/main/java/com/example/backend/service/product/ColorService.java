@@ -1,8 +1,8 @@
 package com.example.backend.service.product;
 
 import com.example.backend.dto.response.catalog.ColorDto;
-import com.example.backend.excepton.BadRequestException;
-import com.example.backend.excepton.ConflictException;
+import com.example.backend.exception.BadRequestException;
+import com.example.backend.exception.ConflictException;
 import com.example.backend.mapper.ColorMapper;
 import com.example.backend.model.product.Color;
 import com.example.backend.repository.catalog.product.ColorRepository;

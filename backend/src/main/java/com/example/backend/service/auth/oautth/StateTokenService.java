@@ -1,10 +1,9 @@
 package com.example.backend.service.auth.oautth;
 
 import com.example.backend.config.TokenType;
-import com.example.backend.excepton.AuthenticationException;
+import com.example.backend.exception.AuthenticationException;
 import com.example.backend.service.auth.JwtService;
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jws;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

@@ -10,9 +10,9 @@ import com.example.backend.dto.response.catalog.SizeDto;
 import com.example.backend.dto.response.catalog.product.ProductDetailResponse;
 import com.example.backend.dto.response.catalog.product.ProductSummaryResponse;
 import com.example.backend.dto.response.wraper.PageResponse;
-import com.example.backend.excepton.BadRequestException;
-import com.example.backend.excepton.ConflictException;
-import com.example.backend.excepton.NotFoundException;
+import com.example.backend.exception.BadRequestException;
+import com.example.backend.exception.product.DuplicateProductException;
+import com.example.backend.exception.product.ProductNotFoundException;
 import com.example.backend.mapper.CategoryMapper;
 import com.example.backend.mapper.ImageMapper;
 import com.example.backend.mapper.ProductMapper;
@@ -77,7 +77,7 @@ public class ProductService {
     public ProductDetailResponse create(ProductCreateRequest productCreateRequest) {
         Product product = productMapper.toEntity(productCreateRequest);
         if (slugExist(productCreateRequest.getSlug(), null)) {
-            throw new ConflictException("Slug already exists");
+            throw new DuplicateProductException("SLUG", "Slug sản phẩm đã tồn tại");
         }
         product.setSlug(productCreateRequest.getSlug());
         if (product.getSeoTitle().isBlank())
@@ -101,10 +101,10 @@ public class ProductService {
     @Transactional
     public ProductDetailResponse update(ProductUpdateRequest request, UUID id) {
         Product exist = productRepository.findById(id).orElseThrow(
-                () -> new NotFoundException("Product not found!"));
+                () -> new ProductNotFoundException("Không tìm thấy sản phẩm"));
         if (StringUtils.hasText(request.getSlug())) {
             if (slugExist(request.getSlug(), id)) {
-                throw new ConflictException("Slug already exists");
+                throw new DuplicateProductException("SLUG", "Slug sản phẩm đã tồn tại");
             }
         }
         productMapper.updateFromDto(request, exist);
@@ -126,7 +126,7 @@ public class ProductService {
     @Transactional
     public void delete(UUID productId) {
         Product exist = productRepository.findById(productId).orElseThrow(
-                () -> new NotFoundException("Product not found!"));
+                () -> new ProductNotFoundException("Không tìm thấy sản phẩm"));
         productRepository.delete(exist);
     }
 
@@ -141,10 +141,10 @@ public class ProductService {
         try {
             UUID id = UUID.fromString(slugOrId);
             product = productRepository.findById(id).orElseThrow(
-                    () -> new NotFoundException("Product not found!"));
+                    () -> new ProductNotFoundException("Không tìm thấy sản phẩm"));
         } catch (Exception e) {
             product = productRepository.findBySlug(slugOrId).orElseThrow(
-                    () -> new NotFoundException("Product not found!"));
+                    () -> new ProductNotFoundException("Không tìm thấy sản phẩm"));
         }
         Set<String> includeSet = normalizeIncludes(includes);
         ProductDetailResponse response = productMapper.toDto(product);
@@ -172,7 +172,7 @@ public class ProductService {
     @Transactional
     public void changeStatus(UUID id, ProductStatus status) {
         Product product = productRepository.findById(id).orElseThrow(
-                () -> new NotFoundException("Product not found!"));
+                () -> new ProductNotFoundException("Không tìm thấy sản phẩm"));
         if (product.getStatus().equals(status))
             return;
         if (status.equals(ProductStatus.ACTIVE))
@@ -226,7 +226,6 @@ public class ProductService {
         String sortBy = filter.getSortBy();
         if (sortBy == null || sortBy.isBlank())
             return Sort.by(new Sort.Order(Sort.Direction.DESC, "updatedAt"));
-        ;
 
         String normalized = sortBy.trim();
         if (!ProductFilter.ALLOW_SORT_LIST.contains(normalized)) {

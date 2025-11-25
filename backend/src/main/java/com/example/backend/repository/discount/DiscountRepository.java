@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,6 +29,6 @@ public interface DiscountRepository extends JpaRepository<Discount, UUID>, JpaSp
     List<Discount> findApplicableAndGlobalDiscounts(
             @Param("productIds") List<UUID> productIds,
             @Param("categoryIds") List<UUID> categoryIds,
-            @Param("now") LocalDateTime now
+            @Param("now") Instant now
     );
 }

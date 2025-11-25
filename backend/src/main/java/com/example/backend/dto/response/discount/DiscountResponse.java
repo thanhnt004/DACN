@@ -4,7 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.experimental.FieldDefaults;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,14 +18,14 @@ public class DiscountResponse {
     String description;
     String type;
     Integer value;
-    LocalDateTime startsAt;
-    LocalDateTime endsAt;
+    Instant startsAt;
+    Instant endsAt;
     Integer maxRedemptions;
     Integer perUserLimit;
     Long minOrderAmount;
     boolean active;
-    LocalDateTime createdAt;
-    LocalDateTime updatedAt;
+    Instant createdAt;
+    Instant updatedAt;
     List<UUID> productIds;
     List<UUID> categoryIds;
 }

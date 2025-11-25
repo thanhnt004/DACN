@@ -1,10 +1,9 @@
 package com.example.backend.service.auth;
 
 import com.example.backend.config.TokenType;
-import com.example.backend.excepton.ResponseStatusException;
+import com.example.backend.exception.auth.VerificationTokenInvalidException;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -37,13 +36,11 @@ public class EmailVerifyTokenService {
     {
         return getClaims(token).getExpiration().before(new Date());
     }
-    private Claims getClaims(String token)
-    {
+    private Claims getClaims(String token) {
         try {
             return jwtService.parseAndValidate(token);
-        }catch (Exception e)
-        {
-           throw new ResponseStatusException(HttpStatus.CONFLICT.value(), "Email token invalid");
+        } catch (Exception e) {
+            throw new VerificationTokenInvalidException("Token xác thực email không hợp lệ");
         }
     }
 }

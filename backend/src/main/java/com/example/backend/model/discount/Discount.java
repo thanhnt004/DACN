@@ -10,7 +10,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.math.BigInteger;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,10 +45,10 @@ public class Discount {
     private Long value;
 
     @Column(name = "starts_at")
-    private LocalDateTime startsAt;
+    private Instant startsAt;
 
     @Column(name = "ends_at")
-    private LocalDateTime endsAt;
+    private Instant endsAt;
 
     @Column(name = "max_redemptions")
     private Integer maxRedemptions;
@@ -64,11 +64,11 @@ public class Discount {
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
     //relations
     @ManyToMany(mappedBy = "discounts", fetch = FetchType.LAZY)
     private List<Product> products;

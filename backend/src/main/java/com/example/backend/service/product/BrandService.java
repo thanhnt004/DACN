@@ -3,8 +3,7 @@ package com.example.backend.service.product;
 import com.example.backend.controller.catalog.category.fillter.BrandFilter;
 import com.example.backend.dto.response.catalog.BrandDto;
 import com.example.backend.dto.response.wraper.PageResponse;
-import com.example.backend.excepton.BadRequestException;
-import com.example.backend.excepton.NotFoundException;
+import com.example.backend.exception.NotFoundException;
 import com.example.backend.mapper.BrandMapper;
 import com.example.backend.model.product.Brand;
 import com.example.backend.repository.catalog.brand.BrandRepository;
@@ -15,12 +14,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service

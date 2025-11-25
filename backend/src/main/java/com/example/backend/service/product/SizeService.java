@@ -1,8 +1,8 @@
 package com.example.backend.service.product;
 
 import com.example.backend.dto.response.catalog.SizeDto;
-import com.example.backend.excepton.BadRequestException;
-import com.example.backend.excepton.ConflictException;
+import com.example.backend.exception.product.DuplicateProductException;
+import com.example.backend.exception.product.ProductInUseException;
 import com.example.backend.mapper.SizeMapper;
 import com.example.backend.model.product.Size;
 import com.example.backend.repository.catalog.product.SizeRepository;
@@ -23,18 +23,18 @@ public class SizeService extends GenericCrudService<Size, SizeDto> {
     @Override
     protected void beforeUpdate(Size exist, SizeDto dto) {
         if (sizeRepository.existsByCodeAndIdNot(dto.getCode(), exist.getId()))
-            throw new ConflictException("Code is existed!");
+            throw new DuplicateProductException("SIZE", "Mã kích thước đã tồn tại");
     }
 
     @Override
     protected void beforeCreate(Size newEntity) {
         if (sizeRepository.existsByCodeAndIdNot(newEntity.getCode(),null))
-            throw new ConflictException("Code is existed!");
+            throw new DuplicateProductException("SIZE", "Mã kích thước đã tồn tại");
     }
 
     @Override
     protected void beforeDelete(Size exist) {
         if (sizeRepository.usedByProduct(exist.getId()))
-            throw new BadRequestException("Cannot delete size used by product!");
+            throw new ProductInUseException("Không thể xóa kích thước đang được sử dụng bởi sản phẩm");
     }
 }

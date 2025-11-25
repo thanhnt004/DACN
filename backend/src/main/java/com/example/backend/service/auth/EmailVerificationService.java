@@ -1,6 +1,9 @@
 package com.example.backend.service.auth;
 
-import com.example.backend.excepton.ResponseStatusException;
+import com.example.backend.exception.BadRequestException;
+import com.example.backend.exception.auth.EmailMismatchException;
+import com.example.backend.exception.auth.TokenExpiredException;
+import com.example.backend.exception.user.UserNotFoundException;
 import com.example.backend.model.EmailLog;
 import com.example.backend.model.enumrator.UserStatus;
 import com.example.backend.repository.EmailLogRepository;
@@ -10,7 +13,6 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -18,7 +20,6 @@ import org.springframework.util.StringUtils;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -40,13 +41,13 @@ public class EmailVerificationService {
         var emailFromToken = tokenService.getEmail(token);
 
         if (tokenService.isExpired(token))
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN.value(), "Token hết hạn");
+            throw new TokenExpiredException("Token xác thực email đã hết hạn");
 
         var user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED.value(), "Tài khoản không tồn tại"));
+                .orElseThrow(() -> new UserNotFoundException("Tài khoản không tồn tại"));
 
         if (!user.getEmail().equalsIgnoreCase(emailFromToken)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT.value(), "Email không khớp. Vui lòng yêu cầu gửi lại liên kết xác minh.");
+            throw new EmailMismatchException("Email không khớp. Vui lòng yêu cầu gửi lại liên kết xác minh.");
         }
 
         // Optional: check token version if you encode it
@@ -60,8 +61,8 @@ public class EmailVerificationService {
         }
         user.setStatus(UserStatus.ACTIVE);
         user.setEmailVerifiedAt(Instant.now());
-        user.setUpdatedAt(LocalDateTime.now());
-        userRepository.save(user);
+        user.setUpdatedAt(Instant.now());
+        user.setUpdatedAt(Instant.now());
 
         return Map.of(
                 "status", "verified",
@@ -73,11 +74,11 @@ public class EmailVerificationService {
     @Transactional
     public void resendVerification(String email) {
         if (!StringUtils.hasText(email)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST.value(), "Email là bắt buộc");
+            throw new BadRequestException("Email là bắt buộc");
         }
 
         var user = userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND.value(), "Không tìm thấy người dùng"));
+                .orElseThrow(() -> new UserNotFoundException("Không tìm thấy người dùng"));
 
         if (user.getEmailVerifiedAt() != null) {
             // idempotent, no-op
@@ -88,12 +89,16 @@ public class EmailVerificationService {
     }
 
     public String generateVerificationLink(String userId, String email) {
-        var id = UUID.fromString(userId);
+        UUID id;
+        try {
+            id = UUID.fromString(userId);
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException("Định danh người dùng không hợp lệ");
+        }
         var user = userRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND.value(), "Không tìm thấy người dùng"));
-
+                .orElseThrow(() -> new UserNotFoundException("Không tìm thấy người dùng"));
         if (!user.getEmail().equalsIgnoreCase(email)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT.value(), "Email không khớp với người dùng");
+            throw new EmailMismatchException("Email không khớp với người dùng");
         }
 
         var token = tokenService.generateEmailVerifyToken(user.getId(), user.getEmail());

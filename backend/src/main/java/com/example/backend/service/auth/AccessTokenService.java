@@ -1,21 +1,12 @@
 package com.example.backend.service.auth;
 
 import com.example.backend.config.TokenType;
-import com.example.backend.excepton.AuthenticationException;
+import com.example.backend.exception.AuthenticationException;
 import com.example.backend.model.User;
-import com.example.backend.model.enumrator.Role;
-import com.example.backend.util.ParseJwtTokenUtil;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Jwts;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
 
-import javax.crypto.SecretKey;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.*;
 
 @Service
@@ -38,8 +29,6 @@ public class AccessTokenService{
     public boolean validateAccessToken(String token) {
        try {
            var claims = jwtService.parseAndValidate(token);
-           if (claims.getExpiration().before(new Date()))
-               throw new ExpiredJwtException(null,claims,"Access token is expired");
        } catch (Exception e) {
            throw new AuthenticationException(401,"Invalid access token");
        }

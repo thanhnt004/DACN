@@ -9,7 +9,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.experimental.FieldDefaults;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @Builder
@@ -27,8 +27,8 @@ public class DiscountCreateRequest {
     @NotNull
     @Min(1)
     Integer value;
-    LocalDateTime startsAt;
-    LocalDateTime endsAt;
+    Instant startsAt;
+    Instant endsAt;
     @Min(1)
     Integer maxRedemptions;
     @Min(1)

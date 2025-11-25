@@ -6,8 +6,9 @@ import com.example.backend.dto.request.checkout.CheckOutItem;
 import com.example.backend.dto.response.catalog.product.InventoryResponse;
 import com.example.backend.dto.response.catalog.product.VariantResponse;
 import com.example.backend.dto.response.checkout.CheckoutItemDetail;
-import com.example.backend.excepton.BadRequestException;
-import com.example.backend.excepton.NotFoundException;
+import com.example.backend.exception.BadRequestException;
+import com.example.backend.exception.product.ProductNotFoundException;
+import com.example.backend.exception.product.VariantNotFoundException;
 import com.example.backend.mapper.InventoryMapper;
 import com.example.backend.mapper.ProductVariantMapper;
 import com.example.backend.model.product.*;
@@ -39,8 +40,8 @@ public class ProductVariantService {
     private final InventoryMapper inventoryMapper;
     public void deleteVariant(UUID variantId,UUID productId)
     {
-        ProductVariant productVariant = productVariantRepository.findById(variantId).orElseThrow(()->new NotFoundException("Variant not found!"));
-        Product product = productRepository.findById(productId).orElseThrow(()->new NotFoundException("Product not found!"));
+        ProductVariant productVariant = productVariantRepository.findById(variantId).orElseThrow(()->new VariantNotFoundException("Không tìm thấy phiên bản sản phẩm"));
+        Product product = productRepository.findById(productId).orElseThrow(()->new ProductNotFoundException("Không tìm thấy sản phẩm"));
         product.removeVariant(productVariant);
         productRepository.save(product);
         productVariantRepository.delete(productVariant);
@@ -52,17 +53,17 @@ public class ProductVariantService {
         validateExist(request.getColorId(),request.getSizeId(),productId);
 
         //get product
-        Product product = productRepository.findById(productId).orElseThrow(()->new NotFoundException("Product not found!"));
+        Product product = productRepository.findById(productId).orElseThrow(()->new ProductNotFoundException("Không tìm thấy sản phẩm"));
         Size size = null;
         if (request.getSizeId() != null) {
             size = sizeRepository.findById(request.getSizeId())
-                    .orElseThrow(() -> new NotFoundException("Size not found"));
+                    .orElseThrow(() -> new VariantNotFoundException("Không tìm thấy kích thước"));
         }
 
         Color color = null;
         if (request.getColorId() != null) {
             color = colorRepository.findById(request.getColorId())
-                    .orElseThrow(() -> new NotFoundException("Color not found"));
+                    .orElseThrow(() -> new VariantNotFoundException("Không tìm thấy màu sắc"));
         }
         ProductVariant newVariant = mapper.toEntity(request);
         newVariant.setSize(size);
@@ -93,8 +94,8 @@ public class ProductVariantService {
     }
 
     public VariantResponse update(UUID productId, UUID variantId, VariantUpdateRequest request) {
-        Product product = productRepository.findById(productId).orElseThrow(()->new NotFoundException("Product not found!"));
-        ProductVariant productVariant = productVariantRepository.findById(variantId).orElseThrow(()->new NotFoundException("Product variant not found!"));
+        productRepository.findById(productId).orElseThrow(()->new ProductNotFoundException("Không tìm thấy sản phẩm"));
+        ProductVariant productVariant = productVariantRepository.findById(variantId).orElseThrow(()->new VariantNotFoundException("Không tìm thấy phiên bản sản phẩm"));
         mapper.updateFromDto(productVariant,request);
         if (request.getInventory()!=null)
         {
@@ -114,7 +115,7 @@ public class ProductVariantService {
 
     public List<VariantResponse> getList(UUID productId) {
         Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new NotFoundException("Product not found!"));
+                .orElseThrow(() -> new ProductNotFoundException("Không tìm thấy sản phẩm"));
 
         List<ProductVariant> variants = product.getVariants();
         if (variants == null || variants.isEmpty()) {
@@ -137,8 +138,8 @@ public class ProductVariantService {
     }
 
     public VariantResponse getById(UUID productId, UUID variantId) {
-        Product product = productRepository.findById(productId).orElseThrow(()->new NotFoundException("Product not found!"));
-        ProductVariant productVariant = productVariantRepository.findById(variantId).orElseThrow(()->new NotFoundException("Product variant not found!"));
+        productRepository.findById(productId).orElseThrow(()->new ProductNotFoundException("Không tìm thấy sản phẩm"));
+        ProductVariant productVariant = productVariantRepository.findById(variantId).orElseThrow(()->new VariantNotFoundException("Không tìm thấy phiên bản sản phẩm"));
 
         VariantResponse response =  mapper.toResponse(productVariant);
         response.setInventory(inventoryMapper.toDto(productVariant.getInventory()));
@@ -148,9 +149,9 @@ public class ProductVariantService {
     public List<CheckoutItemDetail> getItemsForCheckout(@NotEmpty(message = "Danh sách sản phẩm không được để trống!") @Valid List<CheckOutItem> items) {
         return items.stream().map(item -> {
             ProductVariant variant = productVariantRepository.findById(item.getVariantId())
-                    .orElseThrow(() -> new NotFoundException("Product variant not found: " + item.getVariantId()));
+                    .orElseThrow(() -> new VariantNotFoundException("Không tìm thấy phiên bản sản phẩm: " + item.getVariantId()));
 
-            CheckoutItemDetail response = CheckoutItemDetail.builder()
+            return CheckoutItemDetail.builder()
                     .variantId(variant.getId())
                     .productId(variant.getProduct().getId())
                     .productName(variant.getProduct().getName())
@@ -162,7 +163,6 @@ public class ProductVariantService {
                     .compareAtAmount(variant.getCompareAtAmount())
                     .totalAmount(item.getQuantity()*variant.getPriceAmount())
                     .build();
-            return response;
         }).toList();
     }
 

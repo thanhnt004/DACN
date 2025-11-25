@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Value;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @Builder
@@ -18,5 +18,5 @@ public class RefreshTokenResponse {
     @JsonProperty("isAdmin")
     private boolean isAdmin;
     @Builder.Default
-    private LocalDateTime issuedAt = LocalDateTime.now();
+    private Instant issuedAt = Instant.now();
 }

@@ -1,6 +1,7 @@
 package com.example.backend.repository.discount;
 
-import com.example.backend.model.DiscountRedemption;
+
+import com.example.backend.model.discount.DiscountRedemption;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Range;

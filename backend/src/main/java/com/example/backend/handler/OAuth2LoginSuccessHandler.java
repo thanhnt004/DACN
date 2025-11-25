@@ -1,6 +1,6 @@
 package com.example.backend.handler;
 
-import com.example.backend.excepton.AuthenticationException;
+import com.example.backend.exception.AuthenticationException;
 import com.example.backend.model.OAuthAccount;
 import com.example.backend.model.User;
 import com.example.backend.model.enumrator.Role;

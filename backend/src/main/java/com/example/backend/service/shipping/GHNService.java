@@ -9,6 +9,7 @@ import com.example.backend.dto.response.shipping.GhnProvinceOption;
 import com.example.backend.dto.response.shipping.GhnWardOption;
 import com.example.backend.dto.response.shipping.ShippingOption;
 import com.example.backend.dto.response.user.UserAddress;
+import com.example.backend.exception.shipping.ShippingServiceException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -73,7 +74,7 @@ public class GHNService {
     public GHNWard getWard(String ward, String city, String district) {
         GHNDistrict matchedDistrict = getDistrictByName(city, district);
         if (matchedDistrict == null) {
-            throw new GhnApiException("Không tìm thấy quận/huyện cho địa chỉ: " + district + ", " + city);
+            throw new ShippingServiceException("SHIPPING_DISTRICT_NOT_FOUND", "Không tìm thấy quận/huyện cho địa chỉ: " + district + ", " + city);
         }
         Integer districtId = matchedDistrict.getDistrictID();
         Map<String, Object> wardsResponse = getWards(districtId);
@@ -85,7 +86,7 @@ public class GHNService {
                 return objectMapper.convertValue(w, GHNWard.class);
             }
         }
-        throw new GhnApiException("Không tìm thấy phường/xã: " + ward + ", " + district + ", " + city);
+        throw new ShippingServiceException("SHIPPING_WARD_NOT_FOUND", "Không tìm thấy phường/xã: " + ward + ", " + district + ", " + city);
     }
 
     @SuppressWarnings("unchecked")
@@ -154,7 +155,7 @@ public class GHNService {
         Map<String, Object> provincesResponse = getProvinces();
         Object data = provincesResponse.get("data");
         if (!(data instanceof List<?> rawList)) {
-            throw new GhnApiException("Không thể lấy danh sách tỉnh/thành từ GHN");
+            throw new ShippingServiceException("SHIPPING_PROVINCES_FETCH_FAILED", "Không thể lấy danh sách tỉnh/thành từ GHN");
         }
         return rawList.stream()
                 .filter(Objects::nonNull)
@@ -166,7 +167,7 @@ public class GHNService {
         Map<String, Object> districtsResponse = getDistricts(provinceId);
         Object data = districtsResponse.get("data");
         if (!(data instanceof List<?> rawList)) {
-            throw new GhnApiException("Không thể lấy danh sách quận/huyện từ GHN");
+            throw new ShippingServiceException("SHIPPING_DISTRICTS_FETCH_FAILED", "Không thể lấy danh sách quận/huyện từ GHN");
         }
         return rawList.stream()
                 .filter(Objects::nonNull)
@@ -178,7 +179,7 @@ public class GHNService {
         Map<String, Object> wardsResponse = getWards(districtId);
         Object data = wardsResponse.get("data");
         if (!(data instanceof List<?> rawList)) {
-            throw new GhnApiException("Không thể lấy danh sách phường/xã từ GHN");
+            throw new ShippingServiceException("SHIPPING_WARDS_FETCH_FAILED", "Không thể lấy danh sách phường/xã từ GHN");
         }
         return rawList.stream()
                 .filter(Objects::nonNull)
@@ -301,7 +302,7 @@ public class GHNService {
 
         } catch (Exception e) {
             log.error("Failed to fetch wards", e);
-            throw new GhnApiException("Không thể lấy danh sách phường/xã", e);
+            throw new ShippingServiceException("SHIPPING_API_ERROR", "Không thể lấy danh sách phường/xã");
         }
     }
 
@@ -321,7 +322,7 @@ public class GHNService {
 
         } catch (Exception e) {
             log.error("Failed to fetch shop info", e);
-            throw new GhnApiException("Không thể lấy thông tin cửa hàng", e);
+            throw new ShippingServiceException("SHIPPING_API_ERROR", "Không thể lấy thông tin cửa hàng");
         }
     }
 
@@ -344,7 +345,7 @@ public class GHNService {
 
         } catch (Exception e) {
             log.error("Failed to fetch money", e);
-            throw new GhnApiException("Không thể tính tiền ", e);
+            throw new ShippingServiceException("SHIPPING_CALCULATE_FAILED", "Không thể tính phí vận chuyển");
         }
     }
 
@@ -369,7 +370,7 @@ public class GHNService {
 
         } catch (Exception e) {
             log.error("Failed to fetch wards", e);
-            throw new GhnApiException("Không lấy danh sách service", e);
+            throw new ShippingServiceException("SHIPPING_API_ERROR", "Không lấy danh sách dịch vụ vận chuyển");
         }
     }
 
@@ -389,7 +390,7 @@ public class GHNService {
 
         } catch (Exception e) {
             log.error("Failed to fetch provinces", e);
-            throw new GhnApiException("Không thể lấy danh sách tỉnh/thành", e);
+            throw new ShippingServiceException("SHIPPING_API_ERROR", "Không thể lấy danh sách tỉnh/thành");
         }
     }
 
@@ -413,7 +414,7 @@ public class GHNService {
 
         } catch (Exception e) {
             log.error("Failed to fetch districts", e);
-            throw new GhnApiException("Không thể lấy danh sách quận/huyện", e);
+            throw new ShippingServiceException("SHIPPING_API_ERROR", "Không thể lấy danh sách quận/huyện");
         }
     }
 
@@ -437,7 +438,7 @@ public class GHNService {
 
         } catch (Exception e) {
             log.error("Failed to fetch wards", e);
-            throw new GhnApiException("Không thể lấy danh sách phường/xã", e);
+            throw new ShippingServiceException("SHIPPING_API_ERROR", "Không thể lấy danh sách phường/xã");
         }
     }
 

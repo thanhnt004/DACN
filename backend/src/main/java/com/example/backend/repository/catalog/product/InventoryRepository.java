@@ -14,10 +14,11 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT i FROM Inventory i WHERE i.id IN :variantIds")
-    List<Inventory> findAllByIdInForUpdate(@Param("variantIds") List<UUID> variantIds);
-
+    @Modifying
+    @Query(value = "UPDATE inventory SET quantity_reserved = quantity_reserved + :qty, updated_at = now() " +
+            "WHERE variant_id = :variantId AND (quantity_on_hand - quantity_reserved) >= :qty",
+            nativeQuery = true)
+    int reserveIfAvailable(@Param("variantId") UUID variantId, @Param("qty") int qty);
     /**
      * Cập nhật số lượng 'reserved' một cách an toàn (atomic).
      */

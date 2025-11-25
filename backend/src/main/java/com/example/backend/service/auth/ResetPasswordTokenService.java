@@ -1,10 +1,9 @@
 package com.example.backend.service.auth;
 
 import com.example.backend.config.TokenType;
-import com.example.backend.excepton.ResponseStatusException;
+import com.example.backend.exception.auth.ResetTokenInvalidException;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -44,7 +43,7 @@ public class ResetPasswordTokenService {
             return jwtService.parseAndValidate(token);
         }catch (Exception e)
         {
-            throw new ResponseStatusException(HttpStatus.CONFLICT.value(), "Email token invalid");
+            throw new ResetTokenInvalidException("Token đặt lại mật khẩu không hợp lệ");
         }
     }
 }

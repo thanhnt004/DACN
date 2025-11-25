@@ -5,7 +5,7 @@ import com.example.backend.dto.response.user.OauthProviderResponse;
 import com.example.backend.dto.response.user.UserAddress;
 import com.example.backend.dto.response.user.UserProfileDto;
 import com.example.backend.dto.response.wraper.PageResponse;
-import com.example.backend.excepton.NotFoundException;
+import com.example.backend.exception.NotFoundException;
 import com.example.backend.mapper.AddressMapper;
 import com.example.backend.mapper.UserMapper;
 import com.example.backend.model.Address;

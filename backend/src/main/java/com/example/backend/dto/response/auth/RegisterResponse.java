@@ -3,7 +3,7 @@ package com.example.backend.dto.response.auth;
 import lombok.Builder;
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @Builder
@@ -13,6 +13,6 @@ public class RegisterResponse {
     private Boolean emailVerificationRequired = true;
     private String email;
     @Builder.Default
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private Instant createdAt = Instant.now();
     private String userId;
 }

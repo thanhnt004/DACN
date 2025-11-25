@@ -17,7 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -117,8 +117,8 @@ public class BrandRepositoryCustom {
             String description = t.get("description", String.class);
             Long cnt = t.get("productsCount", Long.class);
             Integer productsCount = cnt == null ? 0 : cnt.intValue();
-            LocalDateTime createdAt = t.get("createdAt", LocalDateTime.class);
-            LocalDateTime updatedAt = t.get("updatedAt", LocalDateTime.class);
+            Instant createdAt = t.get("createdAt", Instant.class);
+            Instant updatedAt = t.get("updatedAt", Instant.class);
             BrandDto dto = new BrandDto(id, name, slug, description, productsCount, createdAt, updatedAt);
             // you can set other fields on dto if you add setters or a richer constructor
             content.add(dto);

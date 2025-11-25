@@ -9,8 +9,8 @@ import lombok.AccessLevel;
 import lombok.Data;
 import lombok.experimental.FieldDefaults;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
@@ -24,7 +24,7 @@ public class UserProfileDto {
     String avatarUrl;
     User.Gender gender = User.Gender.O;
     LocalDate dateOfBirth;
-    LocalDateTime passwordChangedAt;
+    Instant passwordChangedAt;
     Role role;
     Boolean isActive;
 }

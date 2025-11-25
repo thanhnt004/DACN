@@ -6,7 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Data
@@ -32,12 +32,12 @@ public class BrandDto {
 
     private Long totalSales;
 
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 
-    private LocalDateTime deletedAt;
-    public BrandDto(UUID id,String name,String slug, String description,Integer productsCount,LocalDateTime createdAt,LocalDateTime updatedAt)
+    private Instant deletedAt;
+    public BrandDto(UUID id,String name,String slug, String description,Integer productsCount,Instant createdAt,Instant updatedAt)
     {
         this.id = id;
         this.name = name;

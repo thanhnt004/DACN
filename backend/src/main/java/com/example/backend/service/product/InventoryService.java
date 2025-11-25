@@ -1,9 +1,10 @@
 package com.example.backend.service.product;
 
 import com.example.backend.dto.response.catalog.VariantStockStatus;
-import com.example.backend.excepton.ConflictException;
-import com.example.backend.excepton.NotFoundException;
+import com.example.backend.exception.NotFoundException;
+import com.example.backend.exception.cart.InsufficientStockException;
 import com.example.backend.model.order.Order;
+import com.example.backend.model.order.OrderItem;
 import com.example.backend.model.product.Inventory;
 import com.example.backend.model.product.InventoryReservation;
 import com.example.backend.repository.catalog.product.InventoryRepository;
@@ -14,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -47,49 +47,23 @@ public class InventoryService {
      */
     @Transactional
     public void reserveStockForOrder(Order order) {
-        log.info("Reserving stock for order: {}", order.getOrderNumber());
+        for (OrderItem item : order.getItems()) {
+            UUID variantId = item.getVariant().getId();
+            int qty = item.getQuantity();
 
-        order.getItems().forEach(orderItem -> {
-            UUID variantId = orderItem.getVariant().getId();
-            int quantity = orderItem.getQuantity();
-
-            // Lock inventory row for update
-            Inventory inventory = inventoryRepository.findByIdForUpdate(variantId)
-                    .orElseThrow(() -> new NotFoundException(
-                            "Variant không tồn tại: " + variantId
-                    ));
-
-            // Check available stock
-            int available = inventory.getQuantityOnHand() - inventory.getQuantityReserved();
-            if (available < quantity) {
-                throw new ConflictException(
-                        String.format(
-                                "Không đủ hàng: %s. Còn %d, yêu cầu %d",
-                                orderItem.getProductName(),
-                                available,
-                                quantity
-                        )
-                );
+            int updated = inventoryRepository.reserveIfAvailable(variantId, qty);
+            if (updated == 0) {
+                throw new InsufficientStockException("Không đủ hàng: " + item.getProductName());
             }
 
-            // Reserve stock
-            inventory.setQuantityReserved(inventory.getQuantityReserved() + quantity);
-            inventoryRepository.save(inventory);
-
-            // Create reservation record
-            InventoryReservation reservation = InventoryReservation.builder()
-                    .reservedAt(Instant.now())
+            InventoryReservation r = InventoryReservation.builder()
+                    .variant(item.getVariant())
                     .order(order)
-                    .variant(orderItem.getVariant())
-                    .quantity(quantity)
+                    .quantity(qty)
+                    .reservedAt(Instant.now())
                     .build();
-
-            reservationRepository.save(reservation);
-
-            log.debug("Reserved {} units of variant {} for order {}",
-                    quantity, variantId, order.getId());
-        });
-
+            reservationRepository.save(r);
+        }
         log.info("Stock reserved successfully for order: {}", order.getOrderNumber());
     }
 
@@ -105,7 +79,7 @@ public class InventoryService {
             int quantity = orderItem.getQuantity();
 
             Inventory inventory = inventoryRepository.findByIdForUpdate(variantId)
-                    .orElseThrow(() -> new RuntimeException(
+                    .orElseThrow(() -> new NotFoundException(
                             "Variant không tồn tại: " + variantId
                     ));
 
@@ -137,7 +111,7 @@ public class InventoryService {
             int quantity = orderItem.getQuantity();
 
             Inventory inventory = inventoryRepository.findByIdForUpdate(variantId)
-                    .orElseThrow(() -> new RuntimeException(
+                    .orElseThrow(() -> new NotFoundException(
                             "Variant không tồn tại: " + variantId
                     ));
 

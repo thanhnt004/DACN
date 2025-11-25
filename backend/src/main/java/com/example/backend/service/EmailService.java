@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.exception.BadRequestException;
 import com.example.backend.model.order.Order;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -7,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -26,7 +26,7 @@ public class EmailService implements MessageService {
             helper.setFrom("nhthanh2k4@gmail.com");
             mailSender.send(message);
         } catch (MessagingException e) {
-            throw new RuntimeException(e);
+            throw new BadRequestException("Failed to send email");
         }
     }
     @Override

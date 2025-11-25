@@ -5,20 +5,19 @@ import lombok.Builder;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Value;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @Builder
 public class LoginResponse {
     private String accessToken;
     @Builder.Default
-    private String tokenType = "Bearer"; // "Bearer"
-    @Value("${ACCESS_TOKEN_EXPIRATION}")
+    private String tokenType = "Bearer";
     private Long expiresIn;
     @JsonProperty("isAdmin")
     private boolean isAdmin = false;
     @Builder.Default
-    private LocalDateTime loginAt = LocalDateTime.now();
+    private Instant loginAt = Instant.now();
 
     private boolean requireEmailVerification;
 }

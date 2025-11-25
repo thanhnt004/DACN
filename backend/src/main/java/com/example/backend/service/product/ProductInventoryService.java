@@ -2,8 +2,8 @@ package com.example.backend.service.product;
 
 import com.example.backend.dto.request.catalog.product.InventoryRequest;
 import com.example.backend.dto.response.catalog.product.InventoryResponse;
-import com.example.backend.excepton.ConflictException;
-import com.example.backend.excepton.NotFoundException;
+import com.example.backend.exception.ConflictException;
+import com.example.backend.exception.NotFoundException;
 import com.example.backend.mapper.InventoryMapper;
 import com.example.backend.model.product.Inventory;
 import com.example.backend.model.product.ProductVariant;

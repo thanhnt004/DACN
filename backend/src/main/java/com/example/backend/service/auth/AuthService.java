@@ -7,8 +7,8 @@ import com.example.backend.dto.response.auth.LoginResponse;
 import com.example.backend.dto.response.auth.LogoutResponse;
 import com.example.backend.dto.response.auth.RefreshTokenResponse;
 import com.example.backend.dto.response.auth.RegisterResponse;
-import com.example.backend.excepton.AuthenticationException;
-import com.example.backend.excepton.NotFoundException;
+import com.example.backend.exception.AuthenticationException;
+import com.example.backend.exception.NotFoundException;
 import com.example.backend.mapper.UserMapper;
 import com.example.backend.model.RefreshToken;
 import com.example.backend.model.enumrator.Role;
@@ -28,7 +28,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Slf4j
 @Service
@@ -83,7 +83,7 @@ public class AuthService {
 
         User currentUser = userRepository.findById(userDetail.getId())
                 .orElseThrow(() -> new NotFoundException("User not found!"));
-        currentUser.setLastLoginAt(LocalDateTime.now());
+        currentUser.setLastLoginAt(Instant.now());
         userRepository.save(currentUser);
         String accessToken = accessTokenService.generateAccessToken(currentUser);
         String refreshToken = refreshTokenService.createToken(currentUser);

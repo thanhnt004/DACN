@@ -1,6 +1,6 @@
 package com.example.backend.service.auth;
 
-import com.example.backend.excepton.AuthenticationException;
+import com.example.backend.exception.AuthenticationException;
 import com.example.backend.model.RefreshToken;
 import com.example.backend.model.User;
 import com.example.backend.repository.auth.RefreshTokenRepository;
@@ -12,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Service
 @Slf4j
@@ -32,7 +32,7 @@ public class RefreshTokenService {
     {
         String rawToken = CryptoUtils.generateSecureTokenRaw();
         log.info("expiration: {}", expiration);
-        LocalDateTime expiry = LocalDateTime.now().plusSeconds(expiration);
+        Instant expiry = Instant.now().plusSeconds(expiration);
 
         String tokenHash = CryptoUtils.hash(rawToken);
 

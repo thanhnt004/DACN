@@ -1,11 +1,12 @@
-package com.example.backend.model;
+package com.example.backend.model.discount;
 
+import com.example.backend.model.User;
 import com.example.backend.model.discount.Discount;
 import com.example.backend.model.order.Order;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -34,5 +35,5 @@ public class DiscountRedemption {
     private Order order;
 
     @Column(name = "redeemed_at", nullable = false)
-    private LocalDateTime redeemedAt;
+    private Instant redeemedAt;
 }

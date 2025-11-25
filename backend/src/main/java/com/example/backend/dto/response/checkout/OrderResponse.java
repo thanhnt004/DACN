@@ -34,7 +34,7 @@ public class OrderResponse {
     private Instant updatedAt;
     private Instant paidAt;
 
-    private Integer version;
+    private long version;
 
     private List<OrderItemDTO> items;
     private List<PaymentDTO> payments;

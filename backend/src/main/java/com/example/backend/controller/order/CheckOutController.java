@@ -1,5 +1,6 @@
 package com.example.backend.controller.order;
 
+import com.example.backend.aop.Idempotent;
 import com.example.backend.dto.request.checkout.CheckoutSessionCreateRequest;
 import com.example.backend.dto.request.checkout.UpdateAddressRequest;
 import com.example.backend.dto.request.checkout.UpdateDiscountRequest;
@@ -130,6 +131,7 @@ public class CheckOutController
     /**
      * Confirm checkout và tạo đơn hàng
      */
+    @Idempotent
     @PostMapping("/sessions/{sessionId}/confirm")
     public ResponseEntity<OrderCreatedResponse> confirmCheckout(
             HttpServletRequest httpRequest,

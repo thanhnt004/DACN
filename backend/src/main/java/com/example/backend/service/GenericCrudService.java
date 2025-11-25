@@ -1,6 +1,6 @@
 package com.example.backend.service;
 
-import com.example.backend.excepton.NotFoundException;
+import com.example.backend.exception.NotFoundException;
 import com.example.backend.mapper.GenericMapper;
 import com.example.backend.repository.GenericRepository;
 import org.springframework.stereotype.Service;

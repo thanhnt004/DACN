@@ -1,7 +1,7 @@
 package com.example.backend.service.auth.oautth;
 
 import com.example.backend.dto.response.auth.CustomUserDetail;
-import com.example.backend.excepton.NotFoundException;
+import com.example.backend.exception.NotFoundException;
 import com.example.backend.model.OAuthAccount;
 import com.example.backend.model.User;
 import com.example.backend.repository.auth.OAuthAccountRepository;

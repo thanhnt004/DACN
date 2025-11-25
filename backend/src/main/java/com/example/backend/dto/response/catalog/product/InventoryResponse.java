@@ -4,7 +4,6 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
@@ -15,5 +14,5 @@ public class InventoryResponse {
     private Integer quantityReserved;
     private Integer available;
     private Integer reorderLevel;
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 }

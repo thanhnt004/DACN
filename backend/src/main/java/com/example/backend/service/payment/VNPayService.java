@@ -2,7 +2,9 @@ package com.example.backend.service.payment;
 
 import com.example.backend.config.VNPayConfig;
 import com.example.backend.dto.response.payment.PaymentStatusEvent;
-import com.example.backend.excepton.NotFoundException;
+import com.example.backend.exception.order.OrderNotFoundException;
+import com.example.backend.exception.payment.PaymentFailedException;
+import com.example.backend.exception.payment.PaymentNotFoundException;
 import com.example.backend.model.order.Order;
 import com.example.backend.model.payment.Payment;
 import com.example.backend.repository.payment.PaymentRepository;
@@ -12,7 +14,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.convert.ConversionService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -83,7 +84,7 @@ public class VNPayService {
 
         } catch (Exception e) {
             log.error("Failed to create VNPay payment URL", e);
-            throw new RuntimeException("Failed to create VNPay payment URL", e);
+            throw new PaymentFailedException("Tạo URL thanh toán VNPay thất bại");
         }
     }
 
@@ -126,7 +127,7 @@ public class VNPayService {
         try {
             order = orderService.getOrderByNumber(orderNumber);
 
-        } catch (NotFoundException e) {
+        } catch (OrderNotFoundException e) {
             return rsp("01", "Order not found");
         }
 
@@ -145,7 +146,7 @@ public class VNPayService {
                     .build());
             orderService.markAsPaid(order.getId());
             Payment payment = paymentRepository.findById(UUID.fromString(paymentId))
-                    .orElseThrow(() -> new NotFoundException("Payment not found: " + paymentId));
+                    .orElseThrow(() -> new PaymentNotFoundException("Không tìm thấy thông tin thanh toán: " + paymentId));
             payment.setStatus(Payment.PaymentStatus.CAPTURED);
             paymentRepository.save(payment);
         } else {
@@ -157,7 +158,7 @@ public class VNPayService {
                     .timestamp(Instant.now())
                     .build());
             Payment payment = paymentRepository.findById(UUID.fromString(paymentId))
-                    .orElseThrow(() -> new NotFoundException("Payment not found: " + paymentId));
+                    .orElseThrow(() -> new PaymentNotFoundException("Không tìm thấy thông tin thanh toán: " + paymentId));
             payment.setStatus(Payment.PaymentStatus.FAILED);
             paymentRepository.save(payment);
         }

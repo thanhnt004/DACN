@@ -6,9 +6,9 @@ import com.example.backend.dto.response.discount.DiscountRedemptionResponse;
 import com.example.backend.dto.response.discount.DiscountResponse;
 import com.example.backend.dto.response.discount.DiscountResult;
 import com.example.backend.dto.response.wraper.PageResponse;
-import com.example.backend.excepton.BadRequestException;
-import com.example.backend.excepton.ConflictException;
-import com.example.backend.excepton.NotFoundException;
+import com.example.backend.exception.BadRequestException;
+import com.example.backend.exception.ConflictException;
+import com.example.backend.exception.NotFoundException;
 import com.example.backend.mapper.discount.DiscountMapper;
 import com.example.backend.mapper.discount.DiscountRedemptionMapper;
 import com.example.backend.model.discount.Discount;
@@ -27,7 +27,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -156,9 +156,9 @@ public class DiscountService {
         //Kiem tra hop le
         if (!discount.isActive())
             return Optional.of(DiscountResult.invalid("Discount code is not active: " + discount.getCode()));
-        if (discount.getStartsAt() != null && discount.getStartsAt().isAfter(LocalDateTime.now()))
+        if (discount.getStartsAt() != null && discount.getStartsAt().isAfter(Instant.now()))
             return Optional.of(DiscountResult.invalid("Discount code is not started yet: "  + discount.getCode()));
-        if (discount.getEndsAt() != null && discount.getEndsAt().isBefore(LocalDateTime.now()))
+        if (discount.getEndsAt() != null && discount.getEndsAt().isBefore(Instant.now()))
             return Optional.of(DiscountResult.invalid("Discount code is expired: "  + discount.getCode()));
         if (discount.getMaxRedemptions()!=null)
         {
@@ -217,7 +217,7 @@ public class DiscountService {
         if (products.isEmpty())
             throw new BadRequestException("Products not found");
         List<Category> categories = productRepository.findDistinctCategoriesByProductIds(productIds);
-        List<Discount> discounts = discountRepository.findApplicableAndGlobalDiscounts(productIds,categories.stream().map(Category::getId).toList(),LocalDateTime.now());
+        List<Discount> discounts = discountRepository.findApplicableAndGlobalDiscounts(productIds,categories.stream().map(Category::getId).toList(),Instant.now());
         return discounts.stream().map(discountMapper::toDto).toList();
 
     }

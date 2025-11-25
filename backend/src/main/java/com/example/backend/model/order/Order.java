@@ -1,8 +1,9 @@
 package com.example.backend.model.order;
 
 import com.example.backend.dto.response.user.UserAddress;
-import com.example.backend.model.DiscountRedemption;
+
 import com.example.backend.model.User;
+import com.example.backend.model.discount.DiscountRedemption;
 import com.example.backend.model.payment.Payment;
 import jakarta.persistence.*;
 import lombok.*;
@@ -12,7 +13,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -79,7 +79,7 @@ public class Order {
 
     @Version
     @Column(name = "version", nullable = false)
-    private Integer version = 0;
+    private long version = 0;
 
     @Column(name = "paid_at")
     private Instant paidAt;

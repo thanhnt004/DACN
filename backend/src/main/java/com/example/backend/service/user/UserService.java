@@ -1,6 +1,7 @@
 package com.example.backend.service.user;
 
 import com.example.backend.dto.response.user.UserAuthenDTO;
+import com.example.backend.exception.user.InvalidIdentifierException;
 import com.example.backend.repository.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
@@ -20,7 +21,7 @@ public class UserService {
             return userRepository.findAuthByPhone(identifier)
                     .orElseThrow(() -> new UsernameNotFoundException("Phone number not found!"));
         } else {
-            throw new IllegalArgumentException("Invalid identifier");
+            throw new InvalidIdentifierException();
         }
     }
 }

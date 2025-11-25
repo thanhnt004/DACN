@@ -3,7 +3,7 @@ package com.example.backend.dto.response.discount;
 import lombok.Builder;
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Data
@@ -17,5 +17,5 @@ DiscountRedemptionResponse {
         private String code;
         private String description;
         private Long amount;
-        private LocalDateTime redeemedAt;
+        private Instant redeemedAt;
 }
