@@ -48,6 +48,7 @@ public class VNPayService {
             vnpParams.put("vnp_Amount", String.valueOf(order.getTotalAmount() * 100)); // VNPay yêu cầu nhân 100
             vnpParams.put("vnp_TxnRef", payment.getId().toString());
             vnpParams.put("vnp_OrderInfo", "Thanh toan don hang " + order.getOrderNumber());
+            //place holder
             vnpParams.put("vnp_IpAddr", "127.0.0.1");
 
             Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
