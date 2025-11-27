@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import * as AuthApi from '../api/auth'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { extractProblemMessage } from '../lib/problemDetails'
 
 export default function VerifyEmail() {
     const [searchParams] = useSearchParams()
@@ -33,8 +34,10 @@ export default function VerifyEmail() {
                 }
             } catch (error) {
                 setStatus('error')
-                const err = error as { response?: { data?: { message?: string } } }
-                setMessage(err.response?.data?.message || 'Không thể xác thực email. Vui lòng thử lại.')
+                const responseData = error && typeof error === 'object' && 'response' in error
+                    ? (error as { response?: { data?: unknown } }).response?.data
+                    : undefined
+                setMessage(extractProblemMessage(responseData, 'Không thể xác thực email. Vui lòng thử lại.'))
             }
         }
 

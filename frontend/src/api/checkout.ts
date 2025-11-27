@@ -112,9 +112,31 @@ export const updateDiscount = async (sessionId: string, token: string, discountC
     return response.data
 }
 
-export const confirmCheckout = async (sessionId: string, token: string): Promise<OrderCreatedResponse> => {
-    const response = await api.post(`/api/v1/checkout/sessions/${sessionId}/confirm`, {}, {
-        headers: { 'X-Session-Token': token }
+const generateIdempotencyKey = (): string => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID()
+    }
+    const timestamp = Date.now()
+    const random = Math.random().toString(36).slice(2, 10)
+    return `idem-${timestamp}-${random}`
+}
+
+export const createIdempotencyKey = (): string => generateIdempotencyKey()
+
+export const confirmCheckout = async (
+    sessionId: string,
+    token: string,
+    idempotencyKey?: string,
+    notes?: string
+): Promise<OrderCreatedResponse> => {
+    const key = idempotencyKey ?? generateIdempotencyKey()
+    const payload = notes ?? ''
+    const response = await api.post(`/api/v1/checkout/sessions/${sessionId}/confirm`, payload, {
+        headers: {
+            'X-Session-Token': token,
+            'Idempotency-Key': key,
+            'Content-Type': 'text/plain; charset=utf-8'
+        }
     })
     return response.data
 }

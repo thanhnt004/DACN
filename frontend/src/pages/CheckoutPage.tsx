@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Header } from '../components/layout/Header'
 import Footer from '../components/layout/Footer'
@@ -10,6 +10,7 @@ import { useAuthStore } from '../store/auth'
 import { Plus, X, Ticket } from 'lucide-react'
 import { useGhnLocationSelector } from '../hooks/useGhnLocationSelector'
 import type { ProvinceOption, DistrictOption, WardOption } from '../api/location'
+import { extractProblemMessage } from '../lib/problemDetails'
 
 export default function CheckoutPage() {
     const navigate = useNavigate()
@@ -21,6 +22,16 @@ export default function CheckoutPage() {
     const [sessionToken, setSessionToken] = useState<string | null>(null)
     const [sessionData, setSessionData] = useState<CheckoutApi.CheckoutSession | null>(null)
     const [initializing, setInitializing] = useState(true)
+
+    const idempotencyKeyRef = useRef<string | null>(null)
+    const ensureIdempotencyKey = useCallback((): string => {
+        if (!idempotencyKeyRef.current) {
+            idempotencyKeyRef.current = CheckoutApi.createIdempotencyKey()
+        }
+        return idempotencyKeyRef.current
+    }, [])
+    const memberAddressSignatureRef = useRef<string | null>(null)
+    const guestAddressSignatureRef = useRef<string | null>(null)
 
     // User Address State
     const [addresses, setAddresses] = useState<Address[]>([])
@@ -55,6 +66,9 @@ export default function CheckoutPage() {
     })
     const [submitting, setSubmitting] = useState(false)
     const [paymentMethods, setPaymentMethods] = useState<CheckoutApi.PaymentMethodResponse[]>([])
+    const [addressUpdating, setAddressUpdating] = useState(false)
+    const [paymentUpdating, setPaymentUpdating] = useState(false)
+    const { customerName, customerPhone, line1, ward, district, province } = formData
 
     const updateGuestLocation = useCallback((updates: Partial<Record<'province' | 'district' | 'ward', string>>) => {
         setFormData(prev => ({ ...prev, ...updates }))
@@ -112,6 +126,21 @@ export default function CheckoutPage() {
         })
     }, [setPaymentMethods, setFormData])
 
+    const selectedAddress = useMemo(() => {
+        if (!selectedAddressId) return undefined
+        return addresses.find(addr => String(addr.id) === String(selectedAddressId))
+    }, [addresses, selectedAddressId])
+
+    const persistAddress = useCallback(async (address: CheckoutApi.UpdateAddressRequest) => {
+        if (!sessionId || !sessionToken) {
+            return null
+        }
+        const updatedSession = await CheckoutApi.updateAddress(sessionId, sessionToken, address)
+        setSessionData(updatedSession)
+        syncPaymentState(updatedSession)
+        return updatedSession
+    }, [sessionId, sessionToken, syncPaymentState])
+
     const openAddAddressModal = useCallback(() => {
         setShowAddAddressModal(true)
         void initializeModalLocation(
@@ -147,6 +176,63 @@ export default function CheckoutPage() {
         }
     }, [isAuthenticated, loadAddresses])
 
+    useEffect(() => {
+        if (!isAuthenticated) return
+        if (!sessionId || !sessionToken) return
+        if (!selectedAddress) return
+
+        const signature = JSON.stringify({
+            id: selectedAddress.id ?? null,
+            fullName: selectedAddress.fullName,
+            phone: selectedAddress.phone,
+            line1: selectedAddress.line1,
+            line2: selectedAddress.line2 ?? '',
+            ward: selectedAddress.ward,
+            district: selectedAddress.district,
+            province: selectedAddress.province,
+        })
+
+        if (memberAddressSignatureRef.current === signature) return
+
+        let cancelled = false
+        setAddressUpdating(true)
+
+        const payload: CheckoutApi.UpdateAddressRequest = {
+            id: selectedAddress.id,
+            fullName: selectedAddress.fullName,
+            phone: selectedAddress.phone,
+            line1: selectedAddress.line1,
+            ward: selectedAddress.ward,
+            district: selectedAddress.district,
+            province: selectedAddress.province,
+        }
+        if (selectedAddress.line2) {
+            payload.line2 = selectedAddress.line2
+        }
+
+        void persistAddress(payload)
+            .then(result => {
+                if (cancelled) return
+                if (result) {
+                    memberAddressSignatureRef.current = signature
+                }
+            })
+            .catch(error => {
+                if (cancelled) return
+                console.error('Failed to update shipping address:', error)
+                alert('Không thể cập nhật địa chỉ giao hàng, vui lòng thử lại.')
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setAddressUpdating(false)
+                }
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [isAuthenticated, persistAddress, selectedAddress, sessionId, sessionToken])
+
     const handleAddAddress = async () => {
         if (!newAddressForm.fullName || !newAddressForm.phone || !newAddressForm.line1 || !newAddressForm.province || !newAddressForm.district || !newAddressForm.ward) {
             alert('Vui lòng điền đầy đủ thông tin địa chỉ')
@@ -178,6 +264,56 @@ export default function CheckoutPage() {
             setAddingAddress(false)
         }
     }
+
+    useEffect(() => {
+        if (isAuthenticated) return
+        if (!sessionId || !sessionToken) return
+
+        if (!customerName || !customerPhone || !line1 || !province || !district || !ward) return
+
+        const payload: CheckoutApi.UpdateAddressRequest = {
+            fullName: customerName,
+            phone: customerPhone,
+            line1,
+            ward,
+            district,
+            province,
+        }
+
+        const signature = JSON.stringify(payload)
+        if (guestAddressSignatureRef.current === signature) return
+
+        let cancelled = false
+        setAddressUpdating(true)
+
+        void persistAddress(payload)
+            .then(result => {
+                if (cancelled) return
+                if (result) {
+                    guestAddressSignatureRef.current = signature
+                }
+            })
+            .catch(error => {
+                if (cancelled) return
+                console.error('Failed to update guest shipping address:', error)
+                alert('Không thể cập nhật địa chỉ giao hàng, vui lòng thử lại.')
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setAddressUpdating(false)
+                }
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [customerName, customerPhone, line1, ward, district, province, isAuthenticated, persistAddress, sessionId, sessionToken])
+
+    useEffect(() => {
+        idempotencyKeyRef.current = null
+        memberAddressSignatureRef.current = null
+        guestAddressSignatureRef.current = null
+    }, [sessionId])
 
     // Initialize Checkout Session
     useEffect(() => {
@@ -309,6 +445,37 @@ export default function CheckoutPage() {
         }
     }, [user, formData.customerName])
 
+    const handlePaymentMethodChange = useCallback(async (methodId: string) => {
+        if (paymentUpdating) return
+
+        const previousMethod = formData.paymentMethod
+        if (methodId === previousMethod) return
+
+        const method = paymentMethods.find(item => item.id === methodId)
+        if (!method || method.isAvailable === false) return
+
+        setFormData(prev => ({ ...prev, paymentMethod: methodId }))
+
+        if (!sessionId || !sessionToken) {
+            return
+        }
+
+        setPaymentUpdating(true)
+        try {
+            const updatedSession = await CheckoutApi.updatePaymentMethod(sessionId, sessionToken, {
+                paymentMethodId: methodId
+            })
+            setSessionData(updatedSession)
+            syncPaymentState(updatedSession)
+        } catch (error) {
+            console.error('Failed to update payment method:', error)
+            alert('Không thể cập nhật phương thức thanh toán, vui lòng thử lại.')
+            setFormData(prev => ({ ...prev, paymentMethod: previousMethod }))
+        } finally {
+            setPaymentUpdating(false)
+        }
+    }, [formData.paymentMethod, paymentMethods, paymentUpdating, sessionId, sessionToken, syncPaymentState])
+
     const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
         if (e) e.preventDefault()
         if (!sessionId || !sessionToken) {
@@ -332,64 +499,43 @@ export default function CheckoutPage() {
             return
         }
 
+        if (addressUpdating || paymentUpdating) {
+            alert('Thông tin đang được cập nhật, vui lòng đợi')
+            return
+        }
+
+        if (applyingVoucher) {
+            alert('Đang áp dụng mã giảm giá, vui lòng đợi')
+            return
+        }
+
+        if (isAuthenticated) {
+            if (!selectedAddress) {
+                alert('Vui lòng chọn địa chỉ giao hàng')
+                return
+            }
+        } else {
+            if (!customerName || !customerPhone || !line1 || !province || !district || !ward) {
+                alert('Vui lòng điền đầy đủ thông tin giao hàng')
+                return
+            }
+        }
+
         setSubmitting(true)
         try {
-            // 1. Update Address
-            let addressData: CheckoutApi.UpdateAddressRequest
-
-            if (isAuthenticated) {
-                const selectedAddr = addresses.find(a => a.id === selectedAddressId)
-                if (!selectedAddr) {
-                    alert('Vui lòng chọn địa chỉ giao hàng')
-                    setSubmitting(false)
-                    return
-                }
-                addressData = {
-                    fullName: selectedAddr.fullName,
-                    phone: selectedAddr.phone,
-                    line1: selectedAddr.line1,
-                    line2: selectedAddr.line2,
-                    ward: selectedAddr.ward,
-                    district: selectedAddr.district,
-                    province: selectedAddr.province,
-                }
-            } else {
-                if (!formData.customerName || !formData.customerPhone || !formData.line1 || !formData.province || !formData.district || !formData.ward) {
-                    alert('Vui lòng điền đầy đủ thông tin giao hàng')
-                    setSubmitting(false)
-                    return
-                }
-                addressData = {
-                    fullName: formData.customerName,
-                    phone: formData.customerPhone,
-                    line1: formData.line1,
-                    ward: formData.ward,
-                    district: formData.district,
-                    province: formData.province,
-                }
-            }
-
-            await CheckoutApi.updateAddress(sessionId, sessionToken, addressData)
-
-            // 2. Update Payment Method
-            const updatedSession = await CheckoutApi.updatePaymentMethod(sessionId, sessionToken, {
-                paymentMethodId: selectedMethod.id
-            })
-            setSessionData(updatedSession)
-            syncPaymentState(updatedSession)
-
-            // 3. Update Notes
-            if (formData.note) {
-                await CheckoutApi.updateNotes(sessionId, sessionToken, formData.note)
-            }
-
-            // 4. Confirm Checkout
-            const order = await CheckoutApi.confirmCheckout(sessionId, sessionToken)
+            const order = await CheckoutApi.confirmCheckout(
+                sessionId,
+                sessionToken,
+                ensureIdempotencyKey(),
+                formData.note
+            )
 
             // Refresh cart (should be empty now)
             await fetchCart()
 
             alert(`Đặt hàng thành công! Mã đơn hàng: ${order.orderNumber}`)
+
+            idempotencyKeyRef.current = null
 
             if (!isAuthenticated) {
                 resetGuestLocation()
@@ -402,10 +548,11 @@ export default function CheckoutPage() {
             }
         } catch (error) {
             console.error('Checkout error:', error)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const err = error as any
-            const msg = err.response?.data?.message || err.response?.data?.validationErrors?.[0] || 'Lỗi đặt hàng'
-            alert(msg)
+            const responseData = typeof error === 'object' && error && 'response' in error
+                ? (error as { response?: { data?: unknown } }).response?.data
+                : undefined
+            const message = extractProblemMessage(responseData, 'Lỗi đặt hàng')
+            alert(message)
         } finally {
             setSubmitting(false)
         }
@@ -422,6 +569,7 @@ export default function CheckoutPage() {
         try {
             const updatedSession = await CheckoutApi.updateDiscount(sessionId, sessionToken, voucherCode)
             setSessionData(updatedSession)
+            syncPaymentState(updatedSession)
             alert('Áp dụng mã giảm giá thành công')
         } catch (error) {
             console.error('Failed to apply voucher:', error)
@@ -696,9 +844,9 @@ export default function CheckoutPage() {
                                                     name="paymentMethod"
                                                     value={method.id}
                                                     checked={isSelected}
-                                                    onChange={() => setFormData(prev => ({ ...prev, paymentMethod: method.id }))}
+                                                    onChange={() => { void handlePaymentMethodChange(method.id) }}
                                                     className="h-4 w-4 text-red-600 focus:ring-red-500"
-                                                    disabled={isDisabled}
+                                                    disabled={isDisabled || paymentUpdating}
                                                 />
                                                 <div className="ml-3 flex-1">
                                                     <div className="flex items-center gap-2">
@@ -805,7 +953,7 @@ export default function CheckoutPage() {
                             <button
                                 type="button"
                                 onClick={(e) => handleSubmit(e)}
-                                disabled={submitting}
+                                disabled={submitting || addressUpdating || paymentUpdating || applyingVoucher}
                                 className="w-full mt-6 bg-red-600 text-white py-3 rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {submitting ? 'Đang xử lý...' : 'Đặt hàng'}

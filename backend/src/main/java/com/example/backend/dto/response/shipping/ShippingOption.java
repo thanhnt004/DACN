@@ -15,7 +15,7 @@ public class ShippingOption {
      * ID của phương thức vận chuyển
      */
     private String id;
-
+    private String serviceLevel;
     /**
      * Tên hiển thị
      * VD: "Giao hàng tiêu chuẩn", "Giao hàng nhanh"

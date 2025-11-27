@@ -31,6 +31,7 @@ public class IdempotencyKey {
 
     @NotNull
     @Column(name = "status", nullable = false, length = Integer.MAX_VALUE)
+    @Enumerated(EnumType.STRING)
     private Status status;
 
     @Column(name = "response_body")

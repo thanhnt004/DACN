@@ -10,4 +10,5 @@ import java.lang.annotation.Target;
 public @interface Idempotent {
     // Thời gian hết hạn của key
     long expire() default 3600;
+    String scope() default "sessionId";
 }

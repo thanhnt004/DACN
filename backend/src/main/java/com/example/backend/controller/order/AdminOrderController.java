@@ -1,5 +1,6 @@
 package com.example.backend.controller.order;
 
+import com.example.backend.dto.response.batch.BatchResult;
 import com.example.backend.dto.response.checkout.OrderResponse;
 import com.example.backend.dto.response.wraper.PageResponse;
 import com.example.backend.model.order.Order;
@@ -13,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RequestMapping(value = "/api/v1/admin/orders")
@@ -32,11 +34,30 @@ public class AdminOrderController {
                 .ok(orderFacadeService.getOrderListByAdmin(status, paymentType, pageable, request, response));
     }
 
-    @PutMapping("{orderId}/status")
-    public ResponseEntity<OrderResponse> updateOrderStatus(@PathVariable("orderId") UUID orderId,
-            @RequestParam("status") Order.OrderStatus status,
-            HttpServletRequest request,
-            HttpServletResponse response) {
-        return ResponseEntity.ok(orderFacadeService.updateOrderStatusByAdmin(orderId, status, request, response));
+    @PutMapping("/orders/confirm")
+    public ResponseEntity<?> confirmOrders(@RequestBody List<UUID> orderIds) {
+        BatchResult<UUID> result = orderFacadeService.confirmOrders(orderIds);
+        if (result.hasFailures()) {
+            return ResponseEntity.status(207).body(result); // 207 nếu có lỗi một phần
+        }
+        return ResponseEntity.noContent().build(); // 204 nếu tất cả OK
+    }
+    @PutMapping("/orders/ship")
+    public ResponseEntity<?> shipOrders(@RequestBody List<UUID> orderIds) {
+        BatchResult<UUID> result = orderFacadeService.shipOrders(orderIds);
+        if (result.hasFailures()) {
+            return ResponseEntity.status(207).body(result); // 207 nếu có lỗi một phần
+        }
+        return ResponseEntity.noContent().build(); // 204 nếu tất cả OK
+    }
+    @GetMapping("/orders/shipment-print-url")
+    public ResponseEntity<String> getPrintUrl(@RequestParam List<UUID> orderIds) {
+        String printUrl = orderFacadeService.getPrintUrlForOrders(orderIds);
+        return ResponseEntity.ok(printUrl);
+    }
+    @PutMapping("{orderId}/cancel")
+    public ResponseEntity<?> cancelOrderByAdmin(@PathVariable("orderId") UUID orderId) {
+        String message = orderFacadeService.cancelOrderByAdmin(orderId);
+        return ResponseEntity.ok(message);
     }
 }

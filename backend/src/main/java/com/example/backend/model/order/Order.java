@@ -47,6 +47,10 @@ public class Order {
     @Enumerated(EnumType.STRING)
     private OrderStatus status = OrderStatus.PENDING;
 
+    @Column(name = "previous_status", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private OrderStatus  previousStatus= OrderStatus.PENDING;
+
     @Column(name = "subtotal_amount", nullable = false)
     private Long subtotalAmount = 0L;
 
@@ -101,13 +105,17 @@ public class Order {
         return this.getStatus() == OrderStatus.CONFIRMED;
     }
 
+
     public enum OrderStatus{
         PENDING,
         CONFIRMED,
         PROCESSING,
         SHIPPED,
         DELIVERED,
+        CANCELING,
         CANCELLED,
+        RETURNING,
+        RETURNED,
         REFUNDED
     }
     public void addItem(OrderItem item)

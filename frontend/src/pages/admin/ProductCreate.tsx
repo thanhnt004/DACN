@@ -6,6 +6,7 @@ import * as BrandCategoryApi from '../../api/admin/brandCategory'
 import ImageUploadZone from '../../components/layout/ImageUploadZone'
 import ProductVariantsList from './components/ProductVariantsList'
 import { ArrowLeft, Plus } from 'lucide-react'
+import { extractProblemMessage } from '../../lib/problemDetails'
 
 const slugify = (value: string) =>
     value
@@ -227,19 +228,11 @@ export default function ProductCreate() {
     }
 
     const extractErrorMessage = (error: unknown, defaultMessage: string): string => {
-        if (error && typeof error === 'object' && 'response' in error) {
-            const axiosError = error as { response?: { data?: { message?: string; error?: string } } }
-            if (axiosError.response?.data?.message) {
-                return axiosError.response.data.message
-            }
-            if (axiosError.response?.data?.error) {
-                return axiosError.response.data.error
-            }
-        }
-        if (error instanceof Error) {
-            return error.message
-        }
-        return defaultMessage
+        const responseData = error && typeof error === 'object' && 'response' in error
+            ? (error as { response?: { data?: unknown } }).response?.data
+            : undefined
+        const fallback = error instanceof Error && error.message ? error.message : defaultMessage
+        return extractProblemMessage(responseData, fallback)
     }
 
     // Handle category selection at any level
@@ -337,10 +330,6 @@ export default function ProductCreate() {
     const handleSlugChange = (value: string) => {
         setSlugLocked(true)
         setFormData(prev => ({ ...prev, slug: value }))
-    }
-
-    const handleImageUploadComplete = (urls: string[]) => {
-        setImages(prev => [...prev, ...urls])
     }
 
     const handlePrimaryImageUploadComplete = (urls: string[]) => {

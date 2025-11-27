@@ -5,6 +5,7 @@ import * as AuthApi from '../api/auth'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SiFacebook, SiGoogle } from 'react-icons/si'
+import { extractProblemMessage } from '../lib/problemDetails'
 
 const phoneRegex = /^(\+84|0)[1-9]\d{8,9}$/
 const schema = z.object({
@@ -56,9 +57,13 @@ export default function Register() {
                 setTimeout(() => navigate('/login', { replace: true }), 800)
             }
         } catch (e) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const err = e as any
-            setServerErr(err?.response?.data?.message || 'Đăng ký thất bại')
+            const responseData = typeof e === 'object' && e && 'response' in e
+                ? (e as { response?: { data?: unknown } }).response?.data
+                : undefined
+            const fallback = typeof e === 'object' && e && 'message' in e && typeof (e as { message?: unknown }).message === 'string'
+                ? (e as { message: string }).message
+                : 'Đăng ký thất bại'
+            setServerErr(extractProblemMessage(responseData, fallback))
         }
     }
 

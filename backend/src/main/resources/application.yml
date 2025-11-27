@@ -213,6 +213,10 @@ ghn:
             services: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/available-services"
             fee: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/fee"
             leadtime: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/leadtime"
+            create-order: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/create"
+            print-order: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/print-label"
+            print-token: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/a5/gen-token"
+
     defaults:
         payment-type-id: 2 # 1: Người bán/Người gửi trả phí, 2: Người mua/Người nhận trả phí
         required-note: KHONGCHOXEMHANG # CHOTHUHANG | CHOXEMHANGKHONGTHU | KHONGCHOXEMHANG

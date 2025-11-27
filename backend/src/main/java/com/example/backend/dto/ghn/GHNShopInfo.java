@@ -1,4 +1,4 @@
-package com.example.backend.dto.request.ghn;
+package com.example.backend.dto.ghn;
 
 import lombok.Data;
 

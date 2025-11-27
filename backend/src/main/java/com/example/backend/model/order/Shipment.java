@@ -32,7 +32,8 @@ public class Shipment {
 
     @Column(name = "service_level")
     private String serviceLevel;
-
+    @Builder.Default
+    private String warehouse = "Đang chuẩn bị hàng";
     @Column(name = "tracking_number")
     private String trackingNumber;
 
@@ -55,4 +56,11 @@ public class Shipment {
 
     @OneToMany(mappedBy = "shipment", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ShipmentItem> items;
+
+    public void addAllItems(List<ShipmentItem> shipmentItems) {
+        for (ShipmentItem item : shipmentItems) {
+            item.setShipment(this);
+        }
+        this.items = shipmentItems;
+    }
 }

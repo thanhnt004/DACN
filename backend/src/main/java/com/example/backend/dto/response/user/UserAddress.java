@@ -17,4 +17,8 @@ public class UserAddress {
     private String province;
     @JsonProperty("isDefaultShipping")
     private boolean isDefaultShipping = false;
+
+    public String getAddressLine() {
+        return line1 + line1 + ", " + ward + ", " + district + ", " + province;
+    }
 }

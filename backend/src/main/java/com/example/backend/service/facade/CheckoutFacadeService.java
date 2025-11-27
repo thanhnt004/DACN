@@ -39,9 +39,6 @@ import java.util.stream.Collectors;
 @Transactional
 public class CheckoutFacadeService {
     private final AuthenUtil authenUtil;
-
-    private final AccessTokenService accessTokenService;
-    private final CartService cartService;
     private final DiscountService discountService;
     private final ShippingService shippingService;
     private final PaymentService paymentService;
@@ -216,14 +213,6 @@ public class CheckoutFacadeService {
         sessionStore.save(checkoutSession);
         return checkoutSession;
 
-    }
-    public CheckoutSession updateNotes(UUID sessionId, String notes) {
-        CheckoutSession checkoutSession = sessionStore.findById(sessionId)
-                .orElseThrow(() -> new ConflictException("Phiên thanh toán không tồn tại hoặc đã hết hạn"));
-        checkoutSession.setNotes(notes);
-        checkoutSession.setUpdatedAt(Instant.now());
-        sessionStore.save(checkoutSession);
-        return checkoutSession;
     }
     public CheckoutSession updatePaymentMethod(
             String sessionId,

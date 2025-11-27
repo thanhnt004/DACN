@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import * as AuthApi from '../api/auth'
 import { Mail, AlertCircle, CheckCircle } from 'lucide-react'
+import { extractProblemMessage } from '../lib/problemDetails'
 
 export default function ResendVerification() {
     const navigate = useNavigate()
@@ -41,8 +42,10 @@ export default function ResendVerification() {
             setCountdown(60) // Bắt đầu đếm ngược 60 giây
         } catch (error) {
             setStatus('error')
-            const err = error as { response?: { data?: { message?: string } } }
-            setMessage(err.response?.data?.message || 'Không thể gửi email. Vui lòng thử lại.')
+            const responseData = error && typeof error === 'object' && 'response' in error
+                ? (error as { response?: { data?: unknown } }).response?.data
+                : undefined
+            setMessage(extractProblemMessage(responseData, 'Không thể gửi email. Vui lòng thử lại.'))
         }
     }
 

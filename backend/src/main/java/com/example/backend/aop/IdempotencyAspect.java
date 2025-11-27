@@ -35,13 +35,28 @@ public class IdempotencyAspect {
         HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
         String key = request.getHeader("Idempotency-Key");
         log.info("Request Url: {}, Idempotency-Key: {}", request.getRequestURI(), key);
+        // Lấy đối tượng Annotation từ method
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        Method method = signature.getMethod();
+        Idempotent idempotentAnnotation = method.getAnnotation(Idempotent.class);
         //get sessionId from path if exists
+        String scopeParamName = idempotentAnnotation.scope(); // Lấy tên biến, VD: "orderId"
+
+        // Lấy map path variables
+        @SuppressWarnings("unchecked")
         Map<String, String> pathVariables = (Map<String, String>) request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
-        String sessionId = (pathVariables != null) ? pathVariables.get("sessionId") : null;
-        if (sessionId == null) {
-            throw new BadRequestException("Session ID is missing in the path");
+
+        // Lấy giá trị dựa trên tên biến cấu hình
+        String scopeValue = (pathVariables != null) ? pathVariables.get(scopeParamName) : null;
+
+        // Nếu endpoint này cần scope mà không tìm thấy trong URL -> Lỗi
+        if (scopeValue == null) {
+            throw new BadRequestException("Missing required path variable: " + scopeParamName);
         }
-        String hashId = CryptoUtils.hash(sessionId);
+
+        // Hash giá trị scope này (VD: hash của orderId hoặc paymentId)
+        String scopeHash = CryptoUtils.hash(scopeValue);
+        log.info("Processing Idempotency for Scope: {} = {}", scopeParamName, scopeValue);
         if (StringUtils.isEmpty(key)) {
             throw new BadRequestException("Idempotency-Key header is missing");
         }
@@ -49,7 +64,7 @@ public class IdempotencyAspect {
 
         //check key in db
         IdempotencyKey record = idempotencyStore.getRecord(key);
-        if (record != null&&!record.getHash().equals(hashId))
+        if (record != null&&!record.getHash().equals(scopeHash))
         {
             throw new BadRequestException("Idempotency-Key is invalid for this session");
         }
@@ -62,17 +77,9 @@ public class IdempotencyAspect {
         if (record != null && record.getStatus() == IdempotencyKey.Status.PROCESSING) {
             throw new ConflictException("Request is already being processed");
         }
-        // 1. Lấy Method Signature để truy cập vào Annotation
-        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-        Method method = signature.getMethod();
-
-        // 2. Lấy đối tượng Annotation gắn trên method đó
-        Idempotent idempotentAnnotation = method.getAnnotation(Idempotent.class);
-
-        // 3. Lấy giá trị expire() (Sẽ là 3600 hoặc số user truyền vào)
         long expireTime = idempotentAnnotation.expire();
         // 3. Tạo record mới trạng thái PROCESSING
-        idempotencyStore.saveProcessing(key, hashId, expireTime);
+        idempotencyStore.saveProcessing(key, scopeHash, expireTime);
 
         Object result;
         try {
@@ -86,7 +93,6 @@ public class IdempotencyAspect {
             idempotencyStore.delete(key);
             throw e;
         }
-
         return result;
     }
 }

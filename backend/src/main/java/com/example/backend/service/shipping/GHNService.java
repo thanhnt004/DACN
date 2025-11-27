@@ -1,8 +1,6 @@
 package com.example.backend.service.shipping;
 
-import com.example.backend.dto.request.ghn.CalculateFeeRequest;
-import com.example.backend.dto.request.ghn.GHNShopInfo;
-import com.example.backend.dto.request.ghn.ParcelInfor;
+import com.example.backend.dto.ghn.*;
 import com.example.backend.dto.response.checkout.CheckoutItemDetail;
 import com.example.backend.dto.response.shipping.GhnDistrictOption;
 import com.example.backend.dto.response.shipping.GhnProvinceOption;
@@ -10,6 +8,7 @@ import com.example.backend.dto.response.shipping.GhnWardOption;
 import com.example.backend.dto.response.shipping.ShippingOption;
 import com.example.backend.dto.response.user.UserAddress;
 import com.example.backend.exception.shipping.ShippingServiceException;
+import com.example.backend.model.order.Shipment;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -61,7 +60,96 @@ public class GHNService {
     private String getWardListApi;
     @Value("${ghn.api.urls.shop-info}")
     private String getShopInfoApi;
-
+    @Value("${ghn.api.urls.create-order}")
+    private String createOrderApi;
+    @Value("${ghn.api.urls.print-order}")
+    private String getPrintOrderApi;
+    @Value("${ghn.api.urls.print-token}")
+    private String getPrintTokenApi;
+    //default
+    @Value("${ghn.defaults.required-note:}")
+    private String requiredNote;
+    @Value("${ghn.defaults.payment-type-id:2}")
+    private int paymentTypeId;
+    @Value("${ghn.defaults.service-type-id:2}")
+    private int serviceTypeId;
+    public CreateShippingOrder buildCreateOrderRequest(Shipment shipment, UserAddress userAddress) {
+        List<GHNItem> ghnItems = shipment.getItems().stream()
+                .map(item -> GHNItem.builder()
+                        .name(item.getOrderItem().getProductName())
+                        .quantity(item.getQuantity())
+                        .price(Math.toIntExact(item.getOrderItem().getUnitPriceAmount()))
+                        .weight(item.getOrderItem().getVariant().getWeightGrams())
+                        .build())
+                .collect(Collectors.toList());
+        GHNWard ward = getWard(
+                userAddress.getWard(),
+                userAddress.getProvince(),
+                userAddress.getDistrict());
+        ParcelInfor parcelInfor = ParcelInfor.builder()
+                .weight(ghnItems.stream().mapToInt(GHNItem::getWeight).sum())
+                .length(20)
+                .width(20)
+                .height(20)
+                .codAmount( shipment.getOrder().getTotalAmount())
+                .build();
+        return CreateShippingOrder.builder()
+                .shopId(shopId)
+                .requiredNote(requiredNote)
+                .paymentTypeId(paymentTypeId)
+                .serviceTypeId(serviceTypeId)
+                .toName(userAddress.getFullName())
+                .toPhone(userAddress.getPhone())
+                .toAddress(userAddress.getAddressLine())
+                .toWardCode(ward.getWardCode())
+                .toDistrictId(ward.getDistrictID())
+                .parcelInfor(parcelInfor)
+                .items(ghnItems)
+                .build();
+    }
+    public CreateOrderData createShippingOrder(CreateShippingOrder request) {
+        try {
+            return webClientBuilder.build()
+                    .post()
+                    .uri(createOrderApi)
+                    .header("Token", apiToken)
+                    .bodyValue(request)
+                    .retrieve()
+                    .bodyToMono(CreateOrderData.class)
+                    .timeout(Duration.ofSeconds(10))
+                    .block();
+        } catch (Exception e) {
+            log.error("Failed to create shipping order", e);
+            throw new ShippingServiceException("SHIPPING_API_ERROR", "Không thể tạo đơn vận chuyển");
+        }
+    }
+    /**
+     * (Tùy chọn) Lấy Token in phiếu nếu cần tích hợp iframe
+     */
+    public String getPrintToken(List<String> orderCodes) {
+        var body = java.util.Map.of("order_codes", orderCodes);
+        try {
+            var response =  webClientBuilder.build()
+                    .post()
+                    .uri(createOrderApi)
+                    .header("Token", apiToken)
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {
+                    })
+                    .timeout(Duration.ofSeconds(10))
+                    .block();
+            if (response != null && response.containsKey("data")) {
+                Map<String, Object> data = (Map<String, Object>) response.get("data");
+                return (String) data.get("token");
+            } else {
+                throw new ShippingServiceException("SHIPPING_API_ERROR", "Không thể tạo print token");
+            }
+        } catch (Exception e) {
+            log.error("Failed to gen print token", e);
+            throw new ShippingServiceException("SHIPPING_API_ERROR", "Không thể tạo print token");
+        }
+    }
     @SuppressWarnings("unchecked")
     public GHNShopInfo getShopDetails() {
         Map<String, Object> shopResponse = getShopInfo();
@@ -222,7 +310,8 @@ public class GHNService {
                 int shippingFee = calculateShippingFee(items, ward, String.valueOf(service.get("service_type_id")));
                 int leadTime = getLeadTime(ward, String.valueOf(service.get("service_type_id")));
                 ShippingOption option = ShippingOption.builder()
-                        .id(String.valueOf(service.get("service_type_id")))
+                        .id("GHN"+ String.valueOf(service.get("service_type_id")))
+                        .serviceLevel(String.valueOf(service.get("service_type_id")))
                         .name((String) service.get("short_name"))
                         .carrier("GHN")
                         .description((String) service.get("short_name"))
@@ -297,7 +386,7 @@ public class GHNService {
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {
                     })
-                    .timeout(Duration.ofSeconds(10))
+                    .timeout(timeout)
                     .block();
 
         } catch (Exception e) {
@@ -317,7 +406,7 @@ public class GHNService {
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {
                     })
-                    .timeout(Duration.ofSeconds(10))
+                    .timeout(timeout)
                     .block();
 
         } catch (Exception e) {
@@ -340,7 +429,7 @@ public class GHNService {
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {
                     })
-                    .timeout(Duration.ofSeconds(10))
+                    .timeout(timeout)
                     .block();
 
         } catch (Exception e) {
@@ -365,7 +454,7 @@ public class GHNService {
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {
                     })
-                    .timeout(Duration.ofSeconds(10))
+                    .timeout(timeout)
                     .block();
 
         } catch (Exception e) {
@@ -385,7 +474,7 @@ public class GHNService {
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {
                     })
-                    .timeout(Duration.ofSeconds(10))
+                    .timeout(timeout)
                     .block();
 
         } catch (Exception e) {
@@ -409,7 +498,7 @@ public class GHNService {
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {
                     })
-                    .timeout(Duration.ofSeconds(10))
+                    .timeout(timeout)
                     .block();
 
         } catch (Exception e) {
@@ -433,7 +522,7 @@ public class GHNService {
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {
                     })
-                    .timeout(Duration.ofSeconds(10))
+                    .timeout(timeout)
                     .block();
 
         } catch (Exception e) {
@@ -466,5 +555,9 @@ public class GHNService {
                 .toLowerCase(Locale.ROOT)
                 .replaceAll("[\\s-]+", " ")
                 .trim();
+    }
+
+    public String getPrintOrderUrl(List<String> trackingNumbers) {
+        return "https://online-gateway.ghn.vn/a5/public-api/printA5?token="+getPrintToken(trackingNumbers);
     }
 }

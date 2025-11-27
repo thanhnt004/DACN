@@ -3,6 +3,7 @@ import * as DiscountsApi from '../../api/admin/discounts'
 import type { DiscountResponse, DiscountCreateRequest, DiscountUpdateRequest } from '../../api/admin/discounts'
 import { getProducts } from '../../api/admin/products'
 import { getCategories } from '../../api/admin/brandCategory'
+import { extractProblemMessage } from '../../lib/problemDetails'
 
 export default function DiscountManager() {
     const [discounts, setDiscounts] = useState<DiscountResponse[]>([])
@@ -81,6 +82,14 @@ export default function DiscountManager() {
         })
     }
 
+    const resolveErrorMessage = (error: unknown, fallback: string): string => {
+        const responseData = error && typeof error === 'object' && 'response' in error
+            ? (error as { response?: { data?: unknown } }).response?.data
+            : undefined
+        const alt = error instanceof Error && error.message ? error.message : fallback
+        return extractProblemMessage(responseData, alt)
+    }
+
     const handleCreate = async () => {
         if (!formData.code || !formData.name || !formData.value) {
             alert('❌ Vui lòng điền đầy đủ: Mã, Tên, và Giá trị')
@@ -95,7 +104,7 @@ export default function DiscountManager() {
             alert('✅ Tạo mã giảm giá thành công!')
         } catch (error) {
             console.error('Failed to create discount:', error)
-            const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Lỗi tạo mã giảm giá'
+            const message = resolveErrorMessage(error, 'Lỗi tạo mã giảm giá')
             alert(`❌ ${message}`)
         }
     }
@@ -126,7 +135,7 @@ export default function DiscountManager() {
             alert('✅ Cập nhật mã giảm giá thành công!')
         } catch (error) {
             console.error('Failed to update discount:', error)
-            const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Lỗi cập nhật mã giảm giá'
+            const message = resolveErrorMessage(error, 'Lỗi cập nhật mã giảm giá')
             alert(`❌ ${message}`)
         }
     }

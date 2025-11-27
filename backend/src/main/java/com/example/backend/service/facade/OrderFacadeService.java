@@ -1,5 +1,7 @@
 package com.example.backend.service.facade;
 
+import com.example.backend.dto.request.order.ReturnOrderRequest;
+import com.example.backend.dto.response.batch.BatchResult;
 import com.example.backend.dto.response.checkout.*;
 import com.example.backend.dto.response.discount.DiscountRedemptionResponse;
 import com.example.backend.dto.response.payment.PaymentDTO;
@@ -9,6 +11,7 @@ import com.example.backend.exception.BadRequestException;
 import com.example.backend.exception.ConflictException;
 import com.example.backend.model.order.Order;
 import com.example.backend.model.order.OrderItem;
+import com.example.backend.model.order.Shipment;
 import com.example.backend.model.payment.Payment;
 import com.example.backend.service.MessageService;
 import com.example.backend.service.cart.CartService;
@@ -17,6 +20,7 @@ import com.example.backend.service.payment.PaymentService;
 import com.example.backend.service.product.InventoryService;
 import com.example.backend.service.product.ProductVariantService;
 import com.example.backend.service.redis.RedisCheckoutStoreService;
+import com.example.backend.service.shipping.ShippingService;
 import com.example.backend.util.AuthenUtil;
 import com.example.backend.util.CookieUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -43,12 +47,15 @@ public class OrderFacadeService {
     private final MessageService emailService;
     private final RedisCheckoutStoreService redisCheckoutStoreService;
     private final ProductVariantService variantService;
-
+    private final ShippingService shipmentService;
     private final AuthenUtil authenUtil;
     private final CookieUtil cookieUtil;
 
+    private final List<Order.OrderStatus> CANCELABLE_STATUSES = List.of(
+            Order.OrderStatus.PENDING,
+            Order.OrderStatus.CONFIRMED);
     public OrderCreatedResponse confirmCheckoutSession(UUID sessionId, HttpServletRequest httpRequest,
-            HttpServletResponse response) {
+            HttpServletResponse response, String notes) {
         try {
             CheckoutSession checkoutSession = redisCheckoutStoreService.findById(sessionId).orElseThrow(
                     () -> new IllegalArgumentException("Checkout session not found"));
@@ -57,7 +64,7 @@ public class OrderFacadeService {
             validateSessionItemsBeforeOrder(checkoutSession);
             // 3. Tạo Order
             Order order = orderService.createOrderFromSession(
-                    checkoutSession, httpRequest, response);
+                    checkoutSession, httpRequest, response, notes);
 
             log.info("Order created: orderId={}, orderNumber={}",
                     order.getId(), order.getOrderNumber());
@@ -70,7 +77,8 @@ public class OrderFacadeService {
             Payment payment = paymentService.createPayment(
                     order,
                     checkoutSession.getSelectedPaymentMethod().getId());
-
+            //tao shipping here if needed
+            Shipment shipment = shipmentService.createShipmentForOrder(order,checkoutSession);
             // 6. Generate payment URL
             String paymentUrl = paymentService.generatePaymentUrl(
                     order,
@@ -266,7 +274,7 @@ public class OrderFacadeService {
         }
     }
 
-    public OrderResponse getOrderDetail(String orderId, HttpServletRequest request, HttpServletResponse response) {
+    public OrderResponse getOrderDetail(UUID orderId, HttpServletRequest request, HttpServletResponse response) {
         var userOps = authenUtil.getAuthenUser();
         var guestIdCookie = cookieUtil.readCookie(request, "guest_id");
         if (userOps.isEmpty() && guestIdCookie.isEmpty()) {
@@ -284,20 +292,25 @@ public class OrderFacadeService {
         return buildOrderResponse(order);
     }
 
-    public void cancelOrder(String orderId, HttpServletRequest request, HttpServletResponse response) {
+    public String cancelOrder(UUID orderId, HttpServletRequest request, HttpServletResponse response) {
         var userOps = authenUtil.getAuthenUser();
         var guestIdCookie = cookieUtil.readCookie(request, "guest_id");
         if (userOps.isEmpty() && guestIdCookie.isEmpty()) {
             throw new AuthenticationException(401, "User not authenticated");
         }
-        if (guestIdCookie.isPresent()) {
-            UUID guestId = UUID.fromString(guestIdCookie.get().getValue());
-            // reset cookie to extend expiration
-            response.addCookie(cookieUtil.createGuestId(guestId));
-            orderService.cancelOrderByUserOrGuest(userOps, guestId, orderId);
-        } else {
-            orderService.cancelOrderByUserOrGuest(userOps, null, orderId);
+        try {
+            if (guestIdCookie.isPresent()) {
+                UUID guestId = UUID.fromString(guestIdCookie.get().getValue());
+                // reset cookie to extend expiration
+                response.addCookie(cookieUtil.createGuestId(guestId));
+                orderService.cancelOrderByUserOrGuest(userOps, guestId, orderId);
+            } else {
+                orderService.cancelOrderByUserOrGuest(userOps, null, orderId);
+            }
+        } catch (Exception e) {
+            return e.getMessage();
         }
+        return "Order cancelled successfully";
     }
 
     public PageResponse<OrderResponse> getOrderListByAdmin(String status, String paymentType, Pageable pageable,
@@ -306,9 +319,116 @@ public class OrderFacadeService {
                 .map(this::buildOrderResponse));
     }
 
-    public OrderResponse updateOrderStatusByAdmin(UUID orderId, Order.OrderStatus status, HttpServletRequest request,
-            HttpServletResponse response) {
-        Order order = orderService.updateStatus(orderId, status);
-        return buildOrderResponse(order);
+    public BatchResult<UUID> confirmOrders(List<UUID> orderIds) {
+        BatchResult<UUID> result = new BatchResult<UUID>();
+        orderIds.forEach(orderId->{
+            try {
+                Order order = orderService.getOrderById(orderId);
+                if (order.getStatus().equals(Order.OrderStatus.PENDING)||order.getStatus().equals(Order.OrderStatus.CONFIRMED)) {
+                    order = orderService.updateStatus(order, Order.OrderStatus.PROCESSING);
+                    result.addSuccess(orderId);
+                } else {
+                    throw new BadRequestException("Order cannot be confirmed"+order.getOrderNumber());
+                }
+            } catch (Exception e) {
+                log.error("Failed to confirm order: {}", orderId, e);
+                result.addFailure(orderId, e.getMessage());
+            }
+        });
+        return result;
+    }
+
+    public String returnOrder(UUID orderId, HttpServletRequest request, HttpServletResponse response, ReturnOrderRequest returnOrderRequest) {
+        Order order = orderService.getOrderById(orderId);
+        return "Order returned successfully";
+    }
+
+    public BatchResult<UUID> shipOrders(List<UUID> orderIds) {
+        BatchResult<UUID> result = new BatchResult<UUID>();
+        orderIds.forEach(orderId->{
+            try {
+                Order order = orderService.getOrderById(orderId);
+                if (order.getStatus().equals(Order.OrderStatus.PROCESSING)) {
+                    order = orderService.updateStatus(order, Order.OrderStatus.SHIPPED);
+                    shipmentService.createShippingOrderInGHN(
+                            shipmentService.getShipmentByOrderId(orderId),
+                            order.getShippingAddress()
+                    );
+                    result.addSuccess(orderId);
+                } else {
+                    throw new BadRequestException("Không thể tạo đơn giao hàng cho đơn hàng"+order.getOrderNumber());
+                }
+            }catch (Exception e)
+            {
+                log.error("Failed to ship order: {}", orderId, e);
+                result.addFailure(orderId, e.getMessage());
+            }
+        });
+        return result;
+    }
+
+    public String getPrintUrlForOrders(List<UUID> orderIds) {
+        List<Order> orders = orderIds.stream()
+                .map(orderService::getOrderById)
+                .toList();
+        if (orders.size()>100)
+            throw new BadRequestException("Cannot print more than 100 orders at once");
+        return shipmentService.getPrintUrl(orders);
+    }
+    public String confirmCancelOrder(UUID orderId) {
+        Order order = orderService.getOrderById(orderId);
+        if (order.getStatus()!= Order.OrderStatus.CANCELING)
+            throw new BadRequestException("Order is not in cancel requested status");
+        cancelByStatus(order);
+        orderService.updateStatus(order, Order.OrderStatus.CANCELLED);
+        return "Order cancellation confirmed successfully";
+    }
+    public String rejectCancelOrder(UUID orderId) {
+        Order order = orderService.getOrderById(orderId);
+        if (order.getStatus()!= Order.OrderStatus.CANCELING)
+            throw new BadRequestException("Order is not in cancel requested status");
+        orderService.updateStatus(order, order.getPreviousStatus());
+        return "Order cancellation rejected successfully";
+    }
+    public String cancelOrderByAdmin(UUID orderId) {
+        Order order = orderService.getOrderById(orderId);
+        orderService.cancelOrderByAdmin(order);
+        cancelByStatus(order);
+        orderService.updateStatus(order, Order.OrderStatus.CANCELLED);
+        return "Order cancelled successfully by admin";
+    }
+    public String returnOrderByAdmin(UUID orderId) {
+        Order order = orderService.getOrderById(orderId);
+        returnByStatus(order);
+        orderService.updateStatus(order, Order.OrderStatus.RETURNED);
+        return "Order returned successfully by admin";
+    }
+
+    public void cancelByStatus(Order order)
+    {
+        if (order.getStatus()== Order.OrderStatus.SHIPPED)
+            shipmentService.cancelShippingOrderInGHN(
+                    shipmentService.getShipmentByOrderId(order.getId())
+            );
+        if (order.getStatus() == Order.OrderStatus.DELIVERED)
+        {
+            shipmentService.returnOrderInGHN(
+                    shipmentService.getShipmentByOrderId(order.getId())
+            );
+        }
+        if (order.getPaidAt()==null)
+        {
+            paymentService.refundPaymentByOrder(order);
+        }
+    }
+    public void returnByStatus(Order order)
+    {
+        shipmentService.returnOrderInGHN(
+                shipmentService.getShipmentByOrderId(order.getId())
+        );
+        if (order.getPaidAt()!=null)
+        {
+            paymentService.refundPaymentByOrder(order);
+        }
     }
 }

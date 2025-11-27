@@ -13,46 +13,19 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping(value = "/api/v1/orders")
 public class OrderController {
     private final OrderFacadeService orderFacadeService;
 
-    // @GetMapping(value = "/checkout/summary")
-    // public ResponseEntity<CheckoutResponse> summary( r) {
-    // return ResponseEntity.ok(orderService.directCheckOut(request));
-    // }
-    @GetMapping("/get-order-list")
-    public ResponseEntity<PageResponse<OrderResponse>> getOrderList(@RequestParam(value = "status") String status,
-            @RequestParam(value = "paymentType", required = false) String paymentType,
-            @PageableDefault(page = 0, size = 20) Pageable pageable,
-            HttpServletResponse response,
-            HttpServletRequest request) {
-        return ResponseEntity.ok(orderFacadeService.getOrderList(status, paymentType, pageable, request, response));
-    }
-
     @GetMapping("{orderId}")
-    public ResponseEntity<OrderResponse> getOrderDetail(@PathVariable("orderId") String orderId,
+    public ResponseEntity<OrderResponse> getOrderDetail(@PathVariable("orderId") UUID orderId,
             HttpServletRequest request,
             HttpServletResponse response) {
         return ResponseEntity.ok(orderFacadeService.getOrderDetail(orderId, request, response));
-    }
-
-    @PostMapping("{orderId}/cancel")
-    public ResponseEntity<?> cancelOrder(@PathVariable("orderId") String orderId,
-            HttpServletRequest request,
-            HttpServletResponse response) {
-        orderFacadeService.cancelOrder(orderId, request, response);
-        return ResponseEntity.ok().build();
-    }
-
-    @PostMapping("/merge-orders")
-    public ResponseEntity<?> mergeOrders(
-            HttpServletRequest request,
-            HttpServletResponse response) {
-        orderFacadeService.mergeOrders(request, response);
-        return ResponseEntity.ok().build();
     }
 
 }

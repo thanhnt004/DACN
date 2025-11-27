@@ -1,8 +1,7 @@
-package com.example.backend.dto.request.ghn;
+package com.example.backend.dto.ghn;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

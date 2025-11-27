@@ -131,4 +131,8 @@ public class PaymentService {
 
         throw new IllegalArgumentException("Unsupported payment method: " + paymentMethodId);
     }
+
+    public void refundPaymentByOrder(Order order) {
+
+    }
 }

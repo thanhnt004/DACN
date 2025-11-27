@@ -30,7 +30,6 @@ public class CheckoutSession implements Serializable {
     private List<CheckoutItemDetail> items;
 
     // ============== PRICING ==============
-    private String notes;
     /**
      * Tổng tiền sản phẩm (chưa giảm giá)
      */

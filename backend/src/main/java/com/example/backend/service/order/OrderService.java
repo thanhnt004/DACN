@@ -60,7 +60,7 @@ public class OrderService {
     public Order createOrderFromSession(
             CheckoutSession session,
             HttpServletRequest httpRequest,
-            HttpServletResponse response) {
+            HttpServletResponse response, String notes) {
         UUID guestId = null;
         log.info("Creating order from session: sessionId={}, id={}",
                 session.getId(), session.getSessionToken());
@@ -88,7 +88,7 @@ public class OrderService {
                 .shippingAmount(session.getShippingAmount())
                 .totalAmount(session.getTotalAmount())
                 .shippingAddress(session.getShippingAddress())
-                .notes(session.getNotes())
+                .notes(notes)
                 .placedAt(Instant.now())
                 .build();
 
@@ -150,12 +150,11 @@ public class OrderService {
      * @return
      */
     @Transactional
-    public Order updateStatus(UUID orderId, Order.OrderStatus status) {
-        Order order = getOrderById(orderId);
+    public Order updateStatus(Order order, Order.OrderStatus status) {
         order.setStatus(status);
         orderRepository.save(order);
 
-        log.info("Order status updated: orderId={}, status={}", orderId, status);
+        log.info("Order status updated: orderNum={}, status={}", order.getOrderNumber(), status);
         return order;
     }
 
@@ -273,32 +272,48 @@ public class OrderService {
         }
     }
 
-    public Order getOrderDetailByUserOrGuest(Optional<User> userOps, UUID guestId, String orderId) {
+    public Order getOrderDetailByUserOrGuest(Optional<User> userOps, UUID guestId, UUID orderId) {
         Specification<Order> spec = buildOrderSpecification(userOps, null, guestId, null);
         spec = spec
-                .and((root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("id"), UUID.fromString(orderId)));
+                .and((root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("id"), orderId));
 
         return orderRepository.findOne(spec)
                 .orElseThrow(() -> new NotFoundException(
                         "Không tìm thấy đơn hàng: " + orderId));
     }
 
-    public void cancelOrderByUserOrGuest(Optional<User> userOps, UUID guestId, String orderId) {
+    public String cancelOrderByUserOrGuest(Optional<User> userOps, UUID guestId, UUID orderId) {
         Order order = getOrderDetailByUserOrGuest(userOps, guestId, orderId);
         if (order.getStatus() == Order.OrderStatus.CANCELLED) {
             log.info("Order already cancelled: orderId={}", order.getId());
-            return;
+            return "Đơn hàng của bạn đã được hủy!";
         }
-        if (!CANCELABLE_STATUSES.contains(order.getStatus())) {
-            throw new IllegalStateException("Cannot cancel order with status: " + order.getStatus());
+        if(!CANCELABLE_STATUSES.contains(order.getStatus())&&order.getStatus()!=Order.OrderStatus.DELIVERED)
+        {
+            order.setStatus(Order.OrderStatus.CANCELING);
+            throw new IllegalStateException("Đang trong quá trình hủy đơn hàng! Vui long chờ xác nhận từ hệ thống ");
+        }
+        if (order.getStatus() == Order.OrderStatus.DELIVERED) {
+            throw new IllegalStateException("Đơn hàng đã được giao, không thể hủy!");
         }
         order.setStatus(Order.OrderStatus.CANCELLED);
         orderRepository.save(order);
         log.info("Order cancelled: orderId={}", order.getId());
+        return "Đơn hàng của bạn đã được hủy!";
     }
 
     public Page<Order> getPageOrder(String status, String paymentType, Pageable pageable) {
         Specification<Order> spec = buildOrderSpecification(Optional.empty(), status, null, paymentType);
         return orderRepository.findAll(spec, pageable);
+    }
+
+    public void cancelOrderByAdmin(Order order) {
+        if (order.getStatus() == Order.OrderStatus.CANCELLED) {
+            log.info("Order already cancelled: orderId={}", order.getId());
+            return;
+        }
+        order.setStatus(Order.OrderStatus.CANCELLED);
+        orderRepository.save(order);
+        log.info("Order cancelled by admin: orderId={}", order.getId());
     }
 }

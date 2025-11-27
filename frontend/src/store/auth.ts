@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { bindTokenAccess } from '../api/http'
 import * as AuthApi from '../api/auth'
+import { extractProblemMessage } from '../lib/problemDetails'
 
 // Helper: parse JWT và lấy thời gian hết hạn (exp)
 function parseJwt(token: string): { exp?: number } | null {
@@ -118,9 +119,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({ requireEmailVerification: false })
             return res
         } catch (e: unknown) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const err = e as any
-            const message = err?.response?.data?.message || err?.message || 'Login failed'
+            const responseData = typeof e === 'object' && e && 'response' in e
+                ? (e as { response?: { data?: unknown } }).response?.data
+                : undefined
+            const fallback = typeof e === 'object' && e && 'message' in e && typeof (e as { message?: unknown }).message === 'string'
+                ? (e as { message: string }).message
+                : 'Login failed'
+            const message = extractProblemMessage(responseData, fallback)
             set({ error: message })
             throw e
         } finally {

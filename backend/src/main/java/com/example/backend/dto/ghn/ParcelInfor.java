@@ -1,4 +1,4 @@
-package com.example.backend.dto.request.ghn;
+package com.example.backend.dto.ghn;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;

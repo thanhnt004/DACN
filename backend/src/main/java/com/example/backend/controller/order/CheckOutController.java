@@ -114,20 +114,6 @@ public class CheckOutController
 
         return ResponseEntity.ok(response);
     }
-    @PutMapping("/sessions/{sessionId}/notes")
-    public ResponseEntity<CheckoutSession> updateNotes(
-            @PathVariable UUID sessionId,
-            @RequestHeader("X-Session-Token") String sessionToken,
-            @RequestBody String notes
-    ) {
-        CheckoutSession response = checkoutFacade.updateNotes(
-                sessionId,
-                notes
-        );
-
-        return ResponseEntity.ok(response);
-    }
-
     /**
      * Confirm checkout và tạo đơn hàng
      */
@@ -137,11 +123,11 @@ public class CheckOutController
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse,
             @PathVariable UUID sessionId,
+            @RequestBody String notes,
             @RequestHeader("X-Session-Token") String sessionToken
     ) {
 
-        OrderCreatedResponse order = orderFacade.confirmCheckoutSession(sessionId,httpRequest,httpResponse);
-
+        OrderCreatedResponse order = orderFacade.confirmCheckoutSession(sessionId,httpRequest,httpResponse,notes);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(order);
