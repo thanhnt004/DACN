@@ -11,8 +11,7 @@ export default function CartPage() {
 
     useEffect(() => {
         fetchCart()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [fetchCart])
 
     const handleUpdateQuantity = async (itemId: string, variantId: string, newQuantity: number) => {
         if (newQuantity < 1) return

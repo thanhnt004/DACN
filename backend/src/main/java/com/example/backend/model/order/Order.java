@@ -102,7 +102,7 @@ public class Order {
     }
 
     public boolean isPaid() {
-        return this.getStatus() == OrderStatus.CONFIRMED;
+        return this.getPaidAt() != null;
     }
 
 

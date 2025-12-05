@@ -25,6 +25,9 @@ public class VariantCreateRequest {
     @PositiveOrZero(message = "Giá so sánh phải >= 0")
     private Long compareAtAmount;
 
+    @PositiveOrZero(message = "Giá gốc phải >= 0")
+    private Long historyCost;
+
     @Positive(message = "Cân nặng (grams) phải > 0")
     @NotNull
     private Integer weightGrams;

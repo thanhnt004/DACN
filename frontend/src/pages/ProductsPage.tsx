@@ -32,6 +32,7 @@ export default function ProductsPage() {
     const category = searchParams.get('category')
     const gender = searchParams.get('gender')
 
+    const filterKey = JSON.stringify(filters);
     useEffect(() => {
         const loadProducts = async () => {
             setLoading(true)
@@ -50,7 +51,6 @@ export default function ProductsPage() {
                     sortBy: sortBy,
                     direction: sortDirection
                 })
-                console.log('Products API response:', response)
                 setProducts(Array.isArray(response?.content) ? response.content : [])
                 setTotalPages(response?.totalPages || 1)
                 setTotalElements(response?.totalElements || 0)
@@ -64,10 +64,10 @@ export default function ProductsPage() {
             }
         }
         loadProducts()
-    }, [page, search, category, gender, filters, sortBy, sortDirection])
+    }, [page, search, category, gender, filterKey, sortBy, sortDirection])
 
     const handleFavoriteClick = (productId: string) => {
-        console.log('Favorite clicked for product:', productId)
+        // console.log('Favorite clicked for product:', productId)
     }
 
     const handleFilterChange = (newFilters: ProductFilters) => {

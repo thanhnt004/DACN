@@ -38,6 +38,23 @@ spring:
         name: backend
     cache:
         type: redis
+        redis:
+            time-to-live: 3600000 # 1 hour default
+        values:
+            userCache: users
+            productCache: products
+            productVariantsCache: productVariants
+            productListCache: productList
+            categoryCache: categories
+            brandCache: brands
+            discountCache: discounts
+            bannerCache: banners
+            provinceCache: provinces
+            districtCache: districts
+            wardCache: wards
+            orderCache: orders
+            cartCache: carts
+            shippingCache: shipping
     data:
         redis:
             host: ${REDIS_HOST:redis}
@@ -108,7 +125,7 @@ spring:
                     google:
                         client-id: ${GOOGLE_CLIENT_ID}
                         client-secret: ${GOOGLE_CLIENT_SECRET}
-                        redirect-uri: http://localhost:8089/login/oauth2/code/{registrationId}
+                        redirect-uri: ${GOOGLE_REDIRECT_URI}
                         scope: openid, profile, email
     graphql:
         cors:
@@ -214,11 +231,45 @@ ghn:
             fee: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/fee"
             leadtime: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/leadtime"
             create-order: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/create"
-            print-order: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/print-label"
+            print-order: "https://dev-online-gateway.ghn.vn/a5/public-api/printA5?token="
             print-token: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/a5/gen-token"
-
+            cancel-order: "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/switch-status/cancel"
     defaults:
         payment-type-id: 2 # 1: Người bán/Người gửi trả phí, 2: Người mua/Người nhận trả phí
         required-note: KHONGCHOXEMHANG # CHOTHUHANG | CHOXEMHANGKHONGTHU | KHONGCHOXEMHANG
         service-type-id: 2 # 2: Giao hàng tiêu chuẩn
         timeout: 15s
+
+# Security - Public Endpoints Configuration
+security:
+    public-endpoints:
+        - /api/v1/auth/**
+        - /api/v1/products
+        - /api/v1/products/**
+        - /api/v1/categories
+        - /api/v1/categories/**
+        - /api/v1/brands
+        - /api/v1/brands/**
+        - /api/v1/sizes
+        - /api/v1/sizes/**
+        - /api/v1/colors
+        - /api/v1/colors/**
+        - /api/v1/shipping/provinces
+        - /api/v1/shipping/provinces/**
+        - /api/v1/shipping/districts/**
+        - /api/v1/shipping/wards/**
+        - /api/v1/payment/vnpay/callback
+        - /api/v1/payment/*/callback
+        - /actuator/health
+        - /actuator/info
+        - /v3/api-docs/**
+        - /swagger-ui/**
+        - /swagger-ui.html
+        - /swagger-resources/**
+        - /webjars/**
+        - /static/**
+        - /public/**
+        - /resources/**
+        - /favicon.ico
+        - /error
+

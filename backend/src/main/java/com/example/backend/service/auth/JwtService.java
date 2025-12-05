@@ -2,8 +2,10 @@ package com.example.backend.service.auth;
 
 import com.example.backend.config.JwtProperties;
 import com.example.backend.config.TokenType;
+import com.example.backend.exception.auth.InvalidConfigurationException;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.Keys;
 
 import io.jsonwebtoken.security.SecureDigestAlgorithm;
@@ -71,7 +73,7 @@ public class JwtService
             }
         }
         if (keyBytes.length < 32) {
-            throw new IllegalArgumentException("jwt.secret quá ngắn (<32 bytes)");
+            throw new InvalidConfigurationException("jwt.secret quá ngắn (<32 bytes)");
         }
         return Keys.hmacShaKeyFor(keyBytes);
     }

@@ -14,7 +14,7 @@ public class VNPayUtil {
         try {
 
             if (key == null || data == null) {
-                throw new NullPointerException();
+                throw new IllegalArgumentException("Key và data không được null");
             }
             final Mac hmac512 = Mac.getInstance("HmacSHA512");
             byte[] hmacKeyBytes = key.getBytes();

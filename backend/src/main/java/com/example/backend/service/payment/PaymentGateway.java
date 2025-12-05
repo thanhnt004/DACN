@@ -1,5 +1,6 @@
 package com.example.backend.service.payment;
 
+import com.example.backend.exception.payment.UnsupportedPaymentMethodException;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
@@ -24,6 +25,6 @@ public enum PaymentGateway {
                 return type;
             }
         }
-        throw new IllegalArgumentException("Invalid payment gateway: " + value);
+        throw new UnsupportedPaymentMethodException(value);
     }
 }

@@ -1,5 +1,6 @@
 package com.example.backend.model.product;
 
+import com.example.backend.exception.product.ProductImageNotFoundException;
 import com.example.backend.model.discount.Discount;
 import jakarta.persistence.*;
 import jakarta.persistence.CascadeType;
@@ -164,7 +165,7 @@ public class Product {
             {
                 ProductImage existing = existedById.get(image.getId());
                 if (existing == null)
-                    throw new IllegalArgumentException("Cannot resolve");
+                    throw new ProductImageNotFoundException("Không thể tìm thấy ảnh sản phẩm với ID: " + image.getId());
                 existing.setValue(image);
                 toRemove.remove(existing);
             }else

@@ -1,8 +1,10 @@
 package com.example.backend.dto.response.catalog.product;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -10,6 +12,8 @@ import java.util.UUID;
 @Data
 @Builder
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
+@AllArgsConstructor
+@NoArgsConstructor
 public class VariantResponse {
     private UUID id;
     private UUID productId;

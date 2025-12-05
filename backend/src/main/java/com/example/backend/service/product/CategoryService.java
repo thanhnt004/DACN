@@ -13,6 +13,8 @@ import com.example.backend.model.product.Category;
 import com.example.backend.repository.catalog.categoty.CategoryRepository;
 import com.example.backend.util.SlugUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -29,6 +31,7 @@ import java.util.stream.Collectors;
 public class CategoryService {
     private final CategoryRepository categoryRepository;
     private final CategoryMapper categoryMapper;
+    private final com.example.backend.config.CacheConfig cacheConfig;
 
     private static final List<String> ALLOWED_SORT_FIELDS = List.of("name","productsCount","updatedAt","createdAt");
 
@@ -59,6 +62,7 @@ public class CategoryService {
         }
     }
 
+    @CacheEvict(value = "#{@cacheConfig.categoryCache}", allEntries = true)
     public CategoryResponse createCategory(CategoryCreateRequest request)
     {
         //Tạo slug nếu trùng
@@ -81,6 +85,7 @@ public class CategoryService {
         return categoryMapper.toDto(category);
     }
     @Transactional
+    @CacheEvict(value = "#{@cacheConfig.categoryCache}", allEntries = true)
     public CategoryResponse update(UUID id, CategoryUpdateRequest req) {
         var c = categoryRepository.findById(id).orElseThrow(() -> new NotFoundException("Category not found"));
 
@@ -99,6 +104,7 @@ public class CategoryService {
     }
 
     @Transactional
+    @CacheEvict(value = "#{@cacheConfig.categoryCache}", allEntries = true)
     public void delete(UUID categoryId,Boolean force,UUID reassignTo)
     {
         var c = categoryRepository.findById(categoryId).orElseThrow(() -> new NotFoundException("Category not found"));
@@ -120,6 +126,7 @@ public class CategoryService {
     }
     @Async
     @Transactional
+    @CacheEvict(value = "#{@cacheConfig.categoryCache}", allEntries = true)
     public void move(UUID categoryId,UUID newParentId)
     {
         Category cat = categoryRepository.findById(categoryId)
@@ -140,6 +147,11 @@ public class CategoryService {
         categoryRepository.save(cat);
     }
     @Transactional(readOnly = true)
+    @Cacheable(
+        value = "#{@cacheConfig.categoryCache}",
+        key = "(#parentId != null ? #parentId.toString() : 'null') + ':' + (#q != null ? #q : '') + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + (#sort != null ? #sort : '')",
+        unless = "#result == null"
+    )
     public PageResponse<CategoryResponse> list(UUID parentId, String q, Pageable pageable,String sort) {
     // Simple Specification
         var spec = (Specification<Category>) (root, query, cb) -> {
@@ -185,6 +197,10 @@ public class CategoryService {
         return categoryMapper.toDto(category);
     }
     @Transactional(readOnly = true)
+    @org.springframework.cache.annotation.Cacheable(
+        value = "#{@cacheConfig.categoryCache}",
+        key = "'tree:' + (#rootId != null ? #rootId.toString() : 'root') + ':' + #depth"
+    )
     public CategoryResponse getCategoryTree( Integer depth, UUID rootId) {
         if (depth <= 0||depth>=10) depth = 5;
         Category root;
@@ -221,6 +237,11 @@ public class CategoryService {
         return dto;
     }
 
+    @org.springframework.cache.annotation.Cacheable(
+        value = "#{@cacheConfig.categoryCache}",
+        key = "'detail:' + #slugOrId",
+        unless = "#result == null"
+    )
     public CategoryResponse getBySlugOrId(String slugOrId) {
         try {
             UUID uuid = UUID.fromString(slugOrId);

@@ -54,75 +54,68 @@ export default function CategoryProductsPage() {
     })
 
     const search = searchParams.get('search')
+    const filterKey = JSON.stringify(filters);
 
     useEffect(() => {
-        loadCategoryAndFilters()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [slug])
+        const loadData = async () => {
+            if (!slug) return
+            setLoading(true)
+            try {
+                const [categoryRes, sizesRes, colorsRes] = await Promise.all([
+                    BrandCategoryApi.getCategory(slug),
+                    !sizes.length ? CatalogApi.getSizes() : Promise.resolve(sizes),
+                    !colors.length ? CatalogApi.getColors() : Promise.resolve(colors)
+                ]);
 
-    useEffect(() => {
-        if (category?.id) {
-            loadProducts()
+                if (categoryRes) {
+                    setCategory(categoryRes)
+                }
+
+                if (Array.isArray(sizesRes)) {
+                    setSizes(sizesRes);
+                }
+                if (Array.isArray(colorsRes)) {
+                    setColors(colorsRes);
+                }
+
+                if (categoryRes?.id) {
+                    const genderParam = filters.gender && filters.gender.length > 0
+                        ? filters.gender[0]
+                        : undefined
+
+                    const response = await ProductsApi.getProducts({
+                        page,
+                        size: 12,
+                        status: 'ACTIVE',
+                        categoryId: categoryRes.id,
+                        gender: genderParam,
+                        search: search || undefined,
+                        minPriceAmount: filters.minPriceAmount,
+                        maxPriceAmount: filters.maxPriceAmount,
+                        sizeIds: filters.sizeIds,
+                        colorIds: filters.colorIds,
+                        sortBy: sortBy,
+                        direction: sortDirection
+                    })
+
+                    setProducts(Array.isArray(response?.content) ? response.content : [])
+                    setTotalPages(response?.totalPages || 1)
+                    setTotalElements(response?.totalElements || 0)
+                }
+            } catch (error) {
+                console.error('Failed to load category or products:', error)
+                setProducts([])
+                setTotalPages(1)
+                setTotalElements(0)
+            } finally {
+                setLoading(false)
+            }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page, category?.id, filters, sortBy, sortDirection, search])
-
-    const loadCategoryAndFilters = async () => {
-        if (!slug) return
-        try {
-            const [categoryRes, sizesRes, colorsRes] = await Promise.all([
-                BrandCategoryApi.getCategory(slug),
-                CatalogApi.getSizes(),
-                CatalogApi.getColors()
-            ])
-
-            setCategory(categoryRes)
-            setSizes(sizesRes || [])
-            setColors(colorsRes || [])
-        } catch (error) {
-            console.error('Failed to load category:', error)
-        }
-    }
-
-    const loadProducts = async () => {
-        if (!category?.id) return
-
-        setLoading(true)
-        try {
-            const genderParam = filters.gender && filters.gender.length > 0
-                ? filters.gender[0]
-                : undefined
-
-            const response = await ProductsApi.getProducts({
-                page,
-                size: 12,
-                status: 'ACTIVE',
-                categoryId: category.id,
-                gender: genderParam,
-                search: search || undefined,
-                minPriceAmount: filters.minPriceAmount,
-                maxPriceAmount: filters.maxPriceAmount,
-                sizeIds: filters.sizeIds,
-                colorIds: filters.colorIds,
-                sortBy: sortBy,
-                direction: sortDirection
-            })
-
-            setProducts(Array.isArray(response?.content) ? response.content : [])
-            setTotalPages(response?.totalPages || 1)
-            setTotalElements(response?.totalElements || 0)
-        } catch (error) {
-            console.error('Failed to load products:', error)
-            setProducts([])
-            setTotalPages(1)
-            setTotalElements(0)
-        } finally {
-            setLoading(false)
-        }
-    }
+        loadData()
+    }, [slug, page, filterKey, sortBy, sortDirection])
 
     const handleFavoriteClick = (productId: string) => {
-        console.log('Favorite clicked for product:', productId)
+        // console.log('Favorite clicked for product:', productId)
     }
 
     const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {

@@ -117,7 +117,7 @@ public class CheckOutController
     /**
      * Confirm checkout và tạo đơn hàng
      */
-    @Idempotent
+    @Idempotent(expire = 300, scope = "sessionId")
     @PostMapping("/sessions/{sessionId}/confirm")
     public ResponseEntity<OrderCreatedResponse> confirmCheckout(
             HttpServletRequest httpRequest,

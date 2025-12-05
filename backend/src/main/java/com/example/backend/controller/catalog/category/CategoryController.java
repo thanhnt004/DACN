@@ -41,8 +41,7 @@ public class CategoryController {
     public ResponseEntity<PageResponse<CategoryResponse>> getCategoriesFlat(@RequestParam(defaultValue = "0") int page,
                                                                             @RequestParam(defaultValue = "20") int size,
                                                                             @RequestParam(required = false) String search,
-                                                                            @RequestParam(required = false) UUID parentId,
-                                                                            @RequestParam(required = false) String sort)
+                                                                            @RequestParam(required = false) UUID parentId,@RequestParam(required = false) String sort)
     {
         Pageable pageable = PageRequest.of(page, size);
         PageResponse<CategoryResponse> categories = categoryService.list(parentId,search,pageable,sort);

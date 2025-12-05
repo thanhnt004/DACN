@@ -23,6 +23,7 @@ export default function ProductVariantEdit() {
         colorId: '',
         priceAmount: '',
         compareAtAmount: '',
+        historyCost: '',
         weightGrams: '',
         status: 'ACTIVE' as ProductsApi.VariantStatus,
         quantityOnHand: '',
@@ -62,6 +63,7 @@ export default function ProductVariantEdit() {
                     colorId: currentVariant.colorId || '',
                     priceAmount: currentVariant.priceAmount?.toString() || productData.priceAmount.toString(),
                     compareAtAmount: currentVariant.compareAtAmount?.toString() || '',
+                    historyCost: currentVariant.historyCost?.toString() || '',
                     weightGrams: currentVariant.weightGrams?.toString() || '',
                     status: currentVariant.status || 'ACTIVE',
                     quantityOnHand: currentVariant.inventory?.quantityOnHand?.toString() || '0',
@@ -95,6 +97,7 @@ export default function ProductVariantEdit() {
                 barcode: formData.barcode || undefined,
                 priceAmount: parseFloat(formData.priceAmount),
                 compareAtAmount: formData.compareAtAmount ? parseFloat(formData.compareAtAmount) : undefined,
+                historyCost: formData.historyCost ? parseFloat(formData.historyCost) : undefined,
                 weightGrams: formData.weightGrams ? parseInt(formData.weightGrams) : undefined,
                 status: formData.status,
                 version: variant.version || 0,
@@ -283,15 +286,14 @@ export default function ProductVariantEdit() {
                                         step="1000"
                                     />
                                 </div>
-
                                 <div>
                                     <label className="block text-sm font-medium mb-1">
-                                        Giá so sánh (VNĐ)
+                                        Giá gốc (VNĐ)
                                     </label>
                                     <input
                                         type="number"
-                                        value={formData.compareAtAmount}
-                                        onChange={(e) => setFormData({ ...formData, compareAtAmount: e.target.value })}
+                                        value={formData.historyCost}
+                                        onChange={(e) => setFormData({ ...formData, historyCost: e.target.value })}
                                         className="w-full border rounded px-3 py-2"
                                         placeholder="Giá gốc (tùy chọn)"
                                         min="0"
@@ -299,6 +301,20 @@ export default function ProductVariantEdit() {
                                     />
                                 </div>
                             </div>
+                            <div>
+                                    <label className="block text-sm font-medium mb-1">
+                                        Giá thị trường (VNĐ)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={formData.compareAtAmount}
+                                        onChange={(e) => setFormData({ ...formData, compareAtAmount: e.target.value })}
+                                        className="w-full border rounded px-3 py-2"
+                                        placeholder="Giá thị trường (tùy chọn)"
+                                        min="0"
+                                        step="1000"
+                                    />
+                                </div>
 
                             <div>
                                 <label className="block text-sm font-medium mb-1">

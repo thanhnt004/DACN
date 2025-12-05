@@ -1,7 +1,9 @@
 package com.example.backend.dto.response.discount;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 import java.time.Instant;
@@ -11,6 +13,8 @@ import java.util.UUID;
 @Data
 @FieldDefaults(level = lombok.AccessLevel.PRIVATE)
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class DiscountResponse {
     UUID id;
     String code;

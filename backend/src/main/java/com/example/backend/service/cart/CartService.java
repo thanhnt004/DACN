@@ -51,6 +51,11 @@ public class CartService {
     private CartResponse buildCartResponse(Cart cart) {
         CartResponse cartResponse = cartMapper.toDto(cart);
 
+        // Handle null or empty items list
+        if (cartResponse.getItems() == null || cartResponse.getItems().isEmpty()) {
+            return cartResponse;
+        }
+
         for (CartItemResponse itemResponse : cartResponse.getItems()) {
             CartItem cartItemEntity = cart.getItems().stream()
                     .filter(item -> item.getId().equals(itemResponse.getId()))

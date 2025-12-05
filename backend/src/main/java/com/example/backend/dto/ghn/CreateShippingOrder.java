@@ -14,32 +14,40 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class CreateShippingOrder {
-    @JsonProperty("shop_id") int shopId;
     @JsonProperty("payment_type_id") int paymentTypeId;
+    @JsonProperty("note") String note;
     @JsonProperty("required_note") String requiredNote;
+    @JsonProperty("client_order_code") String clientOrderCode;
+
+    // Receiver address (người nhận) - CHỈ DÙNG TEXT NAME
     @JsonProperty("to_name") String toName;
     @JsonProperty("to_phone") String toPhone;
     @JsonProperty("to_address") String toAddress;
-    @JsonProperty("to_ward_code") String toWardCode;
-    @JsonProperty("to_district_id") int toDistrictId;
+    @JsonProperty("to_ward_name") String toWardName;
+    @JsonProperty("to_district_name") String toDistrictName;
+    @JsonProperty("to_province_name") String toProvinceName;
+    
     @JsonProperty("content") String content;
+    
+    // Sender address (người gửi) - CHỈ DÙNG TEXT NAME
+    @JsonProperty("from_name") String fromName;
+    @JsonProperty("from_phone") String fromPhone;
+    @JsonProperty("from_address") String fromAddress;
+    @JsonProperty("from_ward_name") String fromWardName;
+    @JsonProperty("from_district_name") String fromDistrictName;
+    @JsonProperty("from_province_name") String fromProvinceName;
+
+    @JsonProperty("return_phone")
+    private String returnPhone;
+    @JsonProperty("return_address")
+    private String returnAddress;
+    @JsonProperty("pick_station_id")
+    private Integer pickStationId;
+
     @JsonUnwrapped
     private ParcelInfor parcelInfor;
     @JsonProperty("service_type_id") int serviceTypeId;
     @JsonProperty("items")
     List<GHNItem> items;
 
-////    //sender info
-////    @JsonProperty("from_name")
-////    private String fromName;
-////    @JsonProperty("from_phone")
-////    private String fromPhone;
-////    @JsonProperty("from_address")
-////    private String fromAddress;
-////    @JsonProperty("from_ward_code")
-////    private String fromWardName;
-////    @JsonProperty("from_district_id")
-////    private String fromDistrictName;
-////    @JsonProperty("from_province_id")
-////    private String fromProvinceName;
 }

@@ -14,6 +14,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -29,6 +30,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
@@ -122,13 +124,20 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         String baseUrl = (redirectOverride != null && !redirectOverride.isBlank())
                 ? redirectOverride
                 : frontendUrl + "/login";
+        
+        String url;
+        if (baseUrl.contains("?")) {
+            url = baseUrl + "&provider=" + URLEncoder.encode(provider, StandardCharsets.UTF_8);
+        } else {
+            url = baseUrl + "?provider=" + URLEncoder.encode(provider, StandardCharsets.UTF_8);
+        }
 
-        String url = baseUrl + "?provider=" + URLEncoder.encode(provider, StandardCharsets.UTF_8);
 
         try {
             response.sendRedirect(url);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log.error("Failed to redirect after OAuth2 login", e);
+            throw new AuthenticationException("Không thể chuyển hướng sau khi đăng nhập");
         }
     }
 

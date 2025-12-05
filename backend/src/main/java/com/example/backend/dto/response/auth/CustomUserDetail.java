@@ -3,6 +3,7 @@ package com.example.backend.dto.response.auth;
 import com.example.backend.dto.response.user.UserAuthenDTO;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Getter
+@NoArgsConstructor
 @AllArgsConstructor
 public class CustomUserDetail implements UserDetails, CredentialsContainer {
     private UUID id;
@@ -26,7 +28,7 @@ public class CustomUserDetail implements UserDetails, CredentialsContainer {
         var authorities = List.of(new SimpleGrantedAuthority("ROLE_"+userAuthenDTO.getRole()));
         return new CustomUserDetail(userAuthenDTO.getId(),userAuthenDTO.getEmail(),authorities,userAuthenDTO.getPasswordHash(), userAuthenDTO.isLocked(), userAuthenDTO.isEnabled());
     }
-    public CustomUserDetail() {}
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return authorities;

@@ -1,5 +1,6 @@
 package com.example.backend.service.product;
 
+import com.example.backend.config.CacheConfig;
 import com.example.backend.controller.catalog.product.Options;
 import com.example.backend.controller.catalog.product.ProductFilter;
 import com.example.backend.dto.request.catalog.product.ProductCreateRequest;
@@ -9,6 +10,7 @@ import com.example.backend.dto.response.catalog.ColorDto;
 import com.example.backend.dto.response.catalog.SizeDto;
 import com.example.backend.dto.response.catalog.product.ProductDetailResponse;
 import com.example.backend.dto.response.catalog.product.ProductSummaryResponse;
+import com.example.backend.dto.response.catalog.product.VariantResponse;
 import com.example.backend.dto.response.wraper.PageResponse;
 import com.example.backend.exception.BadRequestException;
 import com.example.backend.exception.product.DuplicateProductException;
@@ -26,6 +28,9 @@ import com.example.backend.repository.catalog.product.ProductRepository;
 import com.example.backend.repository.catalog.product.ProductSpecification;
 import com.example.backend.repository.catalog.product.ProductVariantRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -49,6 +54,7 @@ public class ProductService {
     private final CloudImageService imageService;
     private final CategoryMapper categoryMapper;
 
+    private final CacheConfig cacheConfig;
     private static final Set<String> ALLOWED_INCLUDES = Set.of("variants", "images", "categories", "options");
 
     private boolean slugExist(String slug, UUID excludedId) {
@@ -57,23 +63,44 @@ public class ProductService {
         }
         return productRepository.existsBySlugAndIdNotIncludeDeleted(slug, excludedId);
     }
-
+    // 3 query: product, colors, sizes
+    @Cacheable(
+        value = "#{@cacheConfig.productListCache}",
+        key = "#filter.toString() + ':' + #pageable.pageNumber + ':' + #pageable.pageSize",
+        unless = "#result == null"
+    )
     public PageResponse<ProductSummaryResponse> list(ProductFilter filter, Pageable pageable) {
+        // Build pageable with sort from filter
         Pageable effectivePageable = buildPageable(filter, pageable);
+        //find products
         Page<Product> page = productRepository.findAll(getFilterSpecification(filter), effectivePageable);
         if (page.isEmpty()) {
             return null;
         }
+        //get ids
         List<UUID> productIds = page.getContent().stream().map(Product::getId).toList();
+        //find colors
         Map<UUID, List<String>> colorsMap = new HashMap<>();
-        productIds.forEach(id -> {
-            List<ColorDto> colors = variantRepository.getColorsByProductId(id);
-            colorsMap.put(id, colors.stream().map(ColorDto::getHexCode).toList());
-        });
-
-        return new PageResponse<>(page.map(p -> toSummaryResponse(p, colorsMap.getOrDefault(p.getId(), List.of()))));
+        List<Object[]> results = variantRepository.findColorsByProductIds(productIds);
+        for (Object[] result : results) {
+            UUID productId = (UUID) result[0];
+            ColorDto colorDto = (ColorDto) result[1];
+            colorsMap.computeIfAbsent(productId, k -> new ArrayList<>()).add(colorDto.getHexCode());
+        }
+        //find sizes
+        Map<UUID, List<String>> sizeMap = new HashMap<>();
+        List<Object[]> sizeResults = variantRepository.findSizesByProductIds(productIds);
+        for (Object[] result : sizeResults) {
+            UUID productId = (UUID) result[0];
+            SizeDto sizeDto = (SizeDto) result[1];
+            sizeMap.computeIfAbsent(productId, k -> new ArrayList<>()).add(sizeDto.getCode());
+        }
+        return new PageResponse<>(page.map(p -> toSummaryResponse(p, colorsMap.getOrDefault(p.getId(), List.of()),sizeMap.getOrDefault(p.getId(), List.of()))));
     }
 
+    @Caching(evict = {
+        @CacheEvict(value = "#{@cacheConfig.productListCache}", allEntries = true)
+    })
     public ProductDetailResponse create(ProductCreateRequest productCreateRequest) {
         Product product = productMapper.toEntity(productCreateRequest);
         if (slugExist(productCreateRequest.getSlug(), null)) {
@@ -99,6 +126,11 @@ public class ProductService {
     }
 
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "#{@cacheConfig.productCache}", key = "#id"),
+            @CacheEvict(value = "#{@cacheConfig.productVariantsCache}", key = "#id"),
+            @CacheEvict(value = "#{@cacheConfig.productListCache}", allEntries = true)
+    })
     public ProductDetailResponse update(ProductUpdateRequest request, UUID id) {
         Product exist = productRepository.findById(id).orElseThrow(
                 () -> new ProductNotFoundException("Không tìm thấy sản phẩm"));
@@ -124,12 +156,25 @@ public class ProductService {
     }
 
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "#{@cacheConfig.productCache}", key = "#productId"),
+            @CacheEvict(value = "#{@cacheConfig.productVariantsCache}", key = "#productId"),
+            @CacheEvict(value = "#{@cacheConfig.productListCache}", allEntries = true)
+    })
     public void delete(UUID productId) {
         Product exist = productRepository.findById(productId).orElseThrow(
                 () -> new ProductNotFoundException("Không tìm thấy sản phẩm"));
         productRepository.delete(exist);
     }
-
+    @Cacheable(value = "#{@cacheConfig.productVariantsCache}", key = "#product.id")
+    public List<VariantResponse> getVariantsByProduct(Product product) {
+        return variantsMapper.toResponse(product.getVariants());
+    }
+    @Cacheable(
+        value = "#{@cacheConfig.productCache}",
+        key = "#slugOrId + ':' + (#includes != null ? #includes.toString() : 'none')",
+        unless = "#result == null"
+    )
     public ProductDetailResponse findBySlugOrId(String slugOrId, List<String> includes) {
         List<String> unknown = includes.stream()
                 .filter(s -> !ALLOWED_INCLUDES.contains(s))
@@ -158,7 +203,7 @@ public class ProductService {
         if (includeSet.contains("images"))
             response.setImages(imageMapper.toDto(product.getImages()));
         if (includeSet.contains("options")) {
-            List<ColorDto> colorDto = variantRepository.getColorsByProductId(product.getId());
+            List<ColorDto> colorDto = variantRepository.findDistinctColorsByProductId(product.getId());
             List<SizeDto> sizeDto = variantRepository.getSizesByProductId(product.getId());
             Options options = Options.builder()
                     .color(colorDto)
@@ -170,6 +215,10 @@ public class ProductService {
     }
 
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "#{@cacheConfig.productCache}", key = "#id"),
+            @CacheEvict(value = "#{@cacheConfig.productListCache}", allEntries = true)
+    })
     public void changeStatus(UUID id, ProductStatus status) {
         Product product = productRepository.findById(id).orElseThrow(
                 () -> new ProductNotFoundException("Không tìm thấy sản phẩm"));
@@ -246,7 +295,7 @@ public class ProductService {
         return Sort.Direction.DESC;
     }
 
-    private ProductSummaryResponse toSummaryResponse(Product p, List<String> colors) {
+    private ProductSummaryResponse toSummaryResponse(Product p, List<String> colors, List<String> sizes) {
         ProductSummaryResponse r = new ProductSummaryResponse();
         r.setId(p.getId());
         r.setSlug(p.getSlug());
@@ -254,10 +303,15 @@ public class ProductService {
         r.setRatingAvg(p.getRatingAvg());
         r.setImageUrl(p.getPrimaryImageUrl());
         r.setName(p.getName());
+        r.setSizes(sizes);
         r.setStatus(p.getStatus());
         r.setGender(String.valueOf(p.getGender()));
         r.setPriceAmount(p.getPriceAmount());
         return r;
     }
-
+    public String normalizeKeyForCache(Object idOrSlug, List<String> includes) {
+        Set<String> set = normalizeIncludes(includes);
+        String inc = String.join(",", set);
+        return idOrSlug + ":" + inc;
+    }
 }

@@ -18,8 +18,7 @@ CREATE TABLE IF NOT EXISTS public.addresses
     is_default_shipping boolean NOT NULL DEFAULT false,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
-    CONSTRAINT addresses_pkey PRIMARY KEY (id),
-    CONSTRAINT user_default_add_unique UNIQUE (user_id, is_default_shipping)
+    CONSTRAINT addresses_pkey PRIMARY KEY (id)
 );
 
 CREATE TABLE IF NOT EXISTS public.audit_logs
@@ -171,6 +170,18 @@ CREATE TABLE IF NOT EXISTS public.flyway_schema_history
     CONSTRAINT flyway_schema_history_pk PRIMARY KEY (installed_rank)
 );
 
+CREATE TABLE IF NOT EXISTS public.idempotency_keys
+(
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    key_value text COLLATE pg_catalog."default" NOT NULL,
+    status text COLLATE pg_catalog."default" NOT NULL,
+    response_body jsonb,
+    hash text COLLATE pg_catalog."default",
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    expires_at timestamp with time zone NOT NULL,
+    CONSTRAINT idempotency_keys_pkey PRIMARY KEY (id)
+);
+
 CREATE TABLE IF NOT EXISTS public.inventory
 (
     variant_id uuid NOT NULL,
@@ -207,6 +218,23 @@ CREATE TABLE IF NOT EXISTS public.oauth_accounts
     CONSTRAINT oauth_accounts_user_id_provider_key UNIQUE (user_id, provider)
 );
 
+CREATE TABLE IF NOT EXISTS public.order_change_requests
+(
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    order_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    type text COLLATE pg_catalog."default" NOT NULL,
+    status text COLLATE pg_catalog."default" NOT NULL DEFAULT 'PENDING'::text,
+    reason text COLLATE pg_catalog."default",
+    admin_note text COLLATE pg_catalog."default",
+    images jsonb,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    requested_amount bigint,
+    metadata json,
+    CONSTRAINT order_change_requests_pkey PRIMARY KEY (id)
+);
+
 CREATE TABLE IF NOT EXISTS public.order_items
 (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -222,6 +250,8 @@ CREATE TABLE IF NOT EXISTS public.order_items
     tax_amount bigint NOT NULL DEFAULT 0,
     total_amount bigint NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
+    image_url text COLLATE pg_catalog."default",
+    history_cost bigint,
     CONSTRAINT order_items_pkey PRIMARY KEY (id)
 );
 
@@ -234,15 +264,16 @@ CREATE TABLE IF NOT EXISTS public.orders
     subtotal_amount bigint NOT NULL DEFAULT 0,
     discount_amount bigint NOT NULL DEFAULT 0,
     shipping_amount bigint NOT NULL DEFAULT 0,
-    tax_amount bigint NOT NULL DEFAULT 0,
     total_amount bigint NOT NULL DEFAULT 0,
     shipping_address jsonb,
     notes text COLLATE pg_catalog."default",
     placed_at timestamp with time zone,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
-    version integer NOT NULL DEFAULT 0,
+    version bigint NOT NULL DEFAULT 0,
     paid_at timestamp with time zone,
+    guest_id uuid,
+    previous_status text COLLATE pg_catalog."default",
     CONSTRAINT orders_pkey PRIMARY KEY (id),
     CONSTRAINT orders_order_number_key UNIQUE (order_number)
 );
@@ -282,6 +313,7 @@ CREATE TABLE IF NOT EXISTS public.product_images
     color_id uuid,
     public_id character varying(100) COLLATE pg_catalog."default",
     is_default boolean NOT NULL DEFAULT false,
+    variant_id uuid,
     CONSTRAINT product_images_pkey PRIMARY KEY (id)
 );
 
@@ -303,6 +335,7 @@ CREATE TABLE IF NOT EXISTS public.product_variants
     version integer NOT NULL DEFAULT 0,
     sold_count integer NOT NULL DEFAULT 0,
     is_in_stock boolean NOT NULL DEFAULT false,
+    history_cost bigint,
     CONSTRAINT product_variants_pkey PRIMARY KEY (id),
     CONSTRAINT product_variants_sku_key UNIQUE (sku)
 );
@@ -376,6 +409,7 @@ CREATE TABLE IF NOT EXISTS public.shipments
     delivered_at timestamp with time zone,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    warehouse text COLLATE pg_catalog."default",
     CONSTRAINT shipments_pkey PRIMARY KEY (id)
 );
 
@@ -544,6 +578,15 @@ CREATE INDEX IF NOT EXISTS ix_oauth_accounts_user
     ON public.oauth_accounts(user_id);
 
 
+ALTER TABLE IF EXISTS public.order_change_requests
+    ADD CONSTRAINT fk_ocr_order FOREIGN KEY (order_id)
+    REFERENCES public.orders (id) MATCH SIMPLE
+    ON UPDATE NO ACTION
+    ON DELETE NO ACTION;
+CREATE INDEX IF NOT EXISTS idx_ocr_order_id
+    ON public.order_change_requests(order_id);
+
+
 ALTER TABLE IF EXISTS public.order_items
     ADD CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id)
     REFERENCES public.orders (id) MATCH SIMPLE
@@ -597,6 +640,13 @@ ALTER TABLE IF EXISTS public.product_categories
     REFERENCES public.products (id) MATCH SIMPLE
     ON UPDATE NO ACTION
     ON DELETE CASCADE;
+
+
+ALTER TABLE IF EXISTS public.product_images
+    ADD CONSTRAINT fk_product_images_variant FOREIGN KEY (variant_id)
+    REFERENCES public.product_variants (id) MATCH SIMPLE
+    ON UPDATE NO ACTION
+    ON DELETE NO ACTION;
 
 
 ALTER TABLE IF EXISTS public.product_images

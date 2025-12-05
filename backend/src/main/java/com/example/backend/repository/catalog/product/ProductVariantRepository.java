@@ -22,22 +22,24 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     void updateStatus(@Param("id") UUID id, @Param("status") VariantStatus status, @Param("version") int version);
 
     boolean existsBySkuIgnoreCase(String sku);
-
-    boolean existsByColor_IdAndSize_Id(UUID colorId, UUID sizeId);
-
     @Query("""
-        select new com.example.backend.dto.response.catalog.ColorDto(
-            c.id,
-            c.name,
-            c.hexCode
-        )
-        from ProductVariant v
-        join v.product p
-        join v.color c
-        where p.id = :productId
-        group by c.id, c.name, c.hexCode
-         """)
-    List<ColorDto> getColorsByProductId(@Param("productId") UUID productId);
+        SELECT DISTINCT new com.example.backend.dto.response.catalog.ColorDto(c.id, c.name, c.hexCode)
+        FROM ProductVariant pv JOIN pv.color c
+        WHERE pv.product.id = :productId
+    """)
+    List<ColorDto> findDistinctColorsByProductId(@Param("productId") UUID productId);
+    @Query("""
+    SELECT pv.product.id as productId, new com.example.backend.dto.response.catalog.ColorDto(c.id, c.name, c.hexCode)
+    FROM ProductVariant pv JOIN pv.color c
+    WHERE pv.product.id IN :productIds
+""")
+    List<Object[]> findColorsByProductIds(@Param("productIds") List<UUID> productIds);
+    @Query("""
+    SELECT pv.product.id as productId, new com.example.backend.dto.response.catalog.SizeDto(s.id, s.name, s.code)
+    FROM ProductVariant pv JOIN pv.size s
+    WHERE pv.product.id IN :productIds
+""")
+    List<Object[]> findSizesByProductIds(@Param("productIds") List<UUID> productIds);
     @Query("""
      select new com.example.backend.dto.response.catalog.SizeDto(
             s.id,

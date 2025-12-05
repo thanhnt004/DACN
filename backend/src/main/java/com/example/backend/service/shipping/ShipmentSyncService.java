@@ -6,6 +6,7 @@ import com.example.backend.model.order.Order;
 import com.example.backend.model.order.Shipment;
 import com.example.backend.repository.order.OrderRepository;
 import com.example.backend.repository.shipping.ShipmentRepository;
+import com.example.backend.service.product.InventoryService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,10 +30,12 @@ public class ShipmentSyncService {
             "returned", "RETURNED",
             "cancel", "CANCELLED"
     );
+    private final InventoryService inventoryService;
 
-    public ShipmentSyncService(ShipmentRepository shipmentRepository, OrderRepository orderRepository) {
+    public ShipmentSyncService(ShipmentRepository shipmentRepository, OrderRepository orderRepository, InventoryService inventoryService) {
         this.shipmentRepository = shipmentRepository;
         this.orderRepository = orderRepository;
+        this.inventoryService = inventoryService;
     }
 
     @Transactional
@@ -71,8 +74,19 @@ public class ShipmentSyncService {
                 order.setStatus(Order.OrderStatus.DELIVERED);
                 if (order.getPaidAt() == null)
                     order.setPaidAt(eventTime);
+                if (shipment.isReturnShipment())
+                {
+                    order.setStatus(Order.OrderStatus.RETURNED);
+                    inventoryService.revertSold(order);
+                }
+                else
+                    inventoryService.confirmSold(order);
             }
-            case "RETURNED", "CANCELLED" -> order.setStatus(Order.OrderStatus.CANCELLED);
+            case "RETURNED" -> {
+                order.setStatus(Order.OrderStatus.RETURNED);
+                inventoryService.releaseReservation(order);
+            }
+            case "CANCELLED" -> order.setStatus(Order.OrderStatus.CANCELLED);
             case "DELIVERING" -> order.setStatus(Order.OrderStatus.SHIPPED);
         }
         orderRepository.save(order);

@@ -57,7 +57,10 @@ public class ProductVariant {
     private Color color;
 
     @Column(name = "price_amount", nullable = false)
-    private long priceAmount;
+    private Long priceAmount;
+
+    @Column(name = "history_cost", nullable = false)
+    private Long historyCost;
 
     @Column(name = "compare_at_amount")
     private Long compareAtAmount;
@@ -70,11 +73,11 @@ public class ProductVariant {
     @Builder.Default
     private VariantStatus status = VariantStatus.ACTIVE;
 
-    @UpdateTimestamp
+    @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    @CreationTimestamp
+    @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 

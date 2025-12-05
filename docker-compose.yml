@@ -44,6 +44,9 @@ services:
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
       REDIS_HOST: redis
       REDIS_URL: redis://redis:6379
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
+      FACEBOOK_REDIRECT_URI: ${FACEBOOK_REDIRECT_URI}
+      FRONTEND_URL: ${FRONTEND_URL}
     ports:
       - "8089:8089"
     depends_on:

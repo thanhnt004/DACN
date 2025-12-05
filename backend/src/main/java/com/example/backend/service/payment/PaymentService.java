@@ -2,6 +2,8 @@ package com.example.backend.service.payment;
 
 import com.example.backend.dto.response.checkout.PaymentMethodResponse;
 import com.example.backend.exception.NotFoundException;
+import com.example.backend.exception.payment.UnsupportedPaymentMethodException;
+import com.example.backend.exception.NotFoundException;
 import com.example.backend.model.order.Order;
 import com.example.backend.model.payment.Payment;
 import com.example.backend.repository.order.OrderRepository;
@@ -129,10 +131,10 @@ public class PaymentService {
             return frontendBaseUrl + "/orders/" + order.getId();
         }
 
-        throw new IllegalArgumentException("Unsupported payment method: " + paymentMethodId);
+        throw new UnsupportedPaymentMethodException(paymentMethodId);
     }
 
-    public void refundPaymentByOrder(Order order) {
+    public void processRefund(Order order) {
 
     }
 }

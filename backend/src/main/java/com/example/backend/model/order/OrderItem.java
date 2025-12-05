@@ -50,6 +50,9 @@ public class OrderItem {
     @Column(name = "unit_price_amount", nullable = false)
     private Long unitPriceAmount;
 
+    @Column(name = "history_cost", nullable = false)
+    private Long historyCost;
+
     @Column(name = "total_amount", nullable = false)
     private Long totalAmount;
     @Column(name = "image_url")

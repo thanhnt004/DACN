@@ -12,7 +12,9 @@ import com.example.backend.util.SlugUtil;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.springframework.data.domain.Page;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,11 +29,13 @@ public class BrandService {
     BrandRepository brandRepository;
     BrandMapper brandMapper;
     BrandRepositoryCustom brandRepositoryCustom;
+    com.example.backend.config.CacheConfig cacheConfig;
 
     private boolean slugExist(String slug, UUID excludeId){
         return brandRepository.existsBySlugAndIdNot(slug,excludeId);
     }
 
+    @CacheEvict(value = "#{@cacheConfig.brandCache}", allEntries = true)
     public BrandDto createBrand(BrandDto brandDto)
     {
         String slug = SlugUtil.uniqueSlug(brandDto.getSlug(),(v)->this.slugExist(v,null));
@@ -41,11 +45,13 @@ public class BrandService {
         return brandMapper.toDto(brand);
     }
     @Transactional
+    @CacheEvict(value = "#{@cacheConfig.brandCache}", allEntries = true)
     public void delete(UUID brandId)
     {
         Brand brand = brandRepository.findById(brandId).orElseThrow(()-> new NotFoundException("Brand not found!"));
         brandRepository.delete(brand);
     }
+    @CacheEvict(value = "#{@cacheConfig.brandCache}", allEntries = true)
     public BrandDto update(BrandDto brandDto,UUID brandId)
     {
         Brand brand = brandRepository.findById(brandId).orElseThrow(()-> new NotFoundException("Brand not found!"));
@@ -55,23 +61,43 @@ public class BrandService {
         brandRepository.save(brand);
         return brandMapper.toDto(brand);
     }
-    private BrandDto findById(UUID brandId)
+    @Cacheable(
+        value = "#{@cacheConfig.brandCache}",
+        key = "'detail:' + #brandId",
+        unless = "#result == null"
+    )
+    public BrandDto findById(UUID brandId)
     {
         Brand brand = brandRepository.findById(brandId).orElseThrow(()-> new NotFoundException("Brand not found!"));
         return brandMapper.toDto(brand);
     }
 
+    @Cacheable(
+        value = "#{@cacheConfig.brandCache}",
+        key = "'list:' + #filter.toString() + ':' + #pageable.pageNumber + ':' + #pageable.pageSize",
+        unless = "#result == null"
+    )
     public PageResponse<BrandDto> search(BrandFilter filter, Pageable pageable) {
         Page<BrandDto> brandPage =  brandRepositoryCustom.listWithFilter(filter,pageable);
 //        Page<BrandDto> brandDtoPage = brandPage.map(brandMapper::toDto);
         return new PageResponse<>(brandPage);
     }
 
-    private BrandDto findBySlug(String slug) {
+    @Cacheable(
+        value = "#{@cacheConfig.brandCache}",
+        key = "'slug:' + #slug",
+        unless = "#result == null"
+    )
+    public BrandDto findBySlug(String slug) {
         Brand brand = brandRepository.findBySlug(slug).orElseThrow(()-> new NotFoundException("Brand not found!"));
         return brandMapper.toDto(brand);
     }
 
+    @Cacheable(
+        value = "#{@cacheConfig.brandCache}",
+        key = "'detail:' + #slugOrId",
+        unless = "#result == null"
+    )
     public BrandDto findBySlugOrId(String slugOrId) {
         try{
             UUID id = UUID.fromString(slugOrId);

@@ -32,6 +32,7 @@ import VerifyEmail from './pages/VerifyEmail'
 import ResendVerification from './pages/ResendVerification'
 import EmailVerificationRequired from './pages/EmailVerificationRequired'
 import MemberOrders from './pages/member/MemberOrders'
+import PaymentReturnPage from './pages/PaymentReturnPage'
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const isAuth = useAuthStore((s) => s.isAuthenticated)
@@ -60,6 +61,7 @@ function App() {
         <Route path="/products/:slug" element={<ProductDetail />} />
         <Route path="/cart" element={<CartPage />} />
         <Route path="/checkout" element={<CheckoutPage />} />
+        <Route path="/payment_return" element={<PaymentReturnPage />} />
 
         {/* Member Routes */}
         <Route

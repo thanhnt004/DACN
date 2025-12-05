@@ -14,6 +14,9 @@ import com.example.backend.repository.order.OrderRepository;
 import com.example.backend.repository.user.UserRepository;
 import com.example.backend.util.CookieUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,11 +38,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import java.util.concurrent.ThreadLocalRandom;
-import jakarta.persistence.criteria.Join;
-import jakarta.persistence.criteria.JoinType;
-import jakarta.persistence.criteria.Predicate;
+import java.util.stream.Collectors;
+import java.time.temporal.ChronoUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -56,6 +59,22 @@ public class OrderService {
     private final List<Order.OrderStatus> CANCELABLE_STATUSES = List.of(
             Order.OrderStatus.PENDING,
             Order.OrderStatus.CONFIRMED);
+    
+    @Transactional
+    public void cancelExpiredPendingOrders() {
+        Instant thirtyMinutesAgo = Instant.now().minus(30, ChronoUnit.MINUTES);
+        List<Order> expiredOrders = orderRepository.findExpiredPendingOrders(thirtyMinutesAgo);
+
+        if (!expiredOrders.isEmpty()) {
+            log.info("Found {} expired pending orders to cancel.", expiredOrders.size());
+            for (Order order : expiredOrders) {
+                order.setStatus(Order.OrderStatus.CANCELLED);
+                orderRepository.save(order);
+                log.info("Cancelled expired order {}", order.getOrderNumber());
+                // Optionally, notify the user
+            }
+        }
+    }
 
     public Order createOrderFromSession(
             CheckoutSession session,
@@ -94,15 +113,18 @@ public class OrderService {
 
         // 4. Tạo order items
         for (CheckoutItemDetail item : session.getItems()) {
+            var variant = productVariantRepository.findById(item.getVariantId())
+                    .orElseThrow(() -> new NotFoundException("Product variant not found"));
             OrderItem orderItem = OrderItem.builder()
                     .product(productRepository.getReferenceById(item.getProductId()))
-                    .variant(productVariantRepository.getReferenceById(item.getVariantId()))
+                    .variant(variant)
                     .sku(item.getSku())
                     .productName(item.getProductName())
                     .variantName(item.getVariantName())
                     .imageUrl(item.getImageUrl())
                     .quantity(item.getQuantity())
                     .unitPriceAmount(item.getUnitPriceAmount())
+                    .historyCost(variant.getHistoryCost())
                     .totalAmount(item.getTotalAmount())
                     .build();
 
@@ -151,6 +173,7 @@ public class OrderService {
      */
     @Transactional
     public Order updateStatus(Order order, Order.OrderStatus status) {
+        order.setPreviousStatus(order.getStatus());
         order.setStatus(status);
         orderRepository.save(order);
 
@@ -282,38 +305,84 @@ public class OrderService {
                         "Không tìm thấy đơn hàng: " + orderId));
     }
 
-    public String cancelOrderByUserOrGuest(Optional<User> userOps, UUID guestId, UUID orderId) {
-        Order order = getOrderDetailByUserOrGuest(userOps, guestId, orderId);
-        if (order.getStatus() == Order.OrderStatus.CANCELLED) {
-            log.info("Order already cancelled: orderId={}", order.getId());
-            return "Đơn hàng của bạn đã được hủy!";
-        }
-        if(!CANCELABLE_STATUSES.contains(order.getStatus())&&order.getStatus()!=Order.OrderStatus.DELIVERED)
-        {
-            order.setStatus(Order.OrderStatus.CANCELING);
-            throw new IllegalStateException("Đang trong quá trình hủy đơn hàng! Vui long chờ xác nhận từ hệ thống ");
-        }
-        if (order.getStatus() == Order.OrderStatus.DELIVERED) {
-            throw new IllegalStateException("Đơn hàng đã được giao, không thể hủy!");
-        }
-        order.setStatus(Order.OrderStatus.CANCELLED);
-        orderRepository.save(order);
-        log.info("Order cancelled: orderId={}", order.getId());
-        return "Đơn hàng của bạn đã được hủy!";
-    }
 
-    public Page<Order> getPageOrder(String status, String paymentType, Pageable pageable) {
-        Specification<Order> spec = buildOrderSpecification(Optional.empty(), status, null, paymentType);
+    public Page<Order> getPageOrder(String status, String paymentType, String orderNumber, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
+        Specification<Order> spec = buildAdminOrderSpecification(status, paymentType, orderNumber, startDate, endDate);
         return orderRepository.findAll(spec, pageable);
     }
 
-    public void cancelOrderByAdmin(Order order) {
-        if (order.getStatus() == Order.OrderStatus.CANCELLED) {
-            log.info("Order already cancelled: orderId={}", order.getId());
-            return;
-        }
-        order.setStatus(Order.OrderStatus.CANCELLED);
-        orderRepository.save(order);
-        log.info("Order cancelled by admin: orderId={}", order.getId());
+    private Specification<Order> buildAdminOrderSpecification(String status, String paymentType, String orderNumber,
+            LocalDateTime startDate, LocalDateTime endDate) {
+        return (root, query, criteriaBuilder) -> {
+            query.distinct(true);
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (orderNumber != null && !orderNumber.trim().isEmpty()) {
+                predicates.add(criteriaBuilder.like(root.get("orderNumber"), "%" + orderNumber.trim() + "%"));
+            }
+
+            if (startDate != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("placedAt"), startDate.atZone(ZoneId.systemDefault()).toInstant()));
+            }
+            if (endDate != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("placedAt"), endDate.atZone(ZoneId.systemDefault()).toInstant()));
+            }
+
+            // --- Status and Payment Logic ---
+            Join<Order, Payment> paymentJoin = root.join("payments", JoinType.LEFT);
+
+            // Special case for the new "Chờ xác nhận" tab
+            if ("AWAITING_CONFIRMATION".equalsIgnoreCase(status)) {
+                Predicate pendingAndCod = criteriaBuilder.and(
+                    criteriaBuilder.equal(root.get("status"), Order.OrderStatus.PENDING),
+                    criteriaBuilder.like(criteriaBuilder.upper(paymentJoin.get("provider")), "%COD%")
+                );
+                
+                Predicate pendingAndPaid = criteriaBuilder.and(
+                    criteriaBuilder.equal(root.get("status"), Order.OrderStatus.CONFIRMED),
+                    criteriaBuilder.isNotNull(root.get("paidAt"))
+                );
+
+                predicates.add(criteriaBuilder.or(pendingAndCod, pendingAndPaid));
+
+            } else if ("UNPAID".equalsIgnoreCase(status)) {
+                Predicate pendingAndNotCod = criteriaBuilder.and(
+                    criteriaBuilder.equal(root.get("status"), Order.OrderStatus.PENDING),
+                    criteriaBuilder.notLike(criteriaBuilder.upper(paymentJoin.get("provider")), "%COD%")
+                );
+
+                Predicate notPaid = criteriaBuilder.isNull(root.get("paidAt"));
+
+                predicates.add(criteriaBuilder.and(pendingAndNotCod, notPaid));
+            }
+            else if (status != null && !status.isEmpty() && !status.equalsIgnoreCase("ALL")) {
+                // Standard status filtering for all other tabs
+                 List<Order.OrderStatus> statuses = Arrays.stream(status.split(","))
+                        .map(String::trim)
+                        .filter(token -> !token.isEmpty())
+                        .map(token -> {
+                            try {
+                                return Order.OrderStatus.valueOf(token.toUpperCase(Locale.ROOT));
+                            } catch (IllegalArgumentException ex) {
+                                throw new BadRequestException("Trạng thái đơn hàng không hợp lệ: " + token);
+                            }
+                        })
+                        .collect(Collectors.toList());
+                if (!statuses.isEmpty()) {
+                    predicates.add(root.get("status").in(statuses));
+                }
+            }
+
+            // Payment type filtering (works in conjunction with status)
+            if (paymentType != null && !paymentType.isEmpty() && !paymentType.equalsIgnoreCase("ALL")) {
+                if ("COD".equalsIgnoreCase(paymentType)) {
+                    predicates.add(criteriaBuilder.like(criteriaBuilder.upper(paymentJoin.get("provider")), "%COD%"));
+                } else if ("NON_COD".equalsIgnoreCase(paymentType) || "ONLINE".equalsIgnoreCase(paymentType)) {
+                    predicates.add(criteriaBuilder.notLike(criteriaBuilder.upper(paymentJoin.get("provider")), "%COD%"));
+                }
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
     }
 }

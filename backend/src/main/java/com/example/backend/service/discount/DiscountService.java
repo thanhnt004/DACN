@@ -21,6 +21,8 @@ import com.example.backend.repository.discount.DiscountRepository;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -44,6 +46,9 @@ public class DiscountService {
 
     private final DiscountMapper discountMapper;
     private final DiscountRedemptionMapper redemptionMapper;
+    private final com.example.backend.config.CacheConfig cacheConfig;
+
+    @CacheEvict(value = "#{@cacheConfig.discountCache}", allEntries = true)
     public DiscountResponse create(DiscountCreateRequest request) {
         if (discountRepository.existsByCode(request.getCode()))
             throw new ConflictException("Discount code is existed");
@@ -52,17 +57,26 @@ public class DiscountService {
         return discountMapper.toDto(newDiscount);
     }
 
+    @CacheEvict(value = "#{@cacheConfig.discountCache}", allEntries = true)
     public void delete(UUID id) {
         Discount discount = findDiscountById(id);
         discountRepository.delete(discount);
     }
+
+    @CacheEvict(value = "#{@cacheConfig.discountCache}", allEntries = true)
     public DiscountResponse update(UUID id, DiscountUpdateRequest request) {
         Discount discount = findDiscountById(id);
         discountMapper.updateEntityFromDto(request, discount);
         Discount updatedDiscount = discountRepository.save(discount);
         return discountMapper.toDto(updatedDiscount);
     }
+
     @Transactional(readOnly = true)
+    @Cacheable(
+        value = "#{@cacheConfig.discountCache}",
+        key = "'list:' + (#code != null ? #code : '') + ':' + (#active != null ? #active.toString() : '') + ':' + #pageable.pageNumber + ':' + #pageable.pageSize",
+        unless = "#result == null"
+    )
     public PageResponse<DiscountResponse> list(String code, Boolean active, Pageable pageable) {
         // Sử dụng Specification để tạo query động
         Specification<Discount> spec = (root, query, cb) -> {
@@ -79,6 +93,8 @@ public class DiscountService {
         Page<DiscountResponse> discountPage = discountRepository.findAll(spec, pageable).map(discountMapper::toDto);
         return new PageResponse<>(discountPage);
     }
+
+    @CacheEvict(value = "#{@cacheConfig.discountCache}", allEntries = true)
     public void addProducts(UUID id, ProductAssignmentRequest request) {
         Discount discount = findDiscountById(id);
         List<Product> productsToAdd = productRepository.findAllById(request.getProductIds());
@@ -86,12 +102,14 @@ public class DiscountService {
         discountRepository.save(discount);
     }
 
+    @CacheEvict(value = "#{@cacheConfig.discountCache}", allEntries = true)
     public void removeProducts(UUID id, ProductAssignmentRequest request) {
         Discount discount = findDiscountById(id);
         discount.getProducts().removeIf(product -> request.getProductIds().contains(product.getId()));
         discountRepository.save(discount);
     }
 
+    @CacheEvict(value = "#{@cacheConfig.discountCache}", allEntries = true)
     public void addCategories(UUID id, CategoryAssignmentRequest request) {
         Discount discount = findDiscountById(id);
         List<Category> categoriesToAdd = categoryRepository.findAllById(request.getCategoryIds());
@@ -99,6 +117,7 @@ public class DiscountService {
         discountRepository.save(discount);
     }
 
+    @CacheEvict(value = "#{@cacheConfig.discountCache}", allEntries = true)
     public void removeCategories(UUID id, CategoryAssignmentRequest request) {
         Discount discount = findDiscountById(id);
         discount.getCategories().removeIf(category -> request.getCategoryIds().contains(category.getId()));

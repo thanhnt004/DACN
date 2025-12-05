@@ -14,7 +14,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/sizes")
-@PreAuthorize("hasRole('ADMIN') or hasRole('STAFF')")
+
 @RequiredArgsConstructor
 public class SizeController
 {
@@ -31,17 +31,20 @@ public class SizeController
         return ResponseEntity.ok(sizeService.findById(id));
     }
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN') or hasRole('STAFF')")
     public ResponseEntity<SizeDto> create(@RequestBody @Valid SizeDto sizeDto)
     {
         return ResponseEntity.ok(sizeService.create(sizeDto));
     }
     @PutMapping(value = "/{id}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('STAFF')")
     public ResponseEntity<SizeDto> update(@PathVariable("id") UUID id,
                                            @RequestBody SizeDto sizeDto){
         SizeDto updated = sizeService.update(sizeDto,id);
         return ResponseEntity.ok(updated);
     }
     @DeleteMapping(value = "/{id}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('STAFF')")
     public ResponseEntity<?> delete(@PathVariable("id") UUID id)
     {
         sizeService.delete(id);

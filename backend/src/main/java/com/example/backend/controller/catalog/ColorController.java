@@ -13,7 +13,6 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/colors")
-@PreAuthorize("hasRole('ADMIN') or hasRole('STAFF')")
 @RequiredArgsConstructor
 public class ColorController
 {
@@ -29,16 +28,19 @@ public class ColorController
         return ResponseEntity.ok(colorService.findById(id));
     }
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN') or hasRole('STAFF')")
     public ResponseEntity<ColorDto> create(@RequestBody @Valid ColorDto colorDto)
     {
         return ResponseEntity.ok(colorService.create(colorDto));
     }
+    @PreAuthorize("hasRole('ADMIN') or hasRole('STAFF')")
     @PutMapping(value = "/{id}")
     public ResponseEntity<ColorDto> update(@PathVariable("id") UUID id,
                                            @RequestBody ColorDto colorDto){
         ColorDto updated = colorService.update(colorDto,id);
         return ResponseEntity.ok(updated);
     }
+    @PreAuthorize("hasRole('ADMIN') or hasRole('STAFF')")
     @DeleteMapping(value = "/{id}")
     public ResponseEntity<?> delete(@PathVariable("id") UUID id)
     {

@@ -4,10 +4,12 @@ import com.example.backend.config.CloudinaryProps;
 import com.example.backend.config.UploadConfig;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
 
 @Data
+@NoArgsConstructor
 @AllArgsConstructor
 public class ImageUploadResponse {
     private String cloudName;

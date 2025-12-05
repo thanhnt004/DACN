@@ -78,6 +78,7 @@ export interface VariantResponse {
     colorId?: string
     priceAmount: number
     compareAtAmount?: number
+    historyCost?: number
     weightGrams?: number
     status?: VariantStatus
     createdAt?: string
@@ -94,6 +95,7 @@ export interface VariantCreateRequest {
     colorId?: string
     priceAmount: number
     compareAtAmount?: number
+    historyCost?: number
     weightGrams?: number
     status?: VariantStatus
     inventory?: InventoryPayload
@@ -104,6 +106,7 @@ export interface VariantUpdateRequest {
     barcode?: string
     priceAmount?: number
     compareAtAmount?: number
+    historyCost?: number
     weightGrams?: number
     status?: VariantStatus
     version: number

@@ -13,6 +13,7 @@ interface ProductVariantsListProps {
         colorId?: string
         priceAmount: number
         compareAtAmount?: number
+        historyCost?: number
         weightGrams?: number
         status: ProductsApi.VariantStatus
         inventory?: { quantityOnHand: number; reorderLevel: number }
@@ -27,6 +28,7 @@ interface ProductVariantsListProps {
         barcode: string
         priceAmount: string
         compareAtAmount: string
+        historyCost: string
         weightGrams: string
         status: ProductsApi.VariantStatus
         quantityOnHand: string
@@ -49,6 +51,7 @@ interface ProductVariantsListProps {
         barcode: string
         priceAmount: string
         compareAtAmount: string
+        historyCost: string
         weightGrams: string
         status: ProductsApi.VariantStatus
         quantityOnHand: string
@@ -305,6 +308,17 @@ export default function ProductVariantsList({
                                                                     </div>
                                                                     <div>
                                                                         <label className="block text-sm font-medium mb-1">
+                                                                            Giá gốc
+                                                                        </label>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={editFormData.historyCost}
+                                                                            onChange={(e) => onEditFormDataChange({ ...editFormData, historyCost: e.target.value })}
+                                                                            className="w-full border rounded px-3 py-2"
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="block text-sm font-medium mb-1">
                                                                             Giá so sánh
                                                                         </label>
                                                                         <input
@@ -466,6 +480,17 @@ export default function ProductVariantsList({
                                                                             onChange={(e) => onEditFormDataChange({ ...editFormData, priceAmount: e.target.value })}
                                                                             className="w-full border rounded px-3 py-2"
                                                                             required
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="block text-sm font-medium mb-1">
+                                                                            Giá gốc
+                                                                        </label>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={editFormData.historyCost}
+                                                                            onChange={(e) => onEditFormDataChange({ ...editFormData, historyCost: e.target.value })}
+                                                                            className="w-full border rounded px-3 py-2"
                                                                         />
                                                                     </div>
                                                                     <div>

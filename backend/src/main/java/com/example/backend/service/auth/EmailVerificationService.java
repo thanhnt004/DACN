@@ -3,6 +3,8 @@ package com.example.backend.service.auth;
 import com.example.backend.exception.BadRequestException;
 import com.example.backend.exception.auth.EmailMismatchException;
 import com.example.backend.exception.auth.TokenExpiredException;
+import com.example.backend.exception.email.EmailSendException;
+import com.example.backend.exception.user.UserNotFoundException;
 import com.example.backend.exception.user.UserNotFoundException;
 import com.example.backend.model.EmailLog;
 import com.example.backend.model.enumrator.UserStatus;
@@ -127,7 +129,7 @@ public class EmailVerificationService {
             ));
             emailLogRepository.save(log);
         } catch (Exception e) {
-            throw new RuntimeException("Email sending failed", e);
+            throw new EmailSendException("Không thể gửi email xác minh");
         }
     }
 

@@ -1,6 +1,7 @@
 package com.example.backend.exception;
 
 import com.example.backend.dto.response.common.ProblemDetails;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -14,6 +15,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -65,27 +67,8 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handle AuthenticationException separately for clarity.
-     * Note: This is redundant since AuthenticationException extends RequestException.
-     * Consider removing this handler or migrating AuthenticationException to extend DomainException.
+     * Handle validation errors from @Valid annotation.
      */
-    @ExceptionHandler(value = AuthenticationException.class)
-    public ResponseEntity<ProblemDetails> authenticationException(AuthenticationException e) {
-        HttpStatus status = HttpStatus.resolve(e.getStatusCode());
-        if (status == null) {
-            status = HttpStatus.UNAUTHORIZED;
-        }
-
-        ProblemDetails body = ProblemDetails.builder()
-                .type(DEFAULT_TYPE)
-                .title(status.getReasonPhrase())
-                .status(status.value())
-                .detail(e.getMessage())
-                .timestamp(Instant.now())
-                .build();
-
-        return ResponseEntity.status(status).body(body);
-    }
 
     @ExceptionHandler(value = MethodArgumentNotValidException.class)
     public ResponseEntity<ProblemDetails> invalidInputException(MethodArgumentNotValidException ex) {
@@ -126,6 +109,9 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(body);
     }
 
+    /**
+     * Handle Spring Security BadCredentialsException.
+     */
     @ExceptionHandler(value = BadCredentialsException.class)
     public ResponseEntity<ProblemDetails> wrongEmailOrPassword(BadCredentialsException ex) {
         HttpStatus status = HttpStatus.UNAUTHORIZED;
@@ -134,9 +120,33 @@ public class GlobalExceptionHandler {
                 .type(DEFAULT_TYPE)
                 .title("Bad credentials")
                 .status(status.value())
-                .detail("Email or password is incorrect")
+                .detail("Email hoặc mật khẩu không đúng")
+                .code("AUTH_BAD_CREDENTIALS")
                 .timestamp(Instant.now())
                 .build();
+
+        return ResponseEntity.status(status).body(body);
+    }
+
+    /**
+     * Fallback handler for any unhandled exceptions.
+     * This ensures all exceptions return a consistent error response format.
+     */
+    @ExceptionHandler(value = Exception.class)
+    public ResponseEntity<ProblemDetails> handleGenericException(Exception ex) {
+        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
+
+        ProblemDetails body = ProblemDetails.builder()
+                .type(DEFAULT_TYPE)
+                .title("Internal Server Error")
+                .status(status.value())
+                .detail("Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau")
+                .code("INTERNAL_SERVER_ERROR")
+                .timestamp(Instant.now())
+                .build();
+
+        // Log the full exception for debugging
+        log.error("Unhandled exception occurred", ex);
 
         return ResponseEntity.status(status).body(body);
     }

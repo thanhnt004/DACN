@@ -69,6 +69,7 @@ export default function ProductCreate() {
         colorId?: string
         priceAmount: number
         compareAtAmount?: number
+        historyCost?: number
         weightGrams?: number
         status: ProductsApi.VariantStatus
         inventory?: { quantityOnHand: number; reorderLevel: number }
@@ -81,6 +82,7 @@ export default function ProductCreate() {
     const [defaultWeight, setDefaultWeight] = useState<string>('200')
     const [defaultInventory, setDefaultInventory] = useState<string>('10')
     const [defaultReorderLevel, setDefaultReorderLevel] = useState<string>('5')
+    const [defaultHistoryCost, setDefaultHistoryCost] = useState<string>('0')
 
     // Variant editing
     const [editingVariantId, setEditingVariantId] = useState<string | null>(null)
@@ -89,6 +91,7 @@ export default function ProductCreate() {
         barcode: string
         priceAmount: string
         compareAtAmount: string
+        historyCost: string
         weightGrams: string
         status: ProductsApi.VariantStatus
         quantityOnHand: string
@@ -98,6 +101,7 @@ export default function ProductCreate() {
         barcode: '',
         priceAmount: '',
         compareAtAmount: '',
+        historyCost: '',
         weightGrams: '',
         status: 'ACTIVE',
         quantityOnHand: '',
@@ -586,6 +590,7 @@ export default function ProductCreate() {
                     sizeId,
                     colorId,
                     priceAmount: parseInt(formData.priceAmount),
+                    historyCost: parseInt(defaultHistoryCost) || 0,
                     weightGrams: parseInt(defaultWeight) || 200,
                     status: 'ACTIVE',
                     inventory: {
@@ -670,6 +675,7 @@ export default function ProductCreate() {
                     colorId: unsavedVariant.colorId,
                     priceAmount: unsavedVariant.priceAmount,
                     compareAtAmount: unsavedVariant.compareAtAmount,
+                    historyCost: unsavedVariant.historyCost,
                     weightGrams: unsavedVariant.weightGrams,
                     status: unsavedVariant.status,
                     inventory: {
@@ -711,6 +717,7 @@ export default function ProductCreate() {
             barcode: variant.barcode || '',
             priceAmount: variant.priceAmount?.toString() || '',
             compareAtAmount: variant.compareAtAmount?.toString() || '',
+            historyCost: variant.historyCost?.toString() || '',
             weightGrams: variant.weightGrams?.toString() || '',
             status: variant.status || 'ACTIVE',
             quantityOnHand: variant.inventory?.quantityOnHand?.toString() || '0',
@@ -802,6 +809,7 @@ export default function ProductCreate() {
                     barcode: editFormData.barcode || undefined,
                     priceAmount: parseFloat(editFormData.priceAmount),
                     compareAtAmount: editFormData.compareAtAmount ? parseFloat(editFormData.compareAtAmount) : undefined,
+                    historyCost: editFormData.historyCost ? parseFloat(editFormData.historyCost) : undefined,
                     weightGrams: editFormData.weightGrams ? parseFloat(editFormData.weightGrams) : undefined,
                     status: editFormData.status,
                     inventory: {
@@ -868,6 +876,7 @@ export default function ProductCreate() {
                 barcode: editFormData.barcode,
                 priceAmount: parseFloat(editFormData.priceAmount),
                 compareAtAmount: editFormData.compareAtAmount ? parseFloat(editFormData.compareAtAmount) : undefined,
+                historyCost: editFormData.historyCost ? parseFloat(editFormData.historyCost) : undefined,
                 weightGrams: editFormData.weightGrams ? parseFloat(editFormData.weightGrams) : undefined,
                 status: editFormData.status,
                 version: variant.version || 0,
@@ -907,6 +916,7 @@ export default function ProductCreate() {
             barcode: variant.barcode || '',
             priceAmount: variant.priceAmount?.toString() || '',
             compareAtAmount: variant.compareAtAmount?.toString() || '',
+            historyCost: variant.historyCost?.toString() || '',
             weightGrams: variant.weightGrams?.toString() || '',
             status: variant.status || 'ACTIVE',
             quantityOnHand: variant.inventory?.quantityOnHand?.toString() || '0',
@@ -1245,6 +1255,17 @@ export default function ProductCreate() {
                                     <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded border border-gray-200">
                                         <div className="col-span-2 text-sm font-medium text-gray-700 mb-2">
                                             Thiết lập mặc định cho các biến thể
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-600 mb-1">Giá gốc (VNĐ)</label>
+                                            <input
+                                                type="number"
+                                                value={defaultHistoryCost}
+                                                onChange={(e) => setDefaultHistoryCost(e.target.value)}
+                                                className="w-full border rounded px-3 py-2 text-sm"
+                                                placeholder="0"
+                                                min="0"
+                                            />
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-600 mb-1">Khối lượng (gram)</label>

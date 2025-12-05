@@ -1,4 +1,4 @@
-package com.example.backend.model;
+package com.example.backend.model.order;
 
 import com.example.backend.model.order.OrderItem;
 import com.example.backend.model.order.Shipment;

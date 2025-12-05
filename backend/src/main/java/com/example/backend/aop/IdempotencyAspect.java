@@ -41,7 +41,6 @@ public class IdempotencyAspect {
         Idempotent idempotentAnnotation = method.getAnnotation(Idempotent.class);
         //get sessionId from path if exists
         String scopeParamName = idempotentAnnotation.scope(); // Lấy tên biến, VD: "orderId"
-
         // Lấy map path variables
         @SuppressWarnings("unchecked")
         Map<String, String> pathVariables = (Map<String, String>) request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
@@ -53,15 +52,12 @@ public class IdempotencyAspect {
         if (scopeValue == null) {
             throw new BadRequestException("Missing required path variable: " + scopeParamName);
         }
-
         // Hash giá trị scope này (VD: hash của orderId hoặc paymentId)
         String scopeHash = CryptoUtils.hash(scopeValue);
         log.info("Processing Idempotency for Scope: {} = {}", scopeParamName, scopeValue);
         if (StringUtils.isEmpty(key)) {
             throw new BadRequestException("Idempotency-Key header is missing");
         }
-
-
         //check key in db
         IdempotencyKey record = idempotencyStore.getRecord(key);
         if (record != null&&!record.getHash().equals(scopeHash))
@@ -75,7 +71,11 @@ public class IdempotencyAspect {
 
         // Case B: Đang xử lý -> Chặn lại
         if (record != null && record.getStatus() == IdempotencyKey.Status.PROCESSING) {
-            throw new ConflictException("Request is already being processed");
+            long timeDiff = System.currentTimeMillis() - record.getCreatedAt().getNano();
+            // Giả sử timeout là 5 giây, nếu quá 5s mà vẫn Processing nghĩa là server cũ đã chết
+            if (timeDiff < 5000) {
+                throw new ConflictException("Request is already being processed");
+            }
         }
         long expireTime = idempotentAnnotation.expire();
         // 3. Tạo record mới trạng thái PROCESSING

@@ -6,6 +6,19 @@ export interface CheckoutItem {
     quantity: number
 }
 
+export interface CheckoutSessionItem {
+    id?: string
+    variantId: string
+    productId?: string
+    productName: string
+    variantName: string
+    quantity: number
+    unitPriceAmount: number
+    totalAmount: number
+    imageUrl?: string
+    sku?: string
+}
+
 export interface CheckoutSessionCreateRequest {
     cartId?: string
     items: CheckoutItem[]
@@ -45,7 +58,7 @@ export interface PaymentMethodResponse {
 export interface CheckoutSession {
     id: string
     cartId?: string
-    items: CheckoutItem[]
+    items: CheckoutSessionItem[]
     notes?: string
     subtotalAmount: number
     discountAmount: number
@@ -130,12 +143,12 @@ export const confirmCheckout = async (
     notes?: string
 ): Promise<OrderCreatedResponse> => {
     const key = idempotencyKey ?? generateIdempotencyKey()
-    const payload = notes ?? ''
+    const payload = { notes: notes ?? '' };
     const response = await api.post(`/api/v1/checkout/sessions/${sessionId}/confirm`, payload, {
         headers: {
             'X-Session-Token': token,
             'Idempotency-Key': key,
-            'Content-Type': 'text/plain; charset=utf-8'
+            'Content-Type': 'application/json'
         }
     })
     return response.data

@@ -16,12 +16,13 @@ export default function CheckoutPage() {
     const navigate = useNavigate()
     const location = useLocation()
     const { cart, loading: cartLoading, fetchCart } = useCartStore()
-    const { user, isAuthenticated } = useAuthStore()
+    const { isAuthenticated } = useAuthStore()
 
     const [sessionId, setSessionId] = useState<string | null>(null)
     const [sessionToken, setSessionToken] = useState<string | null>(null)
     const [sessionData, setSessionData] = useState<CheckoutApi.CheckoutSession | null>(null)
     const [initializing, setInitializing] = useState(true)
+    const initializingRef = useRef(false)
 
     const idempotencyKeyRef = useRef<string | null>(null)
     const ensureIdempotencyKey = useCallback((): string => {
@@ -156,85 +157,21 @@ export default function CheckoutPage() {
     }, [resetModalLocation])
 
     const loadAddresses = useCallback(() => {
+        if (!isAuthenticated) return
         ProfileApi.getAddresses().then(data => {
             setAddresses(data)
-            // Try to find default address or use the first one
             const defaultAddr = data.find(a => a.isDefaultShipping)
-            if (defaultAddr && defaultAddr.id) {
+            if (defaultAddr?.id) {
                 setSelectedAddressId(defaultAddr.id)
-            } else if (data.length > 0 && data[0].id) {
-                // Only set if no address is currently selected
+            } else if (data.length > 0 && data[0]?.id) {
                 setSelectedAddressId(prev => prev || data[0].id!)
             }
         }).catch(console.error)
-    }, [])
-
-    // Load user addresses
-    useEffect(() => {
-        if (isAuthenticated) {
-            loadAddresses()
-        }
-    }, [isAuthenticated, loadAddresses])
-
-    useEffect(() => {
-        if (!isAuthenticated) return
-        if (!sessionId || !sessionToken) return
-        if (!selectedAddress) return
-
-        const signature = JSON.stringify({
-            id: selectedAddress.id ?? null,
-            fullName: selectedAddress.fullName,
-            phone: selectedAddress.phone,
-            line1: selectedAddress.line1,
-            line2: selectedAddress.line2 ?? '',
-            ward: selectedAddress.ward,
-            district: selectedAddress.district,
-            province: selectedAddress.province,
-        })
-
-        if (memberAddressSignatureRef.current === signature) return
-
-        let cancelled = false
-        setAddressUpdating(true)
-
-        const payload: CheckoutApi.UpdateAddressRequest = {
-            id: selectedAddress.id,
-            fullName: selectedAddress.fullName,
-            phone: selectedAddress.phone,
-            line1: selectedAddress.line1,
-            ward: selectedAddress.ward,
-            district: selectedAddress.district,
-            province: selectedAddress.province,
-        }
-        if (selectedAddress.line2) {
-            payload.line2 = selectedAddress.line2
-        }
-
-        void persistAddress(payload)
-            .then(result => {
-                if (cancelled) return
-                if (result) {
-                    memberAddressSignatureRef.current = signature
-                }
-            })
-            .catch(error => {
-                if (cancelled) return
-                console.error('Failed to update shipping address:', error)
-                alert('Không thể cập nhật địa chỉ giao hàng, vui lòng thử lại.')
-            })
-            .finally(() => {
-                if (!cancelled) {
-                    setAddressUpdating(false)
-                }
-            })
-
-        return () => {
-            cancelled = true
-        }
-    }, [isAuthenticated, persistAddress, selectedAddress, sessionId, sessionToken])
+    }, [isAuthenticated])
 
     const handleAddAddress = async () => {
-        if (!newAddressForm.fullName || !newAddressForm.phone || !newAddressForm.line1 || !newAddressForm.province || !newAddressForm.district || !newAddressForm.ward) {
+        if (!newAddressForm.fullName || !newAddressForm.phone || !newAddressForm.line1 || 
+            !newAddressForm.province || !newAddressForm.district || !newAddressForm.ward) {
             alert('Vui lòng điền đầy đủ thông tin địa chỉ')
             return
         }
@@ -242,11 +179,12 @@ export default function CheckoutPage() {
         setAddingAddress(true)
         try {
             const newAddr = await ProfileApi.addAddress(newAddressForm)
-            await loadAddresses()
+            setAddresses(prev => [...prev, newAddr])
             if (newAddr.id) {
                 setSelectedAddressId(newAddr.id)
             }
-            closeAddAddressModal()
+            
+            // Reset form
             setNewAddressForm({
                 fullName: '',
                 phone: '',
@@ -257,57 +195,87 @@ export default function CheckoutPage() {
                 province: '',
                 isDefaultShipping: false
             })
+            
+            closeAddAddressModal()
+            alert('Thêm địa chỉ thành công')
         } catch (error) {
             console.error('Failed to add address:', error)
-            alert('Không thể thêm địa chỉ')
+            alert('Không thể thêm địa chỉ, vui lòng thử lại')
         } finally {
             setAddingAddress(false)
         }
     }
 
+    // Load user addresses
     useEffect(() => {
-        if (isAuthenticated) return
+        loadAddresses()
+    }, [loadAddresses])
+
+    useEffect(() => {
         if (!sessionId || !sessionToken) return
 
-        if (!customerName || !customerPhone || !line1 || !province || !district || !ward) return
+        let isCancelled = false
+        const updateAddress = async () => {
+            setAddressUpdating(true)
+            try {
+                let signature: string | null = null
+                let payload: CheckoutApi.UpdateAddressRequest | null = null
 
-        const payload: CheckoutApi.UpdateAddressRequest = {
-            fullName: customerName,
-            phone: customerPhone,
-            line1,
-            ward,
-            district,
-            province,
-        }
-
-        const signature = JSON.stringify(payload)
-        if (guestAddressSignatureRef.current === signature) return
-
-        let cancelled = false
-        setAddressUpdating(true)
-
-        void persistAddress(payload)
-            .then(result => {
-                if (cancelled) return
-                if (result) {
-                    guestAddressSignatureRef.current = signature
+                if (isAuthenticated && selectedAddress) {
+                    payload = {
+                        id: selectedAddress.id,
+                        fullName: selectedAddress.fullName,
+                        phone: selectedAddress.phone,
+                        line1: selectedAddress.line1,
+                        ward: selectedAddress.ward,
+                        district: selectedAddress.district,
+                        province: selectedAddress.province,
+                        ...(selectedAddress.line2 && { line2: selectedAddress.line2 })
+                    }
+                    signature = JSON.stringify(payload)
+                    if (memberAddressSignatureRef.current === signature) return
+                } else if (!isAuthenticated && customerName && customerPhone && line1 && province && district && ward) {
+                    payload = {
+                        fullName: customerName,
+                        phone: customerPhone,
+                        line1,
+                        ward,
+                        district,
+                        province,
+                    }
+                    signature = JSON.stringify(payload)
+                    if (guestAddressSignatureRef.current === signature) return
                 }
-            })
-            .catch(error => {
-                if (cancelled) return
-                console.error('Failed to update guest shipping address:', error)
+
+                if (payload && signature) {
+                    const result = await persistAddress(payload)
+                    if (isCancelled) return
+
+                    if (result) {
+                        if (isAuthenticated) {
+                            memberAddressSignatureRef.current = signature
+                        } else {
+                            guestAddressSignatureRef.current = signature
+                        }
+                    }
+                }
+            } catch (error) {
+                if (isCancelled) return
+                console.error('Failed to update shipping address:', error)
                 alert('Không thể cập nhật địa chỉ giao hàng, vui lòng thử lại.')
-            })
-            .finally(() => {
-                if (!cancelled) {
+            } finally {
+                if (!isCancelled) {
                     setAddressUpdating(false)
                 }
-            })
+            }
+        }
+
+        updateAddress()
 
         return () => {
-            cancelled = true
+            isCancelled = true
         }
-    }, [customerName, customerPhone, line1, ward, district, province, isAuthenticated, persistAddress, sessionId, sessionToken])
+    }, [isAuthenticated, persistAddress, selectedAddress, sessionId, sessionToken, customerName, customerPhone, line1, ward, district, province])
 
     useEffect(() => {
         idempotencyKeyRef.current = null
@@ -315,135 +283,145 @@ export default function CheckoutPage() {
         guestAddressSignatureRef.current = null
     }, [sessionId])
 
-    // Initialize Checkout Session
-    useEffect(() => {
-        let mounted = true
-        const initSession = async () => {
-            // Check for "Buy Now" item in location state
-            const buyNowItem = location.state?.buyNowItem
+    const initSession = useCallback(async (mounted: { value: boolean }) => {
+        // Prevent multiple simultaneous initializations
+        if (initializingRef.current) {
+            console.log('Session initialization already in progress, skipping...');
+            return;
+        }
 
+        console.log('[DEBUG] Starting session initialization...');
+        initializingRef.current = true;
+        const buyNowItem = location.state?.buyNowItem;
+        console.log('[DEBUG] buyNowItem:', buyNowItem);
+
+        const getSessionPayload = (): CheckoutApi.CheckoutSessionCreateRequest | null => {
             if (buyNowItem) {
-                // Create session with single item (no cartId)
-                try {
-                    const session = await CheckoutApi.createSession({
-                        items: [{
-                            variantId: buyNowItem.variantId,
-                            quantity: buyNowItem.quantity
-                        }]
-                    })
-
-                    if (mounted) {
-                        setSessionId(session.id)
-                        setSessionToken(session.sessionToken)
-                        setSessionData(session)
-                        syncPaymentState(session)
-                        // Pre-fill form...
-                        if (session.shippingAddress) {
-                            setFormData(prev => ({
-                                ...prev,
-                                customerName: session.shippingAddress?.fullName || prev.customerName,
-                                customerPhone: session.shippingAddress?.phone || prev.customerPhone,
-                                line1: session.shippingAddress?.line1 || prev.line1,
-                                ward: session.shippingAddress?.ward || prev.ward,
-                                district: session.shippingAddress?.district || prev.district,
-                                province: session.shippingAddress?.province || prev.province
-                            }))
-                            void initializeGuestLocation(
-                                session.shippingAddress?.province,
-                                session.shippingAddress?.district,
-                                session.shippingAddress?.ward
-                            )
-                        } else {
-                            resetGuestLocation()
-                        }
-                    }
-                } catch (error) {
-                    console.error('Failed to init checkout session (Buy Now):', error)
-                    alert('Không thể khởi tạo phiên thanh toán')
-                } finally {
-                    if (mounted) setInitializing(false)
-                }
-                return
+                return {
+                    items: [{
+                        variantId: buyNowItem.variantId,
+                        quantity: buyNowItem.quantity
+                    }]
+                };
             }
-
-            // Fallback to Cart Checkout
-            if (!cart || !cart.items || cart.items.length === 0) {
-                setInitializing(false)
-                return
-            }
-
-            try {
-                // Create session with cart items
-                const session = await CheckoutApi.createSession({
+            if (cart?.id && cart.items.length > 0) {
+                return {
                     cartId: cart.id,
                     items: cart.items.map(item => ({
                         cartItemId: item.id,
                         variantId: item.variantId,
                         quantity: item.quantity
                     }))
-                })
-
-                if (mounted) {
-                    setSessionId(session.id)
-                    setSessionToken(session.sessionToken)
-                    setSessionData(session)
-                    syncPaymentState(session)
-
-                    // Pre-fill form if session has data
-                    if (session.shippingAddress) {
-                        setFormData(prev => ({
-                            ...prev,
-                            customerName: session.shippingAddress?.fullName || prev.customerName,
-                            customerPhone: session.shippingAddress?.phone || prev.customerPhone,
-                            line1: session.shippingAddress?.line1 || prev.line1,
-                            ward: session.shippingAddress?.ward || prev.ward,
-                            district: session.shippingAddress?.district || prev.district,
-                            province: session.shippingAddress?.province || prev.province
-                        }))
-                        void initializeGuestLocation(
-                            session.shippingAddress?.province,
-                            session.shippingAddress?.district,
-                            session.shippingAddress?.ward
-                        )
-                    } else {
-                        resetGuestLocation()
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to init checkout session:', error)
-                alert('Không thể khởi tạo phiên thanh toán')
-            } finally {
-                if (mounted) {
-                    setInitializing(false)
-                }
+                };
             }
+            return null;
+        };
+
+        const payload = getSessionPayload();
+        if (!payload) {
+            if (mounted.value) {
+                setInitializing(false);
+                initializingRef.current = false;
+            }
+            return;
         }
 
-        if (!sessionId) {
-            // If we have a buyNowItem, we don't need to wait for cart
-            if (location.state?.buyNowItem) {
-                initSession()
-            } else if (cart) {
-                initSession()
-            } else if (!cartLoading) {
-                fetchCart()
-            }
-        }
-        return () => { mounted = false }
-    }, [cart, cartLoading, sessionId, location.state, fetchCart, initializeGuestLocation, resetGuestLocation, syncPaymentState])
+        try {
+            console.log('[DEBUG] Calling createSession with payload:', payload);
+            const session = await CheckoutApi.createSession(payload);
+            console.log('[DEBUG] Session created successfully:', session);
+            
+            // Always set session state even if unmounted - this is critical
+            console.log('[DEBUG] Setting session state...');
+            setSessionId(session.id);
+            setSessionToken(session.sessionToken);
+            setSessionData(session);
+            syncPaymentState(session);
 
-    // Update form data when user changes
+            if (mounted.value) {
+                if (session.shippingAddress) {
+                    setFormData(prev => ({
+                        ...prev,
+                        customerName: session.shippingAddress?.fullName || prev.customerName,
+                        customerPhone: session.shippingAddress?.phone || prev.customerPhone,
+                        line1: session.shippingAddress?.line1 || prev.line1,
+                        ward: session.shippingAddress?.ward || prev.ward,
+                        district: session.shippingAddress?.district || prev.district,
+                        province: session.shippingAddress?.province || prev.province
+                    }));
+                    void initializeGuestLocation(
+                        session.shippingAddress?.province,
+                        session.shippingAddress?.district,
+                        session.shippingAddress?.ward
+                    );
+                } else {
+                    resetGuestLocation();
+                }
+            }
+        } catch (error) {
+            console.error('Failed to init checkout session:', error);
+            alert('Không thể khởi tạo phiên thanh toán');
+        } finally {
+            console.log('[DEBUG] Finally block - mounted:', mounted.value);
+            // Always set initializing to false
+            console.log('[DEBUG] Setting initializing to false');
+            setInitializing(false);
+            initializingRef.current = false;
+            console.log('[DEBUG] Session initialization complete');
+        }
+    }, [location.state, cart, syncPaymentState, initializeGuestLocation, resetGuestLocation]);
+
     useEffect(() => {
-        if (user && !formData.customerName) {
-            setFormData(prev => ({
-                ...prev,
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                customerName: (user as any).fullName || '',
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                customerPhone: (user as any).phoneNumber || ''
-            }))
+        // Only initialize once when we don't have a session
+        if (sessionId) {
+            return;
         }
-    }, [user, formData.customerName])
+
+        const mounted = { value: true };
+        const hasBuyNowItem = !!location.state?.buyNowItem;
+
+        // Priority 1: BuyNow item (direct purchase) - Don't need cart
+        if (hasBuyNowItem) {
+            initSession(mounted);
+            return () => { mounted.value = false; };
+        }
+
+        // For cart checkout flow only (no buyNowItem)
+        if (!hasBuyNowItem) {
+            // Priority 2: Cart has items - init checkout
+            if (cart?.items && cart.items.length > 0) {
+                initSession(mounted);
+                return () => { mounted.value = false; };
+            }
+
+            // Priority 3: Cart not loaded yet - fetch it
+            if (!cartLoading && !cart) {
+                fetchCart();
+                return () => { mounted.value = false; };
+            }
+
+            // Priority 4: Cart loaded but empty - stop loading
+            if (cart !== undefined && !cartLoading) {
+                setInitializing(false);
+            }
+        }
+
+        return () => {
+            mounted.value = false;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionId, location.state?.buyNowItem, cart, cartLoading]);
+
+    // This useEffect is no longer needed as the session pre-fill handles this.
+    // useEffect(() => {
+    //     if (user && !formData.customerName) {
+    //         setFormData(prev => ({
+    //             ...prev,
+    //             customerName: (user as any).fullName || '',
+    //             customerPhone: (user as any).phoneNumber || ''
+    //         }))
+    //     }
+    // }, [user, formData.customerName])
 
     const handlePaymentMethodChange = useCallback(async (methodId: string) => {
         if (paymentUpdating) return
@@ -542,6 +520,7 @@ export default function CheckoutPage() {
             }
 
             if (order.paymentUrl) {
+                localStorage.setItem('pendingOrderId', order.id);
                 window.location.href = order.paymentUrl
             } else {
                 navigate('/member/orders')
@@ -593,7 +572,25 @@ export default function CheckoutPage() {
 
 
 
-    if (cartLoading || initializing) {
+    const hasBuyNowItem = location.state?.buyNowItem
+    const hasCartItems = cart && cart.items && cart.items.length > 0
+
+    // Show loading only when:
+    // 1. Still initializing AND no session created yet
+    // 2. For cart flow (not buyNow), also check cartLoading
+    const isLoading = (initializing && !sessionId) || (!hasBuyNowItem && cartLoading && !sessionId)
+    
+    console.log('[DEBUG] Render state:', { 
+        initializing, 
+        sessionId, 
+        cartLoading, 
+        hasBuyNowItem, 
+        isLoading,
+        hasCartItems 
+    });
+    
+    if (isLoading) {
+        console.log('[DEBUG] Showing loading screen');
         return (
             <div className="min-h-screen flex flex-col">
                 <Header />
@@ -605,7 +602,10 @@ export default function CheckoutPage() {
         )
     }
 
-    if (!cart || !cart.items || cart.items.length === 0) {
+    console.log('[DEBUG] Not loading, checking cart...');
+
+    // Allow checkout if there's a buyNow item or if cart has items
+    if (!hasBuyNowItem && !hasCartItems) {
         return (
             <div className="min-h-screen flex flex-col">
                 <Header />
@@ -887,24 +887,46 @@ export default function CheckoutPage() {
                         <div className="bg-white rounded-lg shadow-sm p-6 sticky top-4">
                             <h2 className="text-lg font-semibold mb-4">Đơn hàng của bạn</h2>
                             <div className="space-y-4 mb-6 max-h-96 overflow-y-auto">
-                                {cart.items.map(item => (
-                                    <div key={item.id} className="flex gap-3">
-                                        <img
-                                            src={item.imageUrl || 'https://placehold.co/100x100?text=No+Image'}
-                                            alt={item.productName}
-                                            className="w-16 h-16 object-cover rounded border"
-                                        />
-                                        <div className="flex-1">
-                                            <h4 className="text-sm font-medium line-clamp-2">{item.productName}</h4>
-                                            <p className="text-xs text-gray-500">
-                                                {item.variantName} x {item.quantity}
-                                            </p>
-                                            <p className="text-sm font-medium text-red-600">
-                                                {(item.unitPriceAmount * item.quantity).toLocaleString()} đ
-                                            </p>
+                                {/* Display items from sessionData if available, otherwise from cart */}
+                                {sessionData?.items ? (
+                                    sessionData.items.map((item) => (
+                                        <div key={item.variantId} className="flex gap-3">
+                                            <img
+                                                src={item.imageUrl || 'https://placehold.co/100x100?text=No+Image'}
+                                                alt={item.productName}
+                                                className="w-16 h-16 object-cover rounded border"
+                                            />
+                                            <div className="flex-1">
+                                                <h4 className="text-sm font-medium line-clamp-2">{item.productName}</h4>
+                                                <p className="text-xs text-gray-500">
+                                                    {item.variantName} x {item.quantity}
+                                                </p>
+                                                <p className="text-sm font-medium text-red-600">
+                                                    {(item.unitPriceAmount * item.quantity).toLocaleString()} đ
+                                                </p>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))
+                                ) : (
+                                    (cart?.items || []).map(item => (
+                                        <div key={item.id} className="flex gap-3">
+                                            <img
+                                                src={item.imageUrl || 'https://placehold.co/100x100?text=No+Image'}
+                                                alt={item.productName}
+                                                className="w-16 h-16 object-cover rounded border"
+                                            />
+                                            <div className="flex-1">
+                                                <h4 className="text-sm font-medium line-clamp-2">{item.productName}</h4>
+                                                <p className="text-xs text-gray-500">
+                                                    {item.variantName} x {item.quantity}
+                                                </p>
+                                                <p className="text-sm font-medium text-red-600">
+                                                    {(item.unitPriceAmount * item.quantity).toLocaleString()} đ
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
                             </div>
 
                             <div className="border-t pt-4 mb-4">

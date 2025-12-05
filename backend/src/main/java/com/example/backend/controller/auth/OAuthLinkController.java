@@ -1,6 +1,7 @@
 package com.example.backend.controller.auth;
 
 import com.example.backend.dto.response.auth.CustomUserDetail;
+import com.example.backend.exception.BadRequestException;
 import com.example.backend.service.auth.oautth.OAuthAccountService;
 import com.example.backend.service.auth.oautth.StateTokenService;
 import com.example.backend.util.CookieUtil;
@@ -27,7 +28,7 @@ public class OAuthLinkController {
                           @RequestParam(name = "redirect", required = false) String redirect,
                           HttpServletResponse response) {
         if (!"google".equals(provider) && !"facebook".equals(provider)) {
-            throw new IllegalArgumentException("Provider không hợp lệ.");
+            throw new BadRequestException("Provider không hợp lệ.");
         }
         String state = tokenService.createStateToken(userDetail.getId(), provider,redirect);
         Cookie cookie = cookieUtil.creatOAuthState(state);
@@ -40,7 +41,6 @@ public class OAuthLinkController {
     @DeleteMapping("/link/{provider}")
     public ResponseEntity<?> unlink(@AuthenticationPrincipal CustomUserDetail userDetail,
                        @PathVariable String provider) {
-
         oauthService.unlink(userDetail, provider);
         return ResponseEntity.accepted().build();
     }

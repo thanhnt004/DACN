@@ -1,5 +1,7 @@
 package com.example.backend.util;
 
+import com.example.backend.exception.auth.InvalidConfigurationException;
+import com.example.backend.exception.auth.TokenInvalidException;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -26,7 +28,7 @@ public class ParseJwtTokenUtil {
                     .build()
                     .parseSignedClaims(token).getPayload();
         } catch (JwtException | IllegalArgumentException e) {
-            throw new RuntimeException(e);
+            throw new TokenInvalidException("Token không thể phân tích được");
         }
     }
 
@@ -44,7 +46,7 @@ public class ParseJwtTokenUtil {
             }
         }
         if (keyBytes.length < 32) {
-            throw new IllegalArgumentException("jwt.secret quá ngắn (<32 bytes)");
+            throw new InvalidConfigurationException("jwt.secret quá ngắn (<32 bytes)");
         }
         return Keys.hmacShaKeyFor(keyBytes);
     }

@@ -64,11 +64,11 @@ export default function ProfilePage() {
         loadData()
 
         // Check for OAuth link callback
-        const linkedProvider = searchParams.get('linked')
+        const linkedProvider = searchParams.get('provider')
         if (linkedProvider) {
             alert(`✅ Liên kết ${linkedProvider} thành công!`)
             // Remove the query param
-            searchParams.delete('linked')
+            searchParams.delete('provider')
             setSearchParams(searchParams)
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps

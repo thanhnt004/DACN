@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Search, User, Heart, ShoppingBag, ChevronDown } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
 import { useCartStore } from '../../store/cart';
-import * as BrandCategoryApi from '../../api/admin/brandCategory';
+import { useCategoriesStore } from '../../store/categories';
 
 // --- Icons ---
 const SearchIcon = Search;
@@ -200,50 +200,16 @@ const MainHeader = () => {
 };
 
 const NavigationMenu = () => {
-    const [categories, setCategories] = useState<BrandCategoryApi.CategoryResponse[]>([])
+    const { categories, fetchCategories, loaded } = useCategoriesStore()
     const [showCategoryMenu, setShowCategoryMenu] = useState(false)
     const [hoveredCategoryId, setHoveredCategoryId] = useState<string | null>(null)
 
     useEffect(() => {
-        loadCategories()
-    }, [])
-
-    const loadCategories = async () => {
-        try {
-            // Load all categories
-            const response = await BrandCategoryApi.getCategories({
-                size: 100
-            })
-
-            // Filter only root categories (level 0 or no parentId)
-            const rootCategories = (response.content || []).filter(
-                cat => cat.level === 0 || !cat.parentId
-            )
-
-            // Load children for each root category
-            const categoriesWithChildren = await Promise.all(
-                rootCategories.map(async (rootCategory) => {
-                    try {
-                        const childrenResponse = await BrandCategoryApi.getCategories({
-                            parentId: rootCategory.id,
-                            size: 50
-                        })
-                        return {
-                            ...rootCategory,
-                            children: childrenResponse.content || []
-                        }
-                    } catch {
-                        return { ...rootCategory, children: [] }
-                    }
-                })
-            )
-
-            setCategories(categoriesWithChildren)
-        } catch (error) {
-            console.error('Failed to load categories:', error)
-            setCategories([])
+        // Only fetch if not already loaded
+        if (!loaded) {
+            fetchCategories()
         }
-    }
+    }, [loaded, fetchCategories])
 
     return (
         <nav className="bg-white border-b border-gray-200 shadow-sm">

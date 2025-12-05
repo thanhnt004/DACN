@@ -10,6 +10,7 @@ public class GHNShopInfo {
     private String address;
     private String ward_code;
     private int district_id;
+    private int province_id;
     private long client_id;
     private int status;
 }

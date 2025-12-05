@@ -1,13 +1,17 @@
 package com.example.backend.dto.response.cart;
 
 import com.example.backend.dto.response.catalog.VariantStockStatus;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.UUID;
 
 @Data
 @Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class CartItemResponse {
     private UUID id;
     private UUID variantId;

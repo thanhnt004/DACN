@@ -92,7 +92,7 @@ public class SecurityConfig {
         // Allow your frontend during development; adjust in prod
         cfg.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000", "${FRONTEND_URL}"));
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-            cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With","X-Cart-ID","X-Session-Token"));
+        cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With","X-Cart-ID","X-Session-Token","Idempotency-Key"));
         cfg.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cfg);

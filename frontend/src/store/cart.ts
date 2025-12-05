@@ -5,9 +5,10 @@ interface CartState {
     cart: CartApi.CartResponse | null
     loading: boolean
     error: string | null
+    isFetched: boolean // To track if the initial fetch has been done
 
     // Actions
-    fetchCart: () => Promise<void>
+    fetchCart: (force?: boolean) => Promise<void>
     addToCart: (variantId: string, quantity: number) => Promise<void>
     removeFromCart: (itemId: string) => Promise<void>
     updateCartItem: (itemId: string, variantId: string, quantity: number) => Promise<void>
@@ -23,15 +24,21 @@ export const useCartStore = create<CartState>((set, get) => ({
     cart: null,
     loading: false,
     error: null,
+    isFetched: false,
 
-    fetchCart: async () => {
+    fetchCart: async (force = false) => {
+        // Prevent re-fetching if already loading or already fetched unless forced
+        if ((get().loading && !force) || (get().isFetched && !force)) {
+            return
+        }
+
         set({ loading: true, error: null })
         try {
             const cart = await CartApi.getOrCreateCart()
-            set({ cart, loading: false })
+            set({ cart, loading: false, isFetched: true })
         } catch (error: any) {
             console.error('Error fetching cart:', error)
-            set({ error: error.message || 'Failed to fetch cart', loading: false })
+            set({ error: error.message || 'Failed to fetch cart', loading: false, isFetched: false })
         }
     },
 

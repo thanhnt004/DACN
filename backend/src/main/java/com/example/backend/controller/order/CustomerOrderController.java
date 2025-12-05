@@ -1,11 +1,14 @@
 package com.example.backend.controller.order;
 
+import com.example.backend.aop.Idempotent;
+import com.example.backend.dto.request.order.CancelOrderRequest;
 import com.example.backend.dto.request.order.ReturnOrderRequest;
 import com.example.backend.dto.response.checkout.OrderResponse;
 import com.example.backend.dto.response.wraper.PageResponse;
 import com.example.backend.service.facade.OrderFacadeService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -27,20 +30,23 @@ public class CustomerOrderController {
                                                                     HttpServletRequest request) {
         return ResponseEntity.ok(orderFacadeService.getOrderList(status, paymentType, pageable, request, response));
     }
+    @Idempotent(expire = 300, scope = "orderId")
     @PostMapping("{orderId}/cancel")
     public ResponseEntity<?> cancelOrderByCus(@PathVariable("orderId") UUID orderId,
+                                         @RequestBody @Valid CancelOrderRequest cancelOrderRequest,
                                          HttpServletRequest request,
                                          HttpServletResponse response) {
-        String message = orderFacadeService.cancelOrder(orderId, request, response);
-        return ResponseEntity.ok(message);
+        orderFacadeService.cancelOrderByCus(orderId, request, response,cancelOrderRequest);
+        return ResponseEntity.noContent().build();
     }
+    @Idempotent(expire = 300, scope = "orderId")
     @PostMapping("{orderId}/return")
     public ResponseEntity<?> returnOrderByCus(@PathVariable("orderId") UUID orderId,
                                               @RequestBody ReturnOrderRequest returnOrderRequest,
                                               HttpServletRequest request,
                                               HttpServletResponse response) {
-        String message = orderFacadeService.returnOrder(orderId, request, response,returnOrderRequest);
-        return ResponseEntity.ok(message);
+        orderFacadeService.returnOrderByCus(orderId, request, response,returnOrderRequest);
+        return ResponseEntity.noContent().build();
     }
     @PostMapping("/merge-orders")
     public ResponseEntity<?> mergeOrders(
@@ -48,5 +54,10 @@ public class CustomerOrderController {
             HttpServletResponse response) {
         orderFacadeService.mergeOrders(request, response);
         return ResponseEntity.ok().build();
+    }
+    @Idempotent(expire = 300, scope = "orderId")
+    @PostMapping("{orderId}/re-pay")
+    public ResponseEntity<?> rePay(@PathVariable("orderId") UUID orderId) {
+        return ResponseEntity.ok(orderFacadeService.rePay(orderId));
     }
 }

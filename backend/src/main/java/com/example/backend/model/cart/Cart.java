@@ -34,15 +34,14 @@ public class Cart {
     @JoinColumn(name = "user_id")
     private User user;
     @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<CartItem> items;
+    private List<CartItem> items = new java.util.ArrayList<>();
     public enum CartStatus
     {
         ACTIVE,CONVERTED,ABANDONED
     }
     public void addItem(CartItem item) {
-        items = this.getItems();
-        if (items==null){
-            items=new java.util.ArrayList<>();
+        if (items == null) {
+            items = new java.util.ArrayList<>();
         }
         items.add(item);
         item.setCart(this);

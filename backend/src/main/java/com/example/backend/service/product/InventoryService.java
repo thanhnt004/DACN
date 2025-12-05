@@ -144,4 +144,27 @@ public class InventoryService {
                 )
         ));
     }
+
+    public void revertSold(Order order) {
+        log.info("Reverting sold for order: {}", order.getOrderNumber());
+
+        order.getItems().forEach(orderItem -> {
+            UUID variantId = orderItem.getVariant().getId();
+            int quantity = orderItem.getQuantity();
+
+            Inventory inventory = inventoryRepository.findByIdForUpdate(variantId)
+                    .orElseThrow(() -> new NotFoundException(
+                            "Variant không tồn tại: " + variantId
+                    ));
+
+            // Tăng cả on_hand và giảm sold
+            inventory.setQuantityOnHand(
+                    inventory.getQuantityOnHand() + quantity
+            );
+
+            inventoryRepository.save(inventory);
+        });
+
+        log.info("Sold reverted for order: {}", order.getOrderNumber());
+    }
 }

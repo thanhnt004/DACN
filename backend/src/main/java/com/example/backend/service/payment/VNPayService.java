@@ -115,11 +115,14 @@ public class VNPayService {
         // Tạo hash để so sánh
         String signed = hmacSHA512(vnPayConfig.getSecretKey(), hashData.toString());
         if (!signed.equals(vnpSecureHash)) {
+            log.warn("Invalid signature for IPN: {}", signed);
             return rsp("97", "Invalid Signature"); // Sai chữ ký
         }
 
         // Lấy dữ liệu cần thiết
-        String orderNumber = params.get("vnp_OrderInfo");
+        String orderInfo = params.get("vnp_OrderInfo");
+        // Extract order number from "Thanh toan don hang ORD-20231204-001"
+        String orderNumber = orderInfo.substring(orderInfo.lastIndexOf(" ") + 1);
         String paymentId = params.get("vnp_TxnRef");
         String transactionStatus = params.get("vnp_TransactionStatus");
         String responseCode = params.get("vnp_ResponseCode");
@@ -129,6 +132,7 @@ public class VNPayService {
             order = orderService.getOrderByNumber(orderNumber);
 
         } catch (OrderNotFoundException e) {
+            log.warn("Order not found: {}", orderNumber);
             return rsp("01", "Order not found");
         }
 
@@ -163,7 +167,7 @@ public class VNPayService {
             payment.setStatus(Payment.PaymentStatus.FAILED);
             paymentRepository.save(payment);
         }
-
+        log.info("VNPay IPN processed successfully for order: {}", orderNumber);
         return rsp("00", "Confirm Success");
     }
 

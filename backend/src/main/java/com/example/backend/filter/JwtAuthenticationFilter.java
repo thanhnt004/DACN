@@ -1,5 +1,6 @@
 package com.example.backend.filter;
 
+import com.example.backend.config.SecurityProperties;
 import com.example.backend.dto.response.auth.CustomUserDetail;
 import com.example.backend.service.auth.AccessTokenService;
 import jakarta.servlet.FilterChain;
@@ -8,16 +9,19 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 
 @Component
@@ -26,6 +30,9 @@ import java.util.UUID;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final AccessTokenService accessTokenService;
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
+
+    private final SecurityProperties securityProperties;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -91,11 +98,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return isPublicEndpoint(path);
     }
 
+    /**
+     * Check if the path matches any public endpoint pattern
+     * Uses AntPathMatcher for pattern matching (supports wildcards like ** and *)
+     */
     private boolean isPublicEndpoint(String path) {
-        // Public auth endpoints
-        if (path.startsWith("/api/v1/auth/")) return true;
-        if (path.equals("/actuator/health") || path.equals("/actuator/info")) return true;
-        return path.startsWith("/v3/api-docs") || path.startsWith("/swagger-ui");
-        // default: not public
+        if (securityProperties.getPublicEndpoints() == null || securityProperties.getPublicEndpoints().isEmpty()) {
+            log.warn("Public endpoints list is empty! All endpoints will require authentication.");
+            return false;
+        }
+
+        for (String pattern : securityProperties.getPublicEndpoints()) {
+            if (pathMatcher.match(pattern, path)) {
+                log.trace("Path {} matches public pattern: {}", path, pattern);
+                return true;
+            }
+        }
+
+        log.trace("Path {} does not match any public endpoint pattern", path);
+        return false;
     }
 }

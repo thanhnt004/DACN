@@ -1,5 +1,6 @@
 package com.example.backend.controller.payment;
 
+import com.example.backend.aop.Idempotent;
 import com.example.backend.dto.response.checkout.PaymentMethodResponse;
 import com.example.backend.service.payment.PaymentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +18,7 @@ import java.util.UUID;
 @RequestMapping("/api/v1/payment")
 public class PaymentController {
     private final PaymentService paymentService;
+    @Idempotent(expire = 300, scope = "orderId")
     @GetMapping("/payment_url")
     @Operation(summary = "Get payment URL")
     public ResponseEntity<Map<String, String>> getPaymentUrl(@RequestParam(value = "orderId") UUID orderId,
@@ -29,6 +31,7 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.getAvailablePaymentMethodsForOrder(orderId));
     }
 
+    @Idempotent(expire = 300, scope = "orderId")
     @PostMapping("/repay")
     @Operation(summary = "Get payment URL for repaying an order")
     public ResponseEntity<Map<String, String>> repayOrder(@RequestParam(value = "orderId") UUID orderId,@RequestParam String paymentMethodId) {

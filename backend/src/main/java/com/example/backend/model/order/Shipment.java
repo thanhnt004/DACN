@@ -1,6 +1,5 @@
 package com.example.backend.model.order;
 
-import com.example.backend.model.ShipmentItem;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -39,6 +38,14 @@ public class Shipment {
 
     @Column(name = "status", nullable = false)
     private String status;
+
+    @Builder.Default
+    @Column(name = "is_return_shipment", nullable = false)
+    private boolean isReturnShipment = false;
+
+    @Builder.Default
+    @Column(name = "is_active", nullable = false)
+    private boolean isActive = true;
 
     @Column(name = "shipped_at")
     private Instant shippedAt;
