@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, User, Heart, ShoppingBag, ChevronDown } from 'lucide-react';
+import { Search, User, ShoppingBag, ChevronDown, Package, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
 import { useCartStore } from '../../store/cart';
 import { useCategoriesStore } from '../../store/categories';
+import * as ProductSearchApi from '../../api/productSearch';
 
 // --- Icons ---
 const SearchIcon = Search;
 const UserIcon = User;
-const HeartIcon = Heart;
 const ShoppingBagIcon = ShoppingBag;
 
 // --- Sub-components ---
@@ -41,6 +41,11 @@ const MainHeader = () => {
     const { getItemCount, fetchCart } = useCartStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [showUserMenu, setShowUserMenu] = useState(false);
+    const [searchResults, setSearchResults] = useState<ProductSearchApi.ProductSearchResult[]>([]);
+    const [showSearchResults, setShowSearchResults] = useState(false);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const searchTimeoutRef = useRef<number | null>(null);
+    const searchContainerRef = useRef<HTMLDivElement>(null);
     const cartItemCount = getItemCount();
 
     // Fetch cart on mount
@@ -49,17 +54,76 @@ const MainHeader = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Close search results when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+                setShowSearchResults(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Debounced search
+    useEffect(() => {
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+        }
+
+        if (searchQuery.trim().length >= 2) {
+            setSearchLoading(true);
+            searchTimeoutRef.current = setTimeout(async () => {
+                try {
+                    const results = await ProductSearchApi.vectorSearch(searchQuery.trim(), 5, 0.5);
+                    setSearchResults(results);
+                    setShowSearchResults(true);
+                } catch (error) {
+                    console.error('Search failed:', error);
+                    setSearchResults([]);
+                } finally {
+                    setSearchLoading(false);
+                }
+            }, 300);
+        } else {
+            setSearchResults([]);
+            setShowSearchResults(false);
+            setSearchLoading(false);
+        }
+
+        return () => {
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+            }
+        };
+    }, [searchQuery]);
+
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
         if (searchQuery.trim()) {
             navigate(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+            setShowSearchResults(false);
         }
+    };
+
+    const handleResultClick = (slug: string) => {
+        navigate(`/products/${slug}`);
+        setShowSearchResults(false);
+        setSearchQuery('');
     };
 
     const handleLogout = () => {
         logout();
         setShowUserMenu(false);
         navigate('/');
+    };
+
+    const formatPrice = (price: number) => {
+        return new Intl.NumberFormat('vi-VN', {
+            style: 'currency',
+            currency: 'VND'
+        }).format(price);
     };
 
     return (
@@ -71,7 +135,7 @@ const MainHeader = () => {
                         
                         <Link to="/" className="text-2xl font-bold text-red-600 hover:text-red-700">
                             <div className ="block"><img
-                                src="/src/assets/img/logo.svg"
+                                src="/img/logo.svg"
                                 alt="WearWave Logo"
                                 className="h-12 w-12"
                             />
@@ -80,21 +144,95 @@ const MainHeader = () => {
                     </div>
 
                     {/* Search Bar */}
-                    <div className="flex-1 max-w-xl mx-8">
+                    <div className="flex-1 max-w-xl mx-8" ref={searchContainerRef}>
                         <form onSubmit={handleSearch} className="relative">
                             <input
                                 type="search"
                                 placeholder="Bạn muốn tìm gì hôm nay?"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
+                                onFocus={() => {
+                                    if (searchResults.length > 0) {
+                                        setShowSearchResults(true);
+                                    }
+                                }}
                                 className="w-full h-12 pl-5 pr-12 text-sm bg-gray-100 border border-transparent rounded-full focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                autoComplete="off"
                             />
                             <button
                                 type="submit"
                                 className="absolute right-0 top-0 h-full px-5 text-gray-500 hover:text-red-600"
                             >
-                                <SearchIcon className="w-5 h-5" />
+                                {searchLoading ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                ) : (
+                                    <SearchIcon className="w-5 h-5" />
+                                )}
                             </button>
+
+                            {/* Search Results Dropdown */}
+                            {showSearchResults && searchResults.length > 0 && (
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-96 overflow-y-auto">
+                                    <div className="py-2">
+                                        {searchResults.map((result) => (
+                                            <button
+                                                key={result.productId}
+                                                onClick={() => handleResultClick(result.product.slug)}
+                                                className="w-full px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-4 text-left"
+                                            >
+                                                {/* Product Image */}
+                                                <img
+                                                    src={result.product.imageUrl || 'https://placehold.co/60x60'}
+                                                    alt={result.product.name}
+                                                    className="w-16 h-16 object-cover rounded flex-shrink-0"
+                                                />
+                                                
+                                                {/* Product Info */}
+                                                <div className="flex-1 min-w-0">
+                                                    <h4 className="font-medium text-gray-900 truncate">
+                                                        {result.product.name}
+                                                    </h4>
+                                                    <p className="text-sm text-gray-500 truncate mt-1">
+                                                        {result.product.brandName || 'Thương hiệu'}
+                                                    </p>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="font-bold text-red-600">
+                                                            {formatPrice(result.product.priceAmount)}
+                                                        </span>
+                                                        {result.similarity && (
+                                                            <span className="text-xs text-gray-400">
+                                                                ({Math.round(result.similarity * 100)}% phù hợp)
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    
+                                    {/* View All Results */}
+                                    <div className="border-t border-gray-200 p-3">
+                                        <button
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                handleSearch(e);
+                                            }}
+                                            className="w-full text-center text-sm text-red-600 hover:text-red-700 font-medium"
+                                        >
+                                            Xem tất cả kết quả cho "{searchQuery}"
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* No Results */}
+                            {showSearchResults && searchQuery.trim().length >= 2 && searchResults.length === 0 && !searchLoading && (
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 p-6 text-center">
+                                    <SearchIcon className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                                    <p className="text-gray-500">Không tìm thấy sản phẩm phù hợp</p>
+                                    <p className="text-sm text-gray-400 mt-1">Thử tìm kiếm với từ khóa khác</p>
+                                </div>
+                            )}
                         </form>
                     </div>
 
@@ -174,14 +312,16 @@ const MainHeader = () => {
                             )}
                         </div>
 
-                        {/* Wishlist */}
-                        <Link
-                            to="/wishlist"
-                            className="text-gray-600 hover:text-red-600 relative"
-                            title="Yêu thích"
-                        >
-                            <HeartIcon className="w-6 h-6" />
-                        </Link>
+                        {/* Guest Orders - Show for non-authenticated users */}
+                        {!isAuthenticated && (
+                            <Link
+                                to="/orders/track"
+                                className="text-gray-600 hover:text-red-600 relative"
+                                title="Đơn hàng của tôi"
+                            >
+                                <Package className="w-6 h-6" />
+                            </Link>
+                        )}
 
                         {/* Shopping Cart */}
                         <Link to="/cart" className="relative text-gray-600 hover:text-red-600" title="Giỏ hàng">
@@ -340,16 +480,6 @@ const NavigationMenu = () => {
                                 className="text-sm font-semibold text-gray-700 hover:text-red-600 transition-colors duration-200 whitespace-nowrap"
                             >
                                 Unisex
-                            </Link>
-                        </li>
-
-                        {/* Thương Hiệu */}
-                        <li className="flex-shrink-0">
-                            <Link
-                                to="/brands"
-                                className="text-sm font-semibold text-gray-700 hover:text-red-600 transition-colors duration-200 whitespace-nowrap"
-                            >
-                                Thương Hiệu
                             </Link>
                         </li>
 

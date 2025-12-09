@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
+import { toast } from 'react-toastify'
 import * as ProductsApi from '../../api/admin/products'
 import * as CatalogApi from '../../api/admin/catalog'
 import * as BrandCategoryApi from '../../api/admin/brandCategory'
 import ImageUploadZone from '../../components/layout/ImageUploadZone'
-import ProductVariantsList from './components/ProductVariantsList'
-import { ArrowLeft, Plus } from 'lucide-react'
+import ProductStepper from './components/ProductStepper'
+import VariantMatrixEditor from './components/VariantMatrixEditor'
+import { ArrowLeft, ArrowRight, Save, Eye, Search, Globe } from 'lucide-react'
 import { extractProblemMessage } from '../../lib/problemDetails'
 
 const slugify = (value: string) =>
@@ -17,914 +19,396 @@ const slugify = (value: string) =>
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)+/g, '')
 
+interface VariantMatrixRow {
+    id: string
+    sizeId?: string
+    sizeName?: string
+    colorId?: string
+    colorName?: string
+    colorHex?: string
+    sku: string
+    priceAmount: string
+    historyCost: string
+    compareAtAmount: string
+    quantityOnHand: string
+    weightGrams: string
+    reorderLevel: string
+}
+
 export default function ProductCreate() {
     const navigate = useNavigate()
+    const { id: productId } = useParams()
 
+    // Step management
+    const [currentStep, setCurrentStep] = useState(1)
+    const [completedSteps, setCompletedSteps] = useState<number[]>([])
+
+    // Loading states
     const [loading, setLoading] = useState(false)
-    const [creating, setCreating] = useState(false)
     const [saving, setSaving] = useState(false)
-    const [publishing, setPublishing] = useState(false)
 
+    // Step 1: General Info
     const [formData, setFormData] = useState({
         name: '',
         slug: '',
-        priceAmount: '',
         brandId: '',
-        categoryIds: [] as string[],
         description: '',
         material: '',
         gender: '' as '' | ProductsApi.Gender,
-        seoTitle: '',
-        seoDescription: '',
     })
-
     const [slugLocked, setSlugLocked] = useState(false)
-    const [primaryImage, setPrimaryImage] = useState<string>('') // Single primary image
-    const [galleryImages, setGalleryImages] = useState<string[]>([]) // Multiple gallery images
-    const [images, setImages] = useState<string[]>([])
-    const [colorImages, setColorImages] = useState<Record<string, string[]>>({}) // colorId -> image URLs
-    const [publishSuccess, setPublishSuccess] = useState(false) // Show success notification
     const [brands, setBrands] = useState<BrandCategoryApi.BrandDto[]>([])
-    const [categories, setCategories] = useState<BrandCategoryApi.CategoryResponse[]>([])
 
-    // Category selection with multiple levels support
+    // Step 2: Categorization
+    const [categories, setCategories] = useState<BrandCategoryApi.CategoryResponse[]>([])
     const [categoryLevels, setCategoryLevels] = useState<Array<{
         level: number
         parentId: string | null
         selectedId: string
         options: BrandCategoryApi.CategoryResponse[]
     }>>([])
+    const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
 
+    // Step 3: Variants & Inventory
     const [sizes, setSizes] = useState<CatalogApi.SizeDto[]>([])
     const [colors, setColors] = useState<CatalogApi.ColorDto[]>([])
+    const [variantRows, setVariantRows] = useState<VariantMatrixRow[]>([])
 
-    // Created product and variants
-    const [createdProduct, setCreatedProduct] = useState<ProductsApi.ProductDetailResponse | null>(null)
-    const [variants, setVariants] = useState<ProductsApi.VariantResponse[]>([])
-    const [unsavedVariants, setUnsavedVariants] = useState<Array<{
-        id: string // temporary local ID
-        sku: string
-        barcode?: string
-        sizeId?: string
-        colorId?: string
-        priceAmount: number
-        compareAtAmount?: number
-        historyCost?: number
-        weightGrams?: number
-        status: ProductsApi.VariantStatus
-        inventory?: { quantityOnHand: number; reorderLevel: number }
-    }>>([])
-    const [savingVariants, setSavingVariants] = useState(false)
+    // Step 4: Images
+    const [primaryImage, setPrimaryImage] = useState<string>('')
+    const [galleryImages, setGalleryImages] = useState<string[]>([])
+    const [colorImageMap, setColorImageMap] = useState<Record<string, string[]>>({})
 
-    // Variant creation
-    const [selectedSizes, setSelectedSizes] = useState<string[]>([])
-    const [selectedColors, setSelectedColors] = useState<string[]>([])
-    const [defaultWeight, setDefaultWeight] = useState<string>('200')
-    const [defaultInventory, setDefaultInventory] = useState<string>('10')
-    const [defaultReorderLevel, setDefaultReorderLevel] = useState<string>('5')
-    const [defaultHistoryCost, setDefaultHistoryCost] = useState<string>('0')
-
-    // Variant editing
-    const [editingVariantId, setEditingVariantId] = useState<string | null>(null)
-    const [editFormData, setEditFormData] = useState<{
-        sku: string
-        barcode: string
-        priceAmount: string
-        compareAtAmount: string
-        historyCost: string
-        weightGrams: string
-        status: ProductsApi.VariantStatus
-        quantityOnHand: string
-        reorderLevel: string
-    }>({
-        sku: '',
-        barcode: '',
-        priceAmount: '',
-        compareAtAmount: '',
-        historyCost: '',
-        weightGrams: '',
-        status: 'ACTIVE',
-        quantityOnHand: '',
-        reorderLevel: '',
+    // Step 5: SEO & Finalize
+    const [seoData, setSeoData] = useState({
+        seoTitle: '',
+        seoDescription: '',
     })
-    const [editLoading, setEditLoading] = useState(false)
+    const [publishNow, setPublishNow] = useState(false)
+
+    // Created product
+    const [createdProduct, setCreatedProduct] = useState<ProductsApi.ProductDetailResponse | null>(null)
 
     useEffect(() => {
         loadReferences()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
-
-    // Sync images when product is loaded
-    useEffect(() => {
-        if (createdProduct && createdProduct.images) {
-            const sortedImages = [...createdProduct.images].sort((a, b) => (a.position || 0) - (b.position || 0))
-
-            // Find primary image (isDefault = true or first image without colorId)
-            const primaryImg = sortedImages.find(img => img.isDefault && !img.colorId)
-            if (primaryImg) {
-                setPrimaryImage(primaryImg.imageUrl)
-            }
-
-            // Get gallery images (not primary, not color-specific)
-            const galleryImgs = sortedImages
-                .filter(img => !img.isDefault && !img.colorId)
-                .map(img => img.imageUrl)
-            setGalleryImages(galleryImgs)
-
-            // Legacy: Keep old images array for backward compatibility
-            const imageUrls = sortedImages.map(img => img.imageUrl)
-            setImages(imageUrls)
-        }
-    }, [createdProduct])
-
-    // Sync category selection when categories are loaded or formData changes
-    useEffect(() => {
-        if (categories.length === 0) return
-
-        // If formData has categoryIds (e.g., when editing), rebuild category levels
-        if (formData.categoryIds.length > 0) {
-            const selectedIds = formData.categoryIds
-            const newLevels: typeof categoryLevels = []
-
-            // Build category levels from selected IDs
-            for (let i = 0; i < selectedIds.length; i++) {
-                const categoryId = selectedIds[i]
-                const category = categories.find(c => c.id === categoryId)
-
-                if (category) {
-                    const parentId = category.parentId || null
-                    const siblings = categories.filter(cat =>
-                        (parentId === null && !cat.parentId) || cat.parentId === parentId
-                    )
-
-                    newLevels.push({
-                        level: i,
-                        parentId: parentId,
-                        selectedId: categoryId,
-                        options: siblings
-                    })
-                }
-            }
-
-            // Check if last selected category has children
-            const lastSelectedId = selectedIds[selectedIds.length - 1]
-            const children = categories.filter(cat => cat.parentId === lastSelectedId)
-            if (children.length > 0) {
-                newLevels.push({
-                    level: selectedIds.length,
-                    parentId: lastSelectedId,
-                    selectedId: '',
-                    options: children
-                })
-            }
-
-            if (newLevels.length > 0) {
-                setCategoryLevels(newLevels)
-            }
-        } else if (categoryLevels.length === 0) {
-            // Initialize with root categories if no levels exist
-            const roots = categories.filter(cat => !cat.parentId || cat.level === 0)
-            if (roots.length > 0) {
-                setCategoryLevels([{
-                    level: 0,
-                    parentId: null,
-                    selectedId: '',
-                    options: roots
-                }])
-            }
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [categories, formData.categoryIds])
 
     const loadReferences = async () => {
         setLoading(true)
         try {
-            const [brandsData, rootCategoriesData, sizesData, colorsData] = await Promise.all([
-                BrandCategoryApi.getBrands({ size: 100 }),
-                // Get only root categories (parentId not specified = root only)
-                BrandCategoryApi.getCategories({ size: 100 }),
+            const [brandsRes, categoriesRes, sizesRes, colorsRes] = await Promise.all([
+                BrandCategoryApi.getBrands({ size: 1000 }),
+                BrandCategoryApi.getCategories({ size: 1000 }),
                 CatalogApi.getSizes(),
                 CatalogApi.getColors(),
             ])
 
-            setBrands(brandsData.content || [])
-            const rootCategories = rootCategoriesData.content || []
-            setCategories(rootCategories) // Initially only root categories
+            const brandsList = brandsRes.content || []
+            const categoriesList = categoriesRes.content || []
+            
+            setBrands(brandsList)
+            setCategories(categoriesList)
+            setSizes(sizesRes)
+            setColors(colorsRes)
 
-            // Initialize first level with root categories
-            if (rootCategories.length > 0) {
-                setCategoryLevels([{
-                    level: 0,
-                    parentId: null,
-                    selectedId: '',
-                    options: rootCategories
-                }])
-            }
-
-            setSizes(sizesData || [])
-            setColors(colorsData || [])
+            // Initialize category levels
+            const roots = categoriesList.filter((cat: any) => !cat.parentId || cat.level === 0)
+            setCategoryLevels([{
+                level: 0,
+                parentId: null,
+                selectedId: '',
+                options: roots
+            }])
         } catch (error) {
             console.error('Error loading references:', error)
-            alert(extractErrorMessage(error, 'Lỗi tải dữ liệu tham chiếu'))
+            toast.error('Không thể tải dữ liệu. Vui lòng thử lại.')
         } finally {
             setLoading(false)
         }
     }
 
-    const extractErrorMessage = (error: unknown, defaultMessage: string): string => {
-        const responseData = error && typeof error === 'object' && 'response' in error
-            ? (error as { response?: { data?: unknown } }).response?.data
-            : undefined
-        const fallback = error instanceof Error && error.message ? error.message : defaultMessage
-        return extractProblemMessage(responseData, fallback)
-    }
-
-    // Handle category selection at any level
-    const handleCategoryChange = async (levelIndex: number, categoryId: string) => {
-        if (!categoryId) {
-            // User selected "-- Chọn danh mục --" (empty value)
-            // Reset to this level only, clear all subsequent levels
-            const resetLevels = categoryLevels.slice(0, levelIndex + 1)
-            resetLevels[levelIndex] = {
-                ...resetLevels[levelIndex],
-                selectedId: '' // Clear selection at this level
-            }
-            setCategoryLevels(resetLevels)
-            setFormData(prev => ({ ...prev, categoryIds: [] }))
-            return
-        }
-
-        // Update current level selection
-        const newLevels = [...categoryLevels]
-        newLevels[levelIndex] = {
-            ...newLevels[levelIndex],
-            selectedId: categoryId
-        }
-
-        // Remove all subsequent levels (important when changing selection)
-        const updatedLevels = newLevels.slice(0, levelIndex + 1)
-
-        try {
-            // Fetch children of selected category using /flat API with parentId
-            const childrenData = await BrandCategoryApi.getCategories({
-                parentId: categoryId,
-                size: 100
-            })
-            const children = childrenData.content || []
-
-            // Add children to categories state for future reference
-            setCategories(prev => {
-                const newCats = [...prev]
-                children.forEach(child => {
-                    if (!newCats.find(c => c.id === child.id)) {
-                        newCats.push(child)
-                    }
-                })
-                return newCats
-            })
-
-            if (children.length > 0) {
-                // Has children - add next level and DON'T set categoryIds yet
-                updatedLevels.push({
-                    level: levelIndex + 1,
-                    parentId: categoryId,
-                    selectedId: '',
-                    options: children
-                })
-                // Clear categoryIds - user must select child
-                setFormData(prev => ({ ...prev, categoryIds: [] }))
-            } else {
-                // Leaf node - collect all selected category IDs from root to leaf
-                const allSelectedIds: string[] = []
-                for (const level of updatedLevels) {
-                    if (level.selectedId) {
-                        allSelectedIds.push(level.selectedId)
-                    }
-                }
-                setFormData(prev => ({ ...prev, categoryIds: allSelectedIds }))
-            }
-
-            setCategoryLevels(updatedLevels)
-        } catch (error) {
-            console.error('Error loading child categories:', error)
-            alert('Lỗi khi tải danh mục con')
-        }
-    }
-
-    // Get the path of selected categories for display
-    const getSelectedCategoryPath = (): string => {
-        const path: string[] = []
-        for (const level of categoryLevels) {
-            if (level.selectedId) {
-                const cat = categories.find(c => c.id === level.selectedId)
-                if (cat) path.push(cat.name)
-            }
-        }
-        return path.join(' > ')
-    }
-
     const handleNameChange = (value: string) => {
-        setFormData(prev => ({
-            ...prev,
-            name: value,
-            ...(!slugLocked ? { slug: slugify(value) } : {})
-        }))
+        setFormData(prev => ({ ...prev, name: value }))
+        if (!slugLocked) {
+            setFormData(prev => ({ ...prev, slug: slugify(value) }))
+        }
     }
 
     const handleSlugChange = (value: string) => {
-        setSlugLocked(true)
         setFormData(prev => ({ ...prev, slug: value }))
+        setSlugLocked(true)
     }
 
-    const handlePrimaryImageUploadComplete = (urls: string[]) => {
-        // Only take the first image
-        if (urls.length > 0) {
-            setPrimaryImage(urls[0])
-        }
-    }
-
-    const handleGalleryImageUploadComplete = (urls: string[]) => {
-        setGalleryImages(prev => [...prev, ...urls])
-    }
-
-    const removePrimaryImage = () => {
-        setPrimaryImage('')
-    }
-
-    const removeGalleryImage = (index: number) => {
-        setGalleryImages(prev => prev.filter((_, i) => i !== index))
-    }
-
-    const handleColorImageUploadComplete = (colorId: string, urls: string[]) => {
-        // Only take the first image
-        setColorImages(prev => ({
-            ...prev,
-            [colorId]: urls.length > 0 ? [urls[0]] : []
-        }))
-    }
-
-    const removeColorImage = (colorId: string, index: number) => {
-        setColorImages(prev => ({
-            ...prev,
-            [colorId]: (prev[colorId] || []).filter((_, i) => i !== index)
-        }))
-    }
-
-    const removeImage = (index: number) => {
-        setImages(prev => prev.filter((_, i) => i !== index))
-    }
-
-    const handleCreateProduct = async (e: React.FormEvent) => {
-        e.preventDefault()
-
-        if (!formData.name || !formData.slug || !formData.priceAmount) {
-            alert('Vui lòng điền đầy đủ thông tin: Tên sản phẩm, Slug và Giá bán')
+    const handleCategoryChange = (levelIndex: number, categoryId: string) => {
+        if (!categoryId) {
+            // Clear selection
+            setCategoryLevels(prev => prev.slice(0, levelIndex + 1))
+            setSelectedCategoryIds([])
             return
         }
 
-        setCreating(true)
-        try {
-            const productData: ProductsApi.ProductCreateRequest = {
-                name: formData.name,
-                slug: formData.slug,
-                priceAmount: parseInt(formData.priceAmount),
-                brandId: formData.brandId || undefined,
-                categoryId: formData.categoryIds.length > 0 ? formData.categoryIds : undefined,
-                description: formData.description || undefined,
-                material: formData.material || undefined,
-                gender: formData.gender || undefined,
-                seoTitle: formData.seoTitle || undefined,
-                seoDescription: formData.seoDescription || undefined,
-                images: [
-                    // Primary image first
-                    ...(primaryImage ? [{
-                        imageUrl: primaryImage,
-                        position: 0,
-                        isDefault: true
-                    }] : []),
-                    // Gallery images
-                    ...galleryImages.map((url, index) => ({
-                        imageUrl: url,
-                        position: (primaryImage ? 1 : 0) + index,
-                        isDefault: false
-                    })),
-                    // Legacy: Main product images (no colorId)
-                    ...images.map((url, index) => ({
-                        imageUrl: url,
-                        position: (primaryImage ? 1 : 0) + galleryImages.length + index,
-                        isDefault: index === 0 && !primaryImage
-                    })),
-                    // Color-specific images
-                    ...Object.entries(colorImages).flatMap(([colorId, urls]) =>
-                        urls.map((url, index) => ({
-                            imageUrl: url,
-                            position: (primaryImage ? 1 : 0) + galleryImages.length + images.length + index,
-                            colorId: colorId
-                        }))
-                    )
-                ]
-            }
+        const selectedCategory = categories.find(c => c.id === categoryId)
+        if (!selectedCategory) return
 
-            const product = await ProductsApi.createProduct(productData)
-            setCreatedProduct(product)
-            // Update slug in form data in case backend modified it (e.g. for uniqueness)
-            setFormData(prev => ({ ...prev, slug: product.slug }))
-            alert('Tạo bản nháp sản phẩm thành công! Bạn có thể tiếp tục chỉnh sửa và tạo biến thể.')
-        } catch (error) {
-            console.error('Error creating product:', error)
-            alert(extractErrorMessage(error, 'Lỗi tạo sản phẩm'))
-        } finally {
-            setCreating(false)
+        // Update current level
+        const updatedLevels = [...categoryLevels]
+        updatedLevels[levelIndex] = { ...updatedLevels[levelIndex], selectedId: categoryId }
+
+        // Find children
+        const children = categories.filter(cat => cat.parentId === categoryId)
+
+        if (children.length > 0) {
+            // Has children - add next level
+            updatedLevels.splice(levelIndex + 1, updatedLevels.length, {
+                level: levelIndex + 1,
+                parentId: categoryId,
+                selectedId: '',
+                options: children
+            })
+            setCategoryLevels(updatedLevels)
+            setSelectedCategoryIds([]) // Not a leaf yet
+        } else {
+            // Leaf node - save as selected
+            setCategoryLevels(updatedLevels.slice(0, levelIndex + 1))
+            setSelectedCategoryIds([categoryId])
         }
     }
 
-    const handleSaveProduct = async () => {
-        if (!createdProduct) {
-            alert('Chưa có sản phẩm để lưu')
-            return
-        }
+    const getSelectedCategoryPath = () => {
+        const selectedIds = categoryLevels.map(level => level.selectedId).filter(Boolean)
+        return selectedIds
+            .map(id => categories.find(c => c.id === id)?.name)
+            .filter(Boolean)
+            .join(' > ')
+    }
 
-        if (!formData.name || !formData.slug || !formData.priceAmount) {
-            alert('Vui lòng điền đầy đủ thông tin: Tên sản phẩm, Slug và Giá bán')
+    // STEP 1: Create product draft
+    const handleStep1Submit = async () => {
+        if (!formData.name.trim() || !formData.slug.trim()) {
+            toast.warning('Vui lòng nhập tên sản phẩm và slug')
             return
         }
 
         setSaving(true)
         try {
-            const updateData: ProductsApi.ProductUpdateRequest = {
-                id: createdProduct.id,
+            const response = await ProductsApi.createProduct({
                 name: formData.name,
                 slug: formData.slug,
-                priceAmount: parseInt(formData.priceAmount),
                 brandId: formData.brandId || undefined,
                 description: formData.description || undefined,
                 material: formData.material || undefined,
                 gender: formData.gender || undefined,
-                seoTitle: formData.seoTitle || undefined,
-                seoDescription: formData.seoDescription || undefined,
-                version: createdProduct.version || 0,
-                images: [
-                    // Primary image first
-                    ...(primaryImage ? [{
-                        imageUrl: primaryImage,
-                        position: 0,
-                        isDefault: true
-                    }] : []),
-                    // Gallery images
-                    ...galleryImages.map((url, index) => ({
-                        imageUrl: url,
-                        position: (primaryImage ? 1 : 0) + index,
-                        isDefault: false
-                    })),
-                    // Legacy: Main product images (no colorId)
-                    ...images.map((url, index) => ({
-                        imageUrl: url,
-                        position: (primaryImage ? 1 : 0) + galleryImages.length + index,
-                        isDefault: index === 0 && !primaryImage
-                    })),
-                    // Color-specific images
-                    ...Object.entries(colorImages).flatMap(([colorId, urls]) =>
-                        urls.map((url, index) => ({
-                            imageUrl: url,
-                            position: (primaryImage ? 1 : 0) + galleryImages.length + images.length + index,
-                            colorId: colorId
-                        }))
-                    )
-                ]
-            }
+                priceAmount: undefined, // Will be set later with variants
+                seoTitle: formData.name,
+                seoDescription: formData.description || formData.name,
+            })
 
-            const updatedProduct = await ProductsApi.updateProduct(createdProduct.id, updateData)
-            setCreatedProduct(updatedProduct)
-            alert('Lưu thông tin sản phẩm thành công!')
+            setCreatedProduct(response.data)
+            setCompletedSteps([...completedSteps, 1])
+            setCurrentStep(2)
+            toast.success('Đã tạo sản phẩm nháp thành công!')
         } catch (error) {
-            console.error('Error saving product:', error)
-            alert(extractErrorMessage(error, 'Lỗi lưu sản phẩm'))
+            console.error('Error creating product:', error)
+            toast.error(extractProblemMessage(error) || 'Không thể tạo sản phẩm')
         } finally {
             setSaving(false)
         }
     }
 
-    const handlePublishProduct = async () => {
-        if (!createdProduct) {
-            alert('Chưa có sản phẩm để xuất bản')
+    // STEP 2: Update categories
+    const handleStep2Submit = async () => {
+        if (!createdProduct) return
+
+        if (selectedCategoryIds.length === 0) {
+            toast.warning('Vui lòng chọn ít nhất một danh mục')
             return
         }
 
-        if (variants.length === 0) {
-            alert('Vui lòng tạo ít nhất 1 biến thể trước khi xuất bản sản phẩm')
-            return
-        }
-
-        const confirmPublish = confirm(
-            'Bạn có chắc muốn xuất bản sản phẩm này?\n\n' +
-            'Sản phẩm sẽ hiển thị công khai cho khách hàng.'
-        )
-        if (!confirmPublish) return
-
-        setPublishing(true)
+        setSaving(true)
         try {
-            await ProductsApi.changeProductStatus(createdProduct.id, 'ACTIVE')
+            await ProductsApi.updateProduct(createdProduct.id, {
+                name: createdProduct.name,
+                priceAmount: createdProduct.price || 0,
+                categoryIds: selectedCategoryIds,
+                brandId: createdProduct.brandId,
+                description: createdProduct.description,
+                material: createdProduct.material,
+                gender: createdProduct.gender,
+                seoTitle: createdProduct.seoTitle,
+                seoDescription: createdProduct.seoDescription,
+            })
 
-            // Reload product
-            const updatedProduct = await ProductsApi.getProductDetail(createdProduct.id)
-            setCreatedProduct(updatedProduct)
-
-            // Show success notification
-            setPublishSuccess(true)
-
-            // Scroll to top to show notification
-            window.scrollTo({ top: 0, behavior: 'smooth' })
+            setCompletedSteps([...completedSteps, 2])
+            setCurrentStep(3)
         } catch (error) {
-            console.error('Error publishing product:', error)
-            alert(extractErrorMessage(error, 'Lỗi xuất bản sản phẩm'))
+            console.error('Error updating categories:', error)
+            toast.error(extractProblemMessage(error) || 'Không thể cập nhật danh mục')
         } finally {
-            setPublishing(false)
+            setSaving(false)
         }
     }
 
-    const handleGenerateVariants = () => {
-        if (!createdProduct) {
-            alert('Vui lòng tạo sản phẩm trước')
+    // STEP 3: Create variants
+    const handleStep3Submit = async () => {
+        if (!createdProduct) return
+
+        if (variantRows.length === 0) {
+            toast.warning('Vui lòng tạo ít nhất một biến thể')
             return
         }
 
-        if (selectedSizes.length === 0 || selectedColors.length === 0) {
-            alert('Vui lòng chọn ít nhất 1 size và 1 màu')
+        // Validate all variants have required data
+        const invalidVariants = variantRows.filter(v => !v.sku || !v.priceAmount || !v.quantityOnHand)
+        if (invalidVariants.length > 0) {
+            toast.warning('Vui lòng điền đầy đủ SKU, giá bán và số lượng tồn kho cho tất cả biến thể')
             return
         }
 
-        // Check if unsaved variants or saved variants already exist
-        const totalExisting = variants.length + unsavedVariants.length
-        if (totalExisting > 0) {
-            const confirmReplace = confirm(
-                `Đã có ${totalExisting} biến thể (${variants.length} đã lưu, ${unsavedVariants.length} chưa lưu). ` +
-                `Bạn có muốn xóa hết và tạo lại không?`
-            )
-            if (!confirmReplace) return
-
-            // Clear unsaved variants
-            setUnsavedVariants([])
-        }
-
-        // Generate variants locally (not saved to backend yet)
-        const newVariants: typeof unsavedVariants = []
-
-        for (const sizeId of selectedSizes) {
-            for (const colorId of selectedColors) {
-                const size = sizes.find(s => s.id === sizeId)
-                const color = colors.find(c => c.id === colorId)
-
-                const sku = [
-                    formData.slug.toUpperCase(),
-                    size?.code || size?.name?.slice(0, 2),
-                    color?.name?.slice(0, 3).toUpperCase()
-                ].filter(Boolean).join('-')
-
-                // Auto-generate barcode: 893 + timestamp (last 9 digits) + random (1 digit)
-                const barcode = `893${Date.now().toString().slice(-9)}${Math.floor(Math.random() * 10)}`
-
-                newVariants.push({
-                    id: `temp-${Date.now()}-${sizeId}-${colorId}`, // temporary ID
-                    sku,
-                    barcode,
-                    sizeId,
-                    colorId,
-                    priceAmount: parseInt(formData.priceAmount),
-                    historyCost: parseInt(defaultHistoryCost) || 0,
-                    weightGrams: parseInt(defaultWeight) || 200,
-                    status: 'ACTIVE',
+        setSaving(true)
+        try {
+            // Create all variants
+            for (const row of variantRows) {
+                await ProductsApi.createVariant(createdProduct.id, {
+                    sku: row.sku,
+                    sizeId: row.sizeId,
+                    colorId: row.colorId,
+                    priceAmount: parseInt(row.priceAmount),
+                    compareAtAmount: row.compareAtAmount ? parseInt(row.compareAtAmount) : undefined,
+                    historyCost: row.historyCost ? parseInt(row.historyCost) : undefined,
+                    weightGrams: row.weightGrams ? parseInt(row.weightGrams) : 200,
                     inventory: {
-                        quantityOnHand: parseInt(defaultInventory) || 0,
-                        reorderLevel: parseInt(defaultReorderLevel) || 5
-                    }
+                        quantityOnHand: parseInt(row.quantityOnHand),
+                        reorderLevel: parseInt(row.reorderLevel) || 5,
+                    },
                 })
             }
-        }
 
-        setUnsavedVariants(newVariants)
-        alert(`Đã tạo ${newVariants.length} biến thể. Nhấn "Lưu biến thể" để lưu vào database.`)
-    }
-
-    const handleSaveVariants = async () => {
-        if (!createdProduct) {
-            alert('Chưa có sản phẩm để lưu biến thể')
-            return
-        }
-
-        if (unsavedVariants.length === 0) {
-            alert('Không có biến thể nào để lưu')
-            return
-        }
-
-        // Validate: Check for duplicate SKUs within unsaved variants
-        const skuMap = new Map<string, number>()
-        for (let i = 0; i < unsavedVariants.length; i++) {
-            const sku = unsavedVariants[i].sku
-            if (skuMap.has(sku)) {
-                alert(`SKU trùng lặp: "${sku}" (biến thể #${skuMap.get(sku)! + 1} và #${i + 1})`)
-                return
-            }
-            skuMap.set(sku, i)
-        }
-
-        // Validate: Check for duplicate size-color combinations
-        const sizeColorMap = new Map<string, number>()
-        for (let i = 0; i < unsavedVariants.length; i++) {
-            const variant = unsavedVariants[i]
-            const key = `${variant.sizeId}-${variant.colorId}`
-            if (sizeColorMap.has(key)) {
-                const size = sizes.find(s => s.id === variant.sizeId)
-                const color = colors.find(c => c.id === variant.colorId)
-                alert(`Cặp Size-Color trùng lặp: "${size?.name} - ${color?.name}" (biến thể #${sizeColorMap.get(key)! + 1} và #${i + 1})`)
-                return
-            }
-            sizeColorMap.set(key, i)
-        }
-
-        // Validate: Check against existing saved variants for duplicate SKUs
-        for (const unsavedVariant of unsavedVariants) {
-            const existingVariant = variants.find(v => v.sku === unsavedVariant.sku)
-            if (existingVariant) {
-                alert(`SKU "${unsavedVariant.sku}" đã tồn tại trong các biến thể đã lưu`)
-                return
-            }
-        }
-
-        // Validate: Check against existing saved variants for duplicate size-color
-        for (const unsavedVariant of unsavedVariants) {
-            const existingVariant = variants.find(v =>
-                v.sizeId === unsavedVariant.sizeId && v.colorId === unsavedVariant.colorId
-            )
-            if (existingVariant) {
-                const size = sizes.find(s => s.id === unsavedVariant.sizeId)
-                const color = colors.find(c => c.id === unsavedVariant.colorId)
-                alert(`Cặp Size-Color "${size?.name} - ${color?.name}" đã tồn tại trong các biến thể đã lưu`)
-                return
-            }
-        }
-
-        setSavingVariants(true)
-        try {
-            const createdVariants: ProductsApi.VariantResponse[] = []
-
-            for (const unsavedVariant of unsavedVariants) {
-                const variantRequest: ProductsApi.VariantCreateRequest = {
-                    sku: unsavedVariant.sku,
-                    barcode: unsavedVariant.barcode,
-                    sizeId: unsavedVariant.sizeId,
-                    colorId: unsavedVariant.colorId,
-                    priceAmount: unsavedVariant.priceAmount,
-                    compareAtAmount: unsavedVariant.compareAtAmount,
-                    historyCost: unsavedVariant.historyCost,
-                    weightGrams: unsavedVariant.weightGrams,
-                    status: unsavedVariant.status,
-                    inventory: {
-                        quantityOnHand: unsavedVariant.inventory?.quantityOnHand || 0,
-                        quantityReserved: 0,
-                        reorderLevel: unsavedVariant.inventory?.reorderLevel || 5
-                    }
-                }
-
-                const variant = await ProductsApi.createVariant(createdProduct.id, variantRequest)
-                createdVariants.push(variant)
-            }
-
-            // Move unsaved to saved
-            setVariants(prev => [...prev, ...createdVariants])
-            setUnsavedVariants([])
-
-            alert(`Đã lưu ${createdVariants.length} biến thể thành công!`)
-        } catch (error: unknown) {
-            console.error('Error saving variants:', error)
-            alert(extractErrorMessage(error, 'Lỗi lưu biến thể'))
-        } finally {
-            setSavingVariants(false)
-        }
-    }
-
-    const handleDeleteUnsavedVariant = (tempId: string) => {
-        setUnsavedVariants(prev => prev.filter(v => v.id !== tempId))
-    }
-
-    const handleEditUnsavedVariant = (tempId: string) => {
-        // Find the unsaved variant to edit
-        const variant = unsavedVariants.find(v => v.id === tempId)
-        if (!variant) return
-
-        // Populate edit form with current values
-        setEditFormData({
-            sku: variant.sku || '',
-            barcode: variant.barcode || '',
-            priceAmount: variant.priceAmount?.toString() || '',
-            compareAtAmount: variant.compareAtAmount?.toString() || '',
-            historyCost: variant.historyCost?.toString() || '',
-            weightGrams: variant.weightGrams?.toString() || '',
-            status: variant.status || 'ACTIVE',
-            quantityOnHand: variant.inventory?.quantityOnHand?.toString() || '0',
-            reorderLevel: variant.inventory?.reorderLevel?.toString() || '5',
-        })
-
-        // Show inline form
-        setEditingVariantId(tempId)
-    }
-
-    const handleCreateNewProduct = () => {
-        // Confirm if there's unsaved work
-        if (createdProduct && unsavedVariants.length > 0) {
-            const confirmReset = confirm(
-                `Bạn có ${unsavedVariants.length} biến thể chưa lưu. ` +
-                `Bạn có chắc muốn tạo sản phẩm mới không? Dữ liệu hiện tại sẽ bị xóa.`
-            )
-            if (!confirmReset) return
-        }
-
-        // Reset all states
-        setFormData({
-            name: '',
-            slug: '',
-            priceAmount: '',
-            brandId: '',
-            categoryIds: [],
-            description: '',
-            material: '',
-            gender: '',
-            seoTitle: '',
-            seoDescription: '',
-        })
-        setSlugLocked(false)
-
-        // Reset category levels to root only
-        const roots = categories.filter(cat => !cat.parentId || cat.level === 0)
-        setCategoryLevels([{
-            level: 0,
-            parentId: null,
-            selectedId: '',
-            options: roots
-        }])
-
-        setPrimaryImage('')
-        setGalleryImages([])
-        setImages([])
-        setColorImages({})
-        setCreatedProduct(null)
-        setVariants([])
-        setUnsavedVariants([])
-        setSelectedSizes([])
-        setSelectedColors([])
-        setEditingVariantId(null)
-        setPublishSuccess(false)
-
-        // Scroll to top
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
-
-    const handleSaveUnsavedEdit = (tempId: string) => {
-        // Validate SKU
-        const newSku = editFormData.sku.trim()
-        if (!newSku) {
-            alert('SKU không được để trống')
-            return
-        }
-
-        // Check for duplicate SKU in unsaved variants (excluding current one)
-        const duplicateUnsaved = unsavedVariants.find(v => v.id !== tempId && v.sku === newSku)
-        if (duplicateUnsaved) {
-            alert(`SKU "${newSku}" đã tồn tại trong biến thể chưa lưu khác`)
-            return
-        }
-
-        // Check for duplicate SKU in saved variants
-        const duplicateSaved = variants.find(v => v.sku === newSku)
-        if (duplicateSaved) {
-            alert(`SKU "${newSku}" đã tồn tại trong biến thể đã lưu`)
-            return
-        }
-
-        // Update the unsaved variant in local state
-        setUnsavedVariants(prev => prev.map(v => {
-            if (v.id === tempId) {
-                return {
-                    ...v,
-                    sku: editFormData.sku,
-                    barcode: editFormData.barcode || undefined,
-                    priceAmount: parseFloat(editFormData.priceAmount),
-                    compareAtAmount: editFormData.compareAtAmount ? parseFloat(editFormData.compareAtAmount) : undefined,
-                    historyCost: editFormData.historyCost ? parseFloat(editFormData.historyCost) : undefined,
-                    weightGrams: editFormData.weightGrams ? parseFloat(editFormData.weightGrams) : undefined,
-                    status: editFormData.status,
-                    inventory: {
-                        quantityOnHand: parseInt(editFormData.quantityOnHand),
-                        reorderLevel: parseInt(editFormData.reorderLevel),
-                    },
-                }
-            }
-            return v
-        }))
-
-        // Close edit form
-        setEditingVariantId(null)
-    }
-
-    const handleCancelEdit = () => {
-        setEditingVariantId(null)
-    }
-
-    const handleDeleteVariant = async (variantId: string) => {
-        if (!createdProduct || !confirm('Bạn có chắc muốn xóa biến thể này?')) return
-
-        try {
-            await ProductsApi.deleteVariant(createdProduct.id, variantId)
-            setVariants(prev => prev.filter(v => v.id !== variantId))
-            alert('Đã xóa biến thể')
+            setCompletedSteps([...completedSteps, 3])
+            setCurrentStep(4)
+            toast.success('Đã tạo tất cả biến thể thành công!')
         } catch (error) {
-            console.error('Error deleting variant:', error)
-            alert(extractErrorMessage(error, 'Lỗi xóa biến thể'))
+            console.error('Error creating variants:', error)
+            toast.error(extractProblemMessage(error) || 'Không thể tạo biến thể')
+        } finally {
+            setSaving(false)
         }
     }
 
-    const handleSaveEdit = async (variantId: string) => {
+    // STEP 4: Upload images
+    const handleStep4Submit = async () => {
         if (!createdProduct) return
 
-        const variant = variants.find(v => v.id === variantId)
-        if (!variant) return
-
-        // Validate SKU
-        const newSku = editFormData.sku.trim()
-        if (!newSku) {
-            alert('SKU không được để trống')
+        if (!primaryImage && galleryImages.length === 0) {
+            toast.warning('Vui lòng tải lên ít nhất một hình ảnh')
             return
         }
 
-        // Check for duplicate SKU in saved variants (excluding current one)
-        const duplicateSaved = variants.find(v => v.id !== variantId && v.sku === newSku)
-        if (duplicateSaved) {
-            alert(`SKU "${newSku}" đã tồn tại trong biến thể đã lưu khác`)
-            return
-        }
-
-        // Check for duplicate SKU in unsaved variants
-        const duplicateUnsaved = unsavedVariants.find(v => v.sku === newSku)
-        if (duplicateUnsaved) {
-            alert(`SKU "${newSku}" đã tồn tại trong biến thể chưa lưu`)
-            return
-        }
-
-        setEditLoading(true)
+        setSaving(true)
         try {
-            const updateData: ProductsApi.VariantUpdateRequest = {
-                sku: editFormData.sku,
-                barcode: editFormData.barcode,
-                priceAmount: parseFloat(editFormData.priceAmount),
-                compareAtAmount: editFormData.compareAtAmount ? parseFloat(editFormData.compareAtAmount) : undefined,
-                historyCost: editFormData.historyCost ? parseFloat(editFormData.historyCost) : undefined,
-                weightGrams: editFormData.weightGrams ? parseFloat(editFormData.weightGrams) : undefined,
-                status: editFormData.status,
-                version: variant.version || 0,
-                inventory: {
-                    quantityOnHand: parseInt(editFormData.quantityOnHand),
-                    reorderLevel: parseInt(editFormData.reorderLevel),
-                },
+            const imageRequests: ProductsApi.ProductImageRequest[] = []
+
+            // Primary image
+            if (primaryImage) {
+                imageRequests.push({
+                    imageUrl: primaryImage,
+                    isDefault: true,
+                    position: 0,
+                })
             }
 
-            await ProductsApi.updateVariant(createdProduct.id, variantId, updateData)
+            // Gallery images
+            galleryImages.forEach((url, index) => {
+                imageRequests.push({
+                    imageUrl: url,
+                    isDefault: false,
+                    position: (primaryImage ? 1 : 0) + index,
+                })
+            })
 
-            // Reload variants
-            const updatedVariants = await ProductsApi.getProductVariants(createdProduct.id)
-            setVariants(updatedVariants)
+            // Color-specific images
+            Object.entries(colorImageMap).forEach(([colorId, urls]) => {
+                urls.forEach((url, index) => {
+                    imageRequests.push({
+                        imageUrl: url,
+                        colorId,
+                        isDefault: false,
+                        position: imageRequests.length + index,
+                    })
+                })
+            })
 
-            // Close edit form
-            setEditingVariantId(null)
-        } catch (error: unknown) {
-            console.error('Error updating variant:', error)
-            const message = error instanceof Error ? error.message : 'Failed to update variant'
-            alert(message)
+            await ProductsApi.updateProduct(createdProduct.id, {
+                name: createdProduct.name,
+                priceAmount: createdProduct.price || 0,
+                categoryIds: selectedCategoryIds,
+                images: imageRequests,
+                brandId: createdProduct.brandId,
+                description: createdProduct.description,
+                material: createdProduct.material,
+                gender: createdProduct.gender,
+                seoTitle: createdProduct.seoTitle,
+                seoDescription: createdProduct.seoDescription,
+            })
+
+            setCompletedSteps([...completedSteps, 4])
+            setCurrentStep(5)
+        } catch (error) {
+            console.error('Error uploading images:', error)
+            toast.error(extractProblemMessage(error) || 'Không thể tải lên hình ảnh')
         } finally {
-            setEditLoading(false)
+            setSaving(false)
         }
     }
 
-    const handleEditVariant = (variantId: string) => {
+    // STEP 5: Finalize and publish
+    const handleStep5Submit = async () => {
         if (!createdProduct) return
 
-        // Find the variant to edit
-        const variant = variants.find(v => v.id === variantId)
-        if (!variant) return
+        setSaving(true)
+        try {
+            await ProductsApi.updateProduct(createdProduct.id, {
+                name: createdProduct.name,
+                priceAmount: createdProduct.price || 0,
+                categoryIds: selectedCategoryIds,
+                seoTitle: seoData.seoTitle || createdProduct.name,
+                seoDescription: seoData.seoDescription || createdProduct.description,
+                brandId: createdProduct.brandId,
+                description: createdProduct.description,
+                material: createdProduct.material,
+                gender: createdProduct.gender,
+            })
 
-        // Populate edit form with current values
-        setEditFormData({
-            sku: variant.sku || '',
-            barcode: variant.barcode || '',
-            priceAmount: variant.priceAmount?.toString() || '',
-            compareAtAmount: variant.compareAtAmount?.toString() || '',
-            historyCost: variant.historyCost?.toString() || '',
-            weightGrams: variant.weightGrams?.toString() || '',
-            status: variant.status || 'ACTIVE',
-            quantityOnHand: variant.inventory?.quantityOnHand?.toString() || '0',
-            reorderLevel: variant.inventory?.reorderLevel?.toString() || '5',
-        })
+            if (publishNow) {
+                await ProductsApi.publishProduct(createdProduct.id)
+                toast.success('Sản phẩm đã được xuất bản thành công!')
+            } else {
+                toast.success('Sản phẩm đã được lưu dưới dạng nháp!')
+            }
 
-        // Show inline form
-        setEditingVariantId(variantId)
+            navigate('/admin/products')
+        } catch (error) {
+            console.error('Error finalizing product:', error)
+            toast.error(extractProblemMessage(error) || 'Không thể hoàn tất sản phẩm')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handlePrimaryImageUpload = (urls: string[]) => {
+        if (urls.length > 0) {
+            setPrimaryImage(urls[0])
+        }
+    }
+
+    const handleGalleryImageUpload = (urls: string[]) => {
+        setGalleryImages(prev => [...prev, ...urls])
+    }
+
+    const handleColorImageUpload = (colorId: string, urls: string[]) => {
+        setColorImageMap(prev => ({
+            ...prev,
+            [colorId]: [...(prev[colorId] || []), ...urls],
+        }))
     }
 
     if (loading) {
@@ -937,44 +421,8 @@ export default function ProductCreate() {
 
     return (
         <div className="space-y-6">
-            {/* Success Notification Bar */}
-            {publishSuccess && createdProduct && (
-                <div className="bg-green-50 border-l-4 border-green-500 p-4 shadow-md flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="flex-shrink-0">
-                            <svg className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                        </div>
-                        <div>
-                            <p className="text-sm font-medium text-green-800">
-                                Product published.{' '}
-                                <a
-                                    href={`/products/${createdProduct.slug}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="underline hover:text-green-900"
-                                >
-                                    View Product
-                                </a>
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => setPublishSuccess(false)}
-                        className="flex-shrink-0 ml-4 inline-flex text-green-500 hover:text-green-700"
-                    >
-                        <span className="sr-only">Close</span>
-                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                    </button>
-                </div>
-            )}
-
             {/* Header */}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <button
                         onClick={() => navigate('/admin/products')}
@@ -986,86 +434,54 @@ export default function ProductCreate() {
                         {createdProduct ? `Chỉnh sửa: ${createdProduct.name}` : 'Thêm sản phẩm mới'}
                     </h1>
                 </div>
-
-                {createdProduct && (
-                    <button
-                        type="button"
-                        onClick={handleCreateNewProduct}
-                        className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Thêm sản phẩm mới
-                    </button>
-                )}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column - Product Info */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Basic Info */}
-                    <form onSubmit={handleCreateProduct} className="bg-white shadow rounded-lg p-6 space-y-4">
-                        <h2 className="text-lg font-semibold">Thông tin cơ bản</h2>
+            {/* Stepper */}
+            <ProductStepper currentStep={currentStep} completedSteps={completedSteps} />
+
+            {/* Step Content */}
+            <div className="bg-white shadow rounded-lg p-6">
+                {/* STEP 1: General Info */}
+                {currentStep === 1 && (
+                    <div className="space-y-6">
+                        <div>
+                            <h2 className="text-xl font-semibold mb-4">Bước 1: Thông tin chung</h2>
+                            <p className="text-gray-600 mb-6">Nhập thông tin cơ bản về sản phẩm của bạn</p>
+                        </div>
 
                         <div>
-                            <label className="block text-sm font-medium mb-1">Tên sản phẩm *</label>
+                            <label className="block text-sm font-medium mb-2">Tên sản phẩm *</label>
                             <input
                                 type="text"
                                 value={formData.name}
                                 onChange={(e) => handleNameChange(e.target.value)}
-                                className="w-full border rounded px-3 py-2"
-                                placeholder="Áo thun basic"
+                                className="w-full border rounded-lg px-4 py-3 text-lg"
+                                placeholder="VD: Áo thun cotton cao cấp"
                                 required
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium mb-1">Slug *</label>
+                            <label className="block text-sm font-medium mb-2">Slug (URL thân thiện) *</label>
                             <input
                                 type="text"
                                 value={formData.slug}
                                 onChange={(e) => handleSlugChange(e.target.value)}
-                                className="w-full border rounded px-3 py-2"
-                                placeholder="ao-thun-basic"
+                                className="w-full border rounded-lg px-4 py-3"
+                                placeholder="ao-thun-cotton-cao-cap"
                                 required
                             />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Giá (VNĐ) *</label>
-                                <input
-                                    type="number"
-                                    value={formData.priceAmount}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, priceAmount: e.target.value }))}
-                                    className="w-full border rounded px-3 py-2"
-                                    placeholder="350000"
-                                    required
-                                    min="0"
-                                    step="1000"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Giới tính</label>
-                                <select
-                                    value={formData.gender}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value as ProductsApi.Gender }))}
-                                    className="w-full border rounded px-3 py-2"
-                                >
-                                    <option value="">-- Chọn --</option>
-                                    <option value="men">Nam</option>
-                                    <option value="women">Nữ</option>
-                                    <option value="unisex">Unisex</option>
-                                </select>
-                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                                URL sẽ là: /products/{formData.slug || 'slug-cua-san-pham'}
+                            </p>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium mb-1">Thương hiệu</label>
+                            <label className="block text-sm font-medium mb-2">Thương hiệu</label>
                             <select
                                 value={formData.brandId}
                                 onChange={(e) => setFormData(prev => ({ ...prev, brandId: e.target.value }))}
-                                className="w-full border rounded px-3 py-2"
+                                className="w-full border rounded-lg px-4 py-3"
                             >
                                 <option value="">-- Chọn thương hiệu --</option>
                                 {brands.map(brand => (
@@ -1075,452 +491,432 @@ export default function ProductCreate() {
                         </div>
 
                         <div>
-                            <div className="flex items-center justify-between mb-1">
-                                <label className="block text-sm font-medium">Danh mục</label>
-                                {/* Reset button - only show when a category is selected */}
-                                {(categoryLevels.length > 1 || categoryLevels[0]?.selectedId) && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            // Reset to initial state - only root categories
-                                            const roots = categories.filter(cat => !cat.parentId || cat.level === 0)
-                                            setCategoryLevels([{
-                                                level: 0,
-                                                parentId: null,
-                                                selectedId: '',
-                                                options: roots
-                                            }])
-                                            setFormData(prev => ({ ...prev, categoryIds: [] }))
-                                        }}
-                                        className="text-xs text-red-600 hover:text-red-700 underline"
-                                    >
-                                        Đổi danh mục
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* Dynamic Category Levels */}
-                            <div className="space-y-2">
-                                {categoryLevels.map((level, index) => (
-                                    <div key={`category-level-${index}`}>
-                                        <label className="block text-xs text-gray-600 mb-1">
-                                            {index === 0 ? 'Danh mục chính' : `Danh mục con cấp ${index}`}
-                                        </label>
-                                        <select
-                                            value={level.selectedId}
-                                            onChange={(e) => handleCategoryChange(index, e.target.value)}
-                                            className="w-full border rounded px-3 py-2"
-                                        >
-                                            <option value="">-- Chọn danh mục --</option>
-                                            {level.options.map(cat => (
-                                                <option key={cat.id} value={cat.id}>
-                                                    {cat.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Show selected category path (only for leaf nodes) */}
-                            {formData.categoryIds.length > 0 && (
-                                <p className="text-xs text-green-600 mt-2">
-                                    ✓ Đã chọn: {getSelectedCategoryPath()}
-                                </p>
-                            )}
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Mô tả</label>
+                            <label className="block text-sm font-medium mb-2">Mô tả sản phẩm</label>
                             <textarea
                                 value={formData.description}
                                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                                className="w-full border rounded px-3 py-2"
-                                rows={4}
-                                placeholder="Mô tả sản phẩm..."
+                                className="w-full border rounded-lg px-4 py-3"
+                                rows={6}
+                                placeholder="Nhập mô tả chi tiết về sản phẩm..."
                             />
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Chất liệu</label>
-                            <input
-                                type="text"
-                                value={formData.material}
-                                onChange={(e) => setFormData(prev => ({ ...prev, material: e.target.value }))}
-                                className="w-full border rounded px-3 py-2"
-                                placeholder="Cotton, Polyester..."
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium mb-1">SEO Title</label>
-                            <input
-                                type="text"
-                                value={formData.seoTitle}
-                                onChange={(e) => setFormData(prev => ({ ...prev, seoTitle: e.target.value }))}
-                                className="w-full border rounded px-3 py-2"
-                                placeholder="Tiêu đề SEO"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium mb-1">SEO Description</label>
-                            <textarea
-                                value={formData.seoDescription}
-                                onChange={(e) => setFormData(prev => ({ ...prev, seoDescription: e.target.value }))}
-                                className="w-full border rounded px-3 py-2"
-                                rows={2}
-                                placeholder="Mô tả SEO"
-                            />
-                        </div>
-
-                        {!createdProduct && (
-                            <button
-                                type="submit"
-                                disabled={creating}
-                                className="w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50"
-                            >
-                                {creating ? 'Đang tạo...' : 'Tạo sản phẩm'}
-                            </button>
-                        )}
-
-                        {createdProduct && (
-                            <div className="bg-green-50 border border-green-200 rounded p-4">
-                                <p className="text-green-700 font-medium">
-                                    ✓ Sản phẩm đã được tạo thành công!
-                                </p>
-                                <p className="text-sm text-green-600 mt-1">
-                                    Bạn có thể tạo biến thể bên dưới
-                                </p>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Chất liệu</label>
+                                <input
+                                    type="text"
+                                    value={formData.material}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, material: e.target.value }))}
+                                    className="w-full border rounded-lg px-4 py-3"
+                                    placeholder="VD: Cotton 100%"
+                                />
                             </div>
-                        )}
-                    </form>
 
-                    {/* Variants Section */}
-                    {createdProduct && (
-                        <div className="bg-white shadow rounded-lg p-6 space-y-4">
-                            <h2 className="text-lg font-semibold">Biến thể sản phẩm</h2>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Giới tính</label>
+                                <div className="flex gap-4 pt-2">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="gender"
+                                            value="men"
+                                            checked={formData.gender === 'men'}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value as ProductsApi.Gender }))}
+                                            className="w-4 h-4"
+                                        />
+                                        <span>Nam</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="gender"
+                                            value="women"
+                                            checked={formData.gender === 'women'}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value as ProductsApi.Gender }))}
+                                            className="w-4 h-4"
+                                        />
+                                        <span>Nữ</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="gender"
+                                            value="unisex"
+                                            checked={formData.gender === 'unisex'}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value as ProductsApi.Gender }))}
+                                            className="w-4 h-4"
+                                        />
+                                        <span>Unisex</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
 
-                            {/* Generate Variants */}
-                            {variants.length === 0 && (
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium mb-2">Chọn kích thước</label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {sizes.map(size => (
-                                                <label key={size.id} className="flex items-center gap-2 border rounded px-3 py-2 cursor-pointer hover:bg-gray-50">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedSizes.includes(size.id!)}
-                                                        onChange={(e) => {
-                                                            if (e.target.checked) {
-                                                                setSelectedSizes(prev => [...prev, size.id!])
-                                                            } else {
-                                                                setSelectedSizes(prev => prev.filter(id => id !== size.id))
-                                                            }
-                                                        }}
-                                                    />
-                                                    <span>{size.name} ({size.code})</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
+                        <div className="flex justify-end gap-3 pt-6 border-t">
+                            <button
+                                type="button"
+                                onClick={handleStep1Submit}
+                                disabled={saving || !formData.name || !formData.slug}
+                                className="flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {saving ? 'Đang lưu...' : 'Tạo & Tiếp tục'}
+                                <ArrowRight className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+                )}
 
-                                    <div>
-                                        <label className="block text-sm font-medium mb-2">Chọn màu sắc</label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {colors.map(color => (
-                                                <label key={color.id} className="flex items-center gap-2 border rounded px-3 py-2 cursor-pointer hover:bg-gray-50">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedColors.includes(color.id!)}
-                                                        onChange={(e) => {
-                                                            if (e.target.checked) {
-                                                                setSelectedColors(prev => [...prev, color.id!])
-                                                            } else {
-                                                                setSelectedColors(prev => prev.filter(id => id !== color.id))
-                                                            }
-                                                        }}
-                                                    />
-                                                    <div
-                                                        className="w-5 h-5 rounded border"
-                                                        style={{ backgroundColor: color.hexCode }}
-                                                    />
-                                                    <span>{color.name}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
+                {/* STEP 2: Categorization */}
+                {currentStep === 2 && (
+                    <div className="space-y-6">
+                        <div>
+                            <h2 className="text-xl font-semibold mb-4">Bước 2: Phân loại sản phẩm</h2>
+                            <p className="text-gray-600 mb-6">Chọn danh mục phù hợp để khách hàng dễ dàng tìm kiếm</p>
+                        </div>
 
-                                    <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded border border-gray-200">
-                                        <div className="col-span-2 text-sm font-medium text-gray-700 mb-2">
-                                            Thiết lập mặc định cho các biến thể
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-600 mb-1">Giá gốc (VNĐ)</label>
-                                            <input
-                                                type="number"
-                                                value={defaultHistoryCost}
-                                                onChange={(e) => setDefaultHistoryCost(e.target.value)}
-                                                className="w-full border rounded px-3 py-2 text-sm"
-                                                placeholder="0"
-                                                min="0"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-600 mb-1">Khối lượng (gram)</label>
-                                            <input
-                                                type="number"
-                                                value={defaultWeight}
-                                                onChange={(e) => setDefaultWeight(e.target.value)}
-                                                className="w-full border rounded px-3 py-2 text-sm"
-                                                placeholder="200"
-                                                min="0"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-600 mb-1">Tồn kho ban đầu</label>
-                                            <input
-                                                type="number"
-                                                value={defaultInventory}
-                                                onChange={(e) => setDefaultInventory(e.target.value)}
-                                                className="w-full border rounded px-3 py-2 text-sm"
-                                                placeholder="10"
-                                                min="0"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-600 mb-1">Mức đặt hàng lại</label>
-                                            <input
-                                                type="number"
-                                                value={defaultReorderLevel}
-                                                onChange={(e) => setDefaultReorderLevel(e.target.value)}
-                                                className="w-full border rounded px-3 py-2 text-sm"
-                                                placeholder="5"
-                                                min="0"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        onClick={handleGenerateVariants}
-                                        disabled={selectedSizes.length === 0 || selectedColors.length === 0}
-                                        className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                        <div className="space-y-4">
+                            {categoryLevels.map((level, index) => (
+                                <div key={`category-level-${index}`}>
+                                    <label className="block text-sm font-medium mb-2">
+                                        {index === 0 ? 'Danh mục chính' : `Danh mục con cấp ${index}`}
+                                    </label>
+                                    <select
+                                        value={level.selectedId}
+                                        onChange={(e) => handleCategoryChange(index, e.target.value)}
+                                        className="w-full border rounded-lg px-4 py-3"
                                     >
-                                        <Plus className="w-4 h-4" />
-                                        Tạo {selectedSizes.length * selectedColors.length} biến thể
+                                        <option value="">-- Chọn danh mục --</option>
+                                        {level.options.map(cat => (
+                                            <option key={cat.id} value={cat.id}>
+                                                {cat.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            ))}
+
+                            {selectedCategoryIds.length > 0 && (
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <p className="text-sm text-green-700">
+                                        ✓ Đã chọn: <strong>{getSelectedCategoryPath()}</strong>
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex justify-between gap-3 pt-6 border-t">
+                            <button
+                                type="button"
+                                onClick={() => setCurrentStep(1)}
+                                className="flex items-center gap-2 border border-gray-300 px-6 py-3 rounded-lg font-medium hover:bg-gray-50"
+                            >
+                                <ArrowLeft className="w-5 h-5" />
+                                Quay lại
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleStep2Submit}
+                                disabled={saving || selectedCategoryIds.length === 0}
+                                className="flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 disabled:opacity-50"
+                            >
+                                {saving ? 'Đang lưu...' : 'Lưu & Tiếp tục'}
+                                <ArrowRight className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* STEP 3: Variants & Inventory */}
+                {currentStep === 3 && (
+                    <div className="space-y-6">
+                        <div>
+                            <h2 className="text-xl font-semibold mb-4">Bước 3: Biến thể & Kho hàng</h2>
+                            <p className="text-gray-600 mb-6">Tạo các biến thể sản phẩm (kích thước, màu sắc) và quản lý tồn kho</p>
+                        </div>
+
+                        <VariantMatrixEditor
+                            sizes={sizes}
+                            colors={colors}
+                            variants={variantRows}
+                            onVariantsChange={setVariantRows}
+                            productName={formData.name}
+                        />
+
+                        <div className="flex justify-between gap-3 pt-6 border-t">
+                            <button
+                                type="button"
+                                onClick={() => setCurrentStep(2)}
+                                className="flex items-center gap-2 border border-gray-300 px-6 py-3 rounded-lg font-medium hover:bg-gray-50"
+                            >
+                                <ArrowLeft className="w-5 h-5" />
+                                Quay lại
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleStep3Submit}
+                                disabled={saving || variantRows.length === 0}
+                                className="flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 disabled:opacity-50"
+                            >
+                                {saving ? 'Đang lưu...' : 'Lưu cấu hình & Tiếp tục'}
+                                <ArrowRight className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* STEP 4: Media Gallery */}
+                {currentStep === 4 && (
+                    <div className="space-y-6">
+                        <div>
+                            <h2 className="text-xl font-semibold mb-4">Bước 4: Hình ảnh sản phẩm</h2>
+                            <p className="text-gray-600 mb-6">Thêm hình ảnh để sản phẩm hấp dẫn hơn</p>
+                        </div>
+
+                        {/* Primary Image */}
+                        <div className="border rounded-lg p-6">
+                            <h3 className="font-semibold mb-4">Ảnh đại diện ⭐</h3>
+                            {!primaryImage ? (
+                                <ImageUploadZone
+                                    id="primary-image"
+                                    description="Kéo thả hoặc click để chọn ảnh đại diện"
+                                    autoUpload={true}
+                                    uploadType="product"
+                                    onUploadComplete={handlePrimaryImageUpload}
+                                />
+                            ) : (
+                                <div className="relative inline-block">
+                                    <img src={primaryImage} alt="Primary" className="w-48 h-48 object-cover rounded-lg border-4 border-yellow-400" />
+                                    <button
+                                        onClick={() => setPrimaryImage('')}
+                                        className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-700"
+                                    >
+                                        ✕
                                     </button>
                                 </div>
                             )}
-
-                            {/* Variants List */}
-                            <ProductVariantsList
-                                variants={variants}
-                                unsavedVariants={unsavedVariants}
-                                savingVariants={savingVariants}
-                                sizes={sizes}
-                                colors={colors}
-                                createdProduct={createdProduct}
-                                editingVariantId={editingVariantId}
-                                editFormData={editFormData}
-                                editLoading={editLoading}
-                                colorImages={colorImages}
-                                onSaveVariants={handleSaveVariants}
-                                onEditVariant={handleEditVariant}
-                                onDeleteVariant={handleDeleteVariant}
-                                onEditUnsavedVariant={handleEditUnsavedVariant}
-                                onDeleteUnsavedVariant={handleDeleteUnsavedVariant}
-                                onSaveEdit={handleSaveEdit}
-                                onSaveUnsavedEdit={handleSaveUnsavedEdit}
-                                onCancelEdit={handleCancelEdit}
-                                onColorImageUpload={handleColorImageUploadComplete}
-                                onRemoveColorImage={removeColorImage}
-                                onEditFormDataChange={setEditFormData}
-                            />
-
-                            {/* Action buttons */}
-                            <div className="flex gap-3 mt-4">
-                                <button
-                                    type="button"
-                                    onClick={handleSaveProduct}
-                                    disabled={saving}
-                                    className="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                                >
-                                    {saving ? 'Đang lưu...' : '💾 Lưu sản phẩm'}
-                                </button>
-
-                                {createdProduct?.status === 'DRAFT' && (
-                                    <button
-                                        type="button"
-                                        onClick={handlePublishProduct}
-                                        disabled={publishing || variants.length === 0 || unsavedVariants.length > 0}
-                                        className="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                                        title={
-                                            variants.length === 0
-                                                ? 'Cần có ít nhất 1 biến thể để xuất bản'
-                                                : unsavedVariants.length > 0
-                                                    ? 'Vui lòng lưu tất cả biến thể trước khi xuất bản'
-                                                    : ''
-                                        }
-                                    >
-                                        {publishing ? 'Đang xuất bản...' : '🚀 Xuất bản'}
-                                    </button>
-                                )}
-
-                                {createdProduct?.status === 'ACTIVE' && (
-                                    <a
-                                        href={`/products/${createdProduct.slug}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-center"
-                                    >
-                                        ✅ Đã xuất bản - Xem sản phẩm
-                                    </a>
-                                )}
-
-                                <button
-                                    type="button"
-                                    onClick={() => navigate('/admin/products')}
-                                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-                                >
-                                    Quay lại
-                                </button>
-                            </div>
                         </div>
-                    )}
-                </div>
 
-                {/* Right Column - Images */}
-                <div className="space-y-6">
-                    {/* Primary Image */}
-                    <div className="bg-white shadow rounded-lg p-6 space-y-4">
-                        <h2 className="text-lg font-semibold">Ảnh chính (Primary Image)</h2>
-                        <p className="text-sm text-gray-600">Chỉ chọn 1 ảnh làm ảnh đại diện chính cho sản phẩm</p>
-
-                        {!primaryImage && (
+                        {/* Gallery Images */}
+                        <div className="border rounded-lg p-6">
+                            <h3 className="font-semibold mb-4">Thư viện ảnh (Gallery)</h3>
                             <ImageUploadZone
-                                id="primary-image"
-                                description="Kéo thả hoặc click để chọn ảnh chính"
+                                id="gallery-images"
+                                description="Kéo thả hoặc click để chọn nhiều ảnh"
                                 autoUpload={true}
                                 uploadType="product"
-                                onUploadComplete={handlePrimaryImageUploadComplete}
+                                onUploadComplete={handleGalleryImageUpload}
                             />
-                        )}
-
-                        {primaryImage && (
-                            <div className="space-y-2">
-                                <div className="relative group">
-                                    <img
-                                        src={primaryImage}
-                                        alt="Primary"
-                                        className="w-full h-64 object-cover rounded border"
-                                    />
-                                    <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-2 py-1 rounded">
-                                        Ảnh chính
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={removePrimaryImage}
-                                        className="absolute top-2 right-2 bg-red-600 text-white px-3 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                                    >
-                                        ✕ Xóa
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {createdProduct && (
-                            <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                                <p className="text-xs text-blue-700">
-                                    💡 Nhớ nhấn nút "Lưu sản phẩm" sau khi thêm/xóa ảnh để cập nhật thay đổi
-                                </p>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Gallery Images */}
-                    <div className="bg-white shadow rounded-lg p-6 space-y-4">
-                        <h2 className="text-lg font-semibold">Thư viện ảnh (Gallery Images)</h2>
-                        <p className="text-sm text-gray-600">Thêm nhiều ảnh để hiển thị trong thư viện sản phẩm</p>
-
-                        <ImageUploadZone
-                            id="gallery-images"
-                            description="Kéo thả hoặc click để chọn nhiều ảnh"
-                            autoUpload={true}
-                            uploadType="product"
-                            onUploadComplete={handleGalleryImageUploadComplete}
-                        />
-
-                        {galleryImages.length > 0 && (
-                            <div className="space-y-2">
-                                <h3 className="text-sm font-medium">Ảnh thư viện ({galleryImages.length})</h3>
-                                <div className="grid grid-cols-2 gap-2">
+                            {galleryImages.length > 0 && (
+                                <div className="grid grid-cols-4 gap-4 mt-4">
                                     {galleryImages.map((url, idx) => (
                                         <div key={idx} className="relative group">
-                                            <img
-                                                src={url}
-                                                alt={`Gallery ${idx + 1}`}
-                                                className="w-full h-32 object-cover rounded border"
-                                            />
+                                            <img src={url} alt={`Gallery ${idx}`} className="w-full h-32 object-cover rounded-lg border" />
                                             <button
-                                                type="button"
-                                                onClick={() => removeGalleryImage(idx)}
-                                                className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                                onClick={() => setGalleryImages(prev => prev.filter((_, i) => i !== idx))}
+                                                className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
                                             >
                                                 ✕
                                             </button>
                                         </div>
                                     ))}
                                 </div>
-                            </div>
-                        )}
-
-                        {createdProduct && (
-                            <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                                <p className="text-xs text-blue-700">
-                                    💡 Nhớ nhấn nút "Lưu sản phẩm" sau khi thêm/xóa ảnh để cập nhật thay đổi
-                                </p>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Legacy Images (kept for backwards compatibility) */}
-                    {images.length > 0 && (
-                        <div className="bg-white shadow rounded-lg p-6 space-y-4">
-                            <h2 className="text-lg font-semibold">Ảnh cũ (Legacy)</h2>
-
-                            {images.length > 0 && (
-                                <div className="space-y-2">
-                                    <h3 className="text-sm font-medium">Ảnh đã chọn ({images.length})</h3>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {images.map((url, idx) => (
-                                            <div key={idx} className="relative group">
-                                                <img
-                                                    src={url}
-                                                    alt={`Product ${idx + 1}`}
-                                                    className="w-full h-32 object-cover rounded border"
-                                                />
-                                                {idx === 0 && (
-                                                    <div className="absolute top-1 left-1 bg-green-600 text-white text-xs px-2 py-1 rounded">
-                                                        Ảnh chính
-                                                    </div>
-                                                )}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeImage(idx)}
-                                                    className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    ✕
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
                             )}
                         </div>
-                    )}
-                </div>
+
+                        {/* Color-specific Images */}
+                        {variantRows.some(v => v.colorId) && (
+                            <div className="border rounded-lg p-6">
+                                <h3 className="font-semibold mb-4">Ảnh theo màu sắc</h3>
+                                <p className="text-sm text-gray-600 mb-4">Tải lên ảnh riêng cho từng màu sắc</p>
+                                
+                                <div className="space-y-4">
+                                    {Array.from(new Set(variantRows.map(v => v.colorId).filter(Boolean))).map(colorId => {
+                                        const color = colors.find(c => c.id === colorId)
+                                        if (!color) return null
+
+                                        return (
+                                            <div key={colorId} className="border rounded p-4">
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <div
+                                                        className="w-8 h-8 rounded border-2 border-gray-300"
+                                                        style={{ backgroundColor: color.hexCode }}
+                                                    />
+                                                    <span className="font-medium">{color.name}</span>
+                                                </div>
+                                                <ImageUploadZone
+                                                    id={`color-${colorId}`}
+                                                    description={`Ảnh cho màu ${color.name}`}
+                                                    autoUpload={true}
+                                                    uploadType="product"
+                                                    onUploadComplete={(urls) => handleColorImageUpload(colorId!, urls)}
+                                                />
+                                                {colorImageMap[colorId!]?.length > 0 && (
+                                                    <div className="grid grid-cols-4 gap-2 mt-3">
+                                                        {colorImageMap[colorId!].map((url, idx) => (
+                                                            <div key={idx} className="relative group">
+                                                                <img src={url} alt={`${color.name} ${idx}`} className="w-full h-20 object-cover rounded border" />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex justify-between gap-3 pt-6 border-t">
+                            <button
+                                type="button"
+                                onClick={() => setCurrentStep(3)}
+                                className="flex items-center gap-2 border border-gray-300 px-6 py-3 rounded-lg font-medium hover:bg-gray-50"
+                            >
+                                <ArrowLeft className="w-5 h-5" />
+                                Quay lại
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleStep4Submit}
+                                disabled={saving}
+                                className="flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 disabled:opacity-50"
+                            >
+                                {saving ? 'Đang lưu...' : 'Lưu hình ảnh & Tiếp tục'}
+                                <ArrowRight className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* STEP 5: SEO & Finalize */}
+                {currentStep === 5 && (
+                    <div className="space-y-6">
+                        <div>
+                            <h2 className="text-xl font-semibold mb-4">Bước 5: SEO & Hoàn tất</h2>
+                            <p className="text-gray-600 mb-6">Tối ưu hóa SEO và quyết định xuất bản sản phẩm</p>
+                        </div>
+
+                        {/* SEO Preview */}
+                        <div className="border rounded-lg p-6 bg-gray-50">
+                            <h3 className="font-semibold mb-4 flex items-center gap-2">
+                                <Globe className="w-5 h-5" />
+                                Xem trước trên Google
+                            </h3>
+                            <div className="bg-white p-4 rounded border">
+                                <div className="text-blue-600 text-lg hover:underline cursor-pointer">
+                                    {seoData.seoTitle || formData.name}
+                                </div>
+                                <div className="text-green-700 text-sm mt-1">
+                                    https://yourdomain.com/products/{formData.slug}
+                                </div>
+                                <div className="text-gray-600 text-sm mt-2">
+                                    {seoData.seoDescription || formData.description || 'Mô tả sản phẩm sẽ hiển thị ở đây'}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* SEO Fields */}
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2">SEO Title</label>
+                                <input
+                                    type="text"
+                                    value={seoData.seoTitle}
+                                    onChange={(e) => setSeoData(prev => ({ ...prev, seoTitle: e.target.value }))}
+                                    className="w-full border rounded-lg px-4 py-3"
+                                    placeholder={formData.name}
+                                    maxLength={60}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">{seoData.seoTitle.length}/60 ký tự</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium mb-2">SEO Description</label>
+                                <textarea
+                                    value={seoData.seoDescription}
+                                    onChange={(e) => setSeoData(prev => ({ ...prev, seoDescription: e.target.value }))}
+                                    className="w-full border rounded-lg px-4 py-3"
+                                    rows={3}
+                                    placeholder={formData.description}
+                                    maxLength={160}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">{seoData.seoDescription.length}/160 ký tự</p>
+                            </div>
+                        </div>
+
+                        {/* Summary Stats */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                            <h3 className="font-semibold mb-4">Tóm tắt sản phẩm</h3>
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="bg-white rounded-lg p-4">
+                                    <div className="text-2xl font-bold text-red-600">{variantRows.length}</div>
+                                    <div className="text-sm text-gray-600">Biến thể</div>
+                                </div>
+                                <div className="bg-white rounded-lg p-4">
+                                    <div className="text-2xl font-bold text-green-600">
+                                        {variantRows.reduce((sum, v) => sum + parseInt(v.quantityOnHand || '0'), 0)}
+                                    </div>
+                                    <div className="text-sm text-gray-600">Tổng tồn kho</div>
+                                </div>
+                                <div className="bg-white rounded-lg p-4">
+                                    <div className="text-2xl font-bold text-blue-600">
+                                        {primaryImage ? 1 : 0} + {galleryImages.length}
+                                    </div>
+                                    <div className="text-sm text-gray-600">Hình ảnh</div>
+                                </div>
+                                <div className="bg-white rounded-lg p-4">
+                                    <div className="text-2xl font-bold text-purple-600">
+                                        {selectedCategoryIds.length}
+                                    </div>
+                                    <div className="text-sm text-gray-600">Danh mục</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Publish Toggle */}
+                        <div className="border rounded-lg p-6">
+                            <label className="flex items-center justify-between cursor-pointer">
+                                <div>
+                                    <div className="font-semibold">Xuất bản ngay lập tức</div>
+                                    <div className="text-sm text-gray-600">
+                                        {publishNow 
+                                            ? 'Sản phẩm sẽ hiển thị công khai trên website' 
+                                            : 'Sản phẩm sẽ được lưu dưới dạng nháp (Draft)'}
+                                    </div>
+                                </div>
+                                <div className="relative">
+                                    <input
+                                        type="checkbox"
+                                        checked={publishNow}
+                                        onChange={(e) => setPublishNow(e.target.checked)}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-14 h-8 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-red-600"></div>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div className="flex justify-between gap-3 pt-6 border-t">
+                            <button
+                                type="button"
+                                onClick={() => setCurrentStep(4)}
+                                className="flex items-center gap-2 border border-gray-300 px-6 py-3 rounded-lg font-medium hover:bg-gray-50"
+                            >
+                                <ArrowLeft className="w-5 h-5" />
+                                Quay lại
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleStep5Submit}
+                                disabled={saving}
+                                className="flex items-center gap-2 bg-green-600 text-white px-8 py-3 rounded-lg font-medium text-lg hover:bg-green-700 disabled:opacity-50"
+                            >
+                                {saving ? 'Đang xử lý...' : publishNow ? '🚀 Hoàn tất & Đăng bán' : '💾 Lưu nháp'}
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     )

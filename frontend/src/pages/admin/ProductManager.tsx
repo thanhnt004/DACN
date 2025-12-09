@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'react-toastify'
 import * as ProductsApi from '../../api/admin/products'
 import * as BrandCategoryApi from '../../api/admin/brandCategory'
 import * as CatalogApi from '../../api/admin/catalog'
 import type { ProductSummaryResponse } from '../../api/admin/products'
 import { Eye, Edit2, Trash2, Filter, X } from 'lucide-react'
+import { resolveErrorMessage } from '../../lib/problemDetails'
+import { formatInstant } from '../../lib/dateUtils'
 
 interface FilterState {
     categoryId?: string
@@ -77,7 +80,8 @@ export default function ProductManager() {
             setTotalElements(res?.totalElements ?? 0)
         } catch (error) {
             console.error('Error fetching products:', error)
-            alert('Lỗi tải sản phẩm')
+            const errorMsg = resolveErrorMessage(error, 'Lỗi tải sản phẩm')
+            toast.error(errorMsg)
         } finally {
             setLoading(false)
         }
@@ -92,11 +96,12 @@ export default function ProductManager() {
         if (!confirm('Bạn có chắc muốn xóa sản phẩm này?')) return
         try {
             await ProductsApi.deleteProduct(id)
-            alert('Xóa sản phẩm thành công!')
+            toast.success('Xóa sản phẩm thành công!')
             fetchProducts()
         } catch (error) {
             console.error('Error deleting product:', error)
-            alert('Lỗi xóa sản phẩm')
+            const errorMsg = resolveErrorMessage(error, 'Lỗi xóa sản phẩm')
+            toast.error(errorMsg)
         }
     }
 
@@ -116,7 +121,7 @@ export default function ProductManager() {
 
     const formatDate = (dateString?: string) => {
         if (!dateString) return '—'
-        return new Date(dateString).toLocaleDateString('vi-VN', {
+        return formatInstant(dateString, 'vi-VN', {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit'
@@ -350,16 +355,16 @@ export default function ProductManager() {
                                             Sản phẩm
                                         </th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Danh mục
+                                            Trạng thái
                                         </th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                             Giá
                                         </th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Giới tính
+                                            Kho
                                         </th>
                                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Đánh giá
+                                            Giới tính
                                         </th>
                                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                             Hành động
@@ -392,45 +397,72 @@ export default function ProductManager() {
                                                 <div className="text-sm text-gray-500 mt-1">
                                                     {product.slug}
                                                 </div>
-                                                {product.colors && product.colors.length > 0 && (
-                                                    <div className="flex gap-1 mt-1">
-                                                        {product.colors.slice(0, 5).map((color, idx) => (
-                                                            <div
-                                                                key={idx}
-                                                                className="w-4 h-4 rounded-full border border-gray-300"
-                                                                style={{ backgroundColor: color }}
-                                                                title={color}
-                                                            />
-                                                        ))}
-                                                        {product.colors.length > 5 && (
-                                                            <span className="text-xs text-gray-500 ml-1">
-                                                                +{product.colors.length - 5}
+                                                {/* Display variants info */}
+                                                <div className="flex gap-2 mt-1 text-xs text-gray-500">
+                                                    {product.colors && product.colors.length > 0 && (
+                                                        <span className="bg-gray-100 px-2 py-0.5 rounded">
+                                                            {product.colors.length} màu
+                                                        </span>
+                                                    )}
+                                                    {product.sizes && product.sizes.length > 0 && (
+                                                        <span className="bg-gray-100 px-2 py-0.5 rounded">
+                                                            {product.sizes.length} size
+                                                        </span>
+                                                    )}
+                                                    {product.brandName && (
+                                                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                                                            {product.brandName}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-gray-900">
+                                                {product.status === 'ACTIVE' && (
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                        Đang bán
+                                                    </span>
+                                                )}
+                                                {product.status === 'DRAFT' && (
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                                        Nháp
+                                                    </span>
+                                                )}
+                                                {product.status === 'ARCHIVED' && (
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                        Ẩn
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                                                {product.priceAmount > 0 ? formatPrice(product.priceAmount) : '—'}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-gray-900">
+                                                {product.totalStock !== undefined && product.totalStock !== null ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-medium">{product.totalStock}</span>
+                                                        {product.totalStock === 0 ? (
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                                                Hết hàng
+                                                            </span>
+                                                        ) : product.totalStock < 10 ? (
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                                                                Sắp hết
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                                                Còn hàng
                                                             </span>
                                                         )}
                                                     </div>
+                                                ) : (
+                                                    <span className="text-gray-400">—</span>
                                                 )}
-                                            </td>
-                                            <td className="px-4 py-3 text-sm text-gray-900">
-                                                —
-                                            </td>
-                                            <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                                                {formatPrice(product.priceAmount)}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-gray-900">
                                                 {product.gender === 'men' && 'Nam'}
                                                 {product.gender === 'women' && 'Nữ'}
                                                 {product.gender === 'unisex' && 'Unisex'}
                                                 {!product.gender && '—'}
-                                            </td>
-                                            <td className="px-4 py-3 text-sm text-gray-900">
-                                                {product.ratingAvg ? (
-                                                    <div className="flex items-center gap-1">
-                                                        <span className="text-yellow-500">★</span>
-                                                        <span>{product.ratingAvg.toFixed(1)}</span>
-                                                    </div>
-                                                ) : (
-                                                    '—'
-                                                )}
                                             </td>
                                             <td className="px-4 py-3 text-right text-sm font-medium">
                                                 <div className="flex items-center justify-end gap-2">

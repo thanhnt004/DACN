@@ -91,13 +91,18 @@ public class PaymentService {
     }
 
     public String generatePaymentUrl(Order order, Payment payment, String id) {
-        if ("VNPAY".equals(id)) {
+        log.info("generatePaymentUrl called with id: {}", id);
+        
+        if (id != null && id.toUpperCase().contains("VNPAY")) {
+            log.info("Using VNPay service to create payment URL");
             return vnPayService.createPaymentUrl(order, payment);
-        } else if ("COD".equals(id)) {
+        } else if (id != null && id.toUpperCase().contains("COD")) {
+            log.info("COD payment, returning order detail URL");
             // COD không cần payment URL, redirect về trang order detail
             return frontendBaseUrl + "/orders/" + order.getId();
         }
 
+        log.error("Unsupported payment method: {}", id);
         throw new IllegalArgumentException("Unsupported payment method: " + id);
     }
 
@@ -122,8 +127,14 @@ public class PaymentService {
     public String getPaymentUrl(UUID orderId, String paymentMethodId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NotFoundException("Order not found: " + orderId));
+        
+        // Luôn tạo payment mới cho mỗi lần repay
+        log.info("Creating new payment for repay: orderId={}, paymentMethodId={}", orderId, paymentMethodId);
         Payment payment = createPayment(order, paymentMethodId);
+        
+        // Set tất cả payment cũ thành FAILED
         paymentRepository.setAllOtherPaymentsToFailed(order.getId(), payment.getId());
+        
         if ("VNPAY".equals(paymentMethodId)) {
             return vnPayService.createPaymentUrl(order, payment);
         } else if ("COD".equals(paymentMethodId)) {

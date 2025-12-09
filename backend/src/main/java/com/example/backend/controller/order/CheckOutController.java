@@ -122,11 +122,11 @@ public class CheckOutController
     public ResponseEntity<OrderCreatedResponse> confirmCheckout(
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse,
-            @PathVariable UUID sessionId,
-            @RequestBody String notes,
+            @PathVariable("sessionId") UUID sessionId,
+            @RequestBody(required = false) java.util.Map<String, String> payload,
             @RequestHeader("X-Session-Token") String sessionToken
     ) {
-
+        String notes = payload != null ? payload.getOrDefault("notes", "") : "";
         OrderCreatedResponse order = orderFacade.confirmCheckoutSession(sessionId,httpRequest,httpResponse,notes);
         return ResponseEntity
                 .status(HttpStatus.CREATED)

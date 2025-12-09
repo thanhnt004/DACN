@@ -98,6 +98,14 @@ public class WebClientConfig {
         });
     }
 
+    /**
+     * Expose a WebClient bean built from the custom builder so reactive services can inject it
+     */
+    @Bean
+    public WebClient webClient(WebClient.Builder builder) {
+        return builder.build();
+    }
+
     private static final org.slf4j.Logger log =
             org.slf4j.LoggerFactory.getLogger(WebClientConfig.class);
 }

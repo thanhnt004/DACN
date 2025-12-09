@@ -4,7 +4,12 @@ import {
     LuLayoutDashboard,
     LuBoxes,
     LuShoppingCart,
-    LuTicket
+    LuTicket,
+    LuUsers,
+    LuTag,
+    LuFolderTree,
+    LuImage,
+    LuFileText
 } from 'react-icons/lu'; // Dùng react-icons cho đẹp (cài bằng: npm install react-icons)
 
 /**
@@ -38,7 +43,7 @@ const Sidebar: React.FC = () => {
             <div className="flex items-center gap-2 p-4 mb-4">
                 <Link to="/" className="text-2xl font-bold text-red-600 hover:text-red-700">
                 <img
-                        src="/src/assets/img/logo.svg"
+                        src="/img/logo.svg"
                         alt="WearWave Logo"
                         className="h-12 w-12"
                 />
@@ -89,7 +94,20 @@ const Sidebar: React.FC = () => {
                     </NavLink>
                 </li>
                 <li>
+                    <NavLink to="/admin/change-requests" className={getNavLinkClass}>
+                        <LuFileText size={20} />
+                        <span>Yêu cầu hủy/trả</span>
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink to="/admin/refunds" className={getNavLinkClass}>
+                        <LuFileText size={20} />
+                        <span>Xác nhận hoàn tiền</span>
+                    </NavLink>
+                </li>
+                <li>
                     <NavLink to="/admin/users" className={getNavLinkClass}>
+                        <LuUsers size={20} />
                         <span>Người dùng</span>
                     </NavLink>
                 </li>
@@ -101,12 +119,20 @@ const Sidebar: React.FC = () => {
                 </li>
                 <li>
                     <NavLink to="/admin/brands" className={getNavLinkClass}>
+                        <LuTag size={20} />
                         <span>Thương hiệu</span>
                     </NavLink>
                 </li>
                 <li>
                     <NavLink to="/admin/categories" className={getNavLinkClass}>
+                        <LuFolderTree size={20} />
                         <span>Danh mục</span>
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink to="/admin/banners" className={getNavLinkClass}>
+                        <LuImage size={20} />
+                        <span>Banner</span>
                     </NavLink>
                 </li>
             </ul>

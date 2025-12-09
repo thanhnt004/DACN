@@ -21,7 +21,10 @@ public class VariantResponse {
     private String barcode;
     private UUID sizeId;
     private UUID colorId;
+    private SizeDto size; // Size details: id, name, code
+    private ColorDto color; // Color details: id, name, hexCode
     private Long priceAmount;
+    private Long historyCost;
     private Long compareAtAmount;
     private Integer weightGrams;
     private String status;
@@ -31,4 +34,25 @@ public class VariantResponse {
     private Integer version;
 
     private InventoryResponse inventory;
+    private ProductImageResponse image;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SizeDto {
+        private UUID id;
+        private String name;
+        private String code;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ColorDto {
+        private UUID id;
+        private String name;
+        private String hexCode;
+    }
 }

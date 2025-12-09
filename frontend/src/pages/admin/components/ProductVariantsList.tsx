@@ -1,4 +1,5 @@
 import { Edit, Trash2 } from 'lucide-react'
+import { toast } from 'react-toastify'
 import * as ProductsApi from '../../../api/admin/products'
 import * as CatalogApi from '../../../api/admin/catalog'
 import { uploadImagesToCloudinary } from '../../../api/media'
@@ -193,7 +194,7 @@ export default function ProductVariantsList({
                                                                 onColorImageUpload(colorId, urls)
                                                             } catch (error) {
                                                                 console.error('Upload failed:', error)
-                                                                alert('Upload ảnh thất bại. Vui lòng thử lại.')
+                                                                toast.error('Upload ảnh thất bại. Vui lòng thử lại.')
                                                             }
                                                         }
                                                     }

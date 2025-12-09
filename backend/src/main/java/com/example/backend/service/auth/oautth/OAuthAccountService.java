@@ -1,6 +1,7 @@
 package com.example.backend.service.auth.oautth;
 
 import com.example.backend.dto.response.auth.CustomUserDetail;
+import com.example.backend.exception.BadRequestException;
 import com.example.backend.exception.NotFoundException;
 import com.example.backend.model.OAuthAccount;
 import com.example.backend.model.User;
@@ -46,11 +47,11 @@ public class OAuthAccountService {
         User currentUser = userRepository.findById(userDetail.getId()).orElseThrow(()->new NotFoundException("User not found!"));
         var userId = currentUser.getId();
         OAuthAccount acc = repo.findByUserIdAndProvider(userId, provider)
-                .orElseThrow(() -> new IllegalStateException("Chưa liên kết " + provider + " để hủy."));
+                .orElseThrow(() -> new BadRequestException("Chưa liên kết " + provider + " để hủy."));
         long linkedCount = repo.countByUserId(userId);
         boolean hasPassword = currentUser.getPasswordHash() != null && !currentUser.getPasswordHash().isBlank();
         if (!hasPassword && linkedCount <= 1) {
-            throw new IllegalStateException("Không thể hủy liên kết vì đây là phương thức đăng nhập duy nhất.");
+            throw new BadRequestException("Không thể hủy liên kết vì đây là phương thức đăng nhập duy nhất.");
         }
         repo.delete(acc);
     }

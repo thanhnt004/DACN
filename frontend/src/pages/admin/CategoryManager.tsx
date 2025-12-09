@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'react-toastify'
 import * as BrandCategoryApi from '../../api/admin/brandCategory'
 import type { CategoryResponse, CategoryCreateRequest, CategoryUpdateRequest } from '../../api/admin/brandCategory'
 import { ChevronRight, ChevronDown, Plus, Edit, Trash2, GripVertical } from 'lucide-react'
+import { resolveErrorMessage } from '../../lib/problemDetails'
 
 interface TreeItemProps {
     category: CategoryResponse
@@ -62,7 +64,7 @@ function CategoryTreeItem({ category, level, onEdit, onDelete, onMove, allCatego
 
         const draggedCategory = allCategories.find(c => c.id === draggedCategoryId)
         if (draggedCategory && isDescendant(draggedCategory, category.id)) {
-            alert('Không thể di chuyển danh mục cha vào danh mục con của nó')
+            toast.error('Không thể di chuyển danh mục cha vào danh mục con của nó')
             return
         }
 
@@ -211,7 +213,7 @@ export default function CategoryManager() {
             }
         } catch (error) {
             console.error('Error fetching categories:', error)
-            alert('Lỗi tải categories')
+            toast.error('Lỗi tải categories')
         } finally {
             setLoading(false)
         }
@@ -224,24 +226,26 @@ export default function CategoryManager() {
 
     const handleSubmit = async () => {
         if (!formData.name.trim()) {
-            alert('Vui lòng nhập tên danh mục')
+            toast.warning('Vui lòng nhập tên danh mục')
             return
         }
         if (!formData.slug.trim()) {
-            alert('Vui lòng nhập slug')
+            toast.warning('Vui lòng nhập slug')
             return
         }
 
         try {
             if (editingCategory?.id) {
                 const updateData: CategoryUpdateRequest = {
-                    id: editingCategory.id,
                     name: formData.name,
                     slug: formData.slug,
                     description: formData.description,
                     parentId: formData.parentId
                 }
-                await BrandCategoryApi.updateCategory(editingCategory.id, updateData)
+                const updated = await BrandCategoryApi.updateCategory(editingCategory.id, updateData)
+                // Cập nhật trong danh sách
+                setCategories(prev => prev.map(c => c.id === editingCategory.id ? updated : c))
+                toast.success('Cập nhật danh mục thành công')
             } else {
                 const createData: CategoryCreateRequest = {
                     name: formData.name,
@@ -249,36 +253,47 @@ export default function CategoryManager() {
                     description: formData.description,
                     parentId: formData.parentId
                 }
-                await BrandCategoryApi.createCategory(createData)
+                const newCategory = await BrandCategoryApi.createCategory(createData)
+                // Thêm vào danh sách
+                setCategories(prev => [newCategory, ...prev])
+                toast.success('Tạo danh mục thành công')
             }
             setShowModal(false)
             setEditingCategory(null)
             setFormData({ name: '', slug: '' })
-            fetchCategories()
         } catch (error) {
             console.error('Error saving category:', error)
-            alert('Lỗi lưu category')
+            const errorMsg = resolveErrorMessage(error, 'Lỗi lưu category')
+            toast.error(errorMsg)
         }
     }
 
     const handleDelete = async (id: string) => {
         if (!confirm('Bạn có chắc muốn xóa danh mục này?')) return
         try {
+            // Optimistic update - xóa khỏi UI
+            setCategories(prev => prev.filter(c => c.id !== id))
             await BrandCategoryApi.deleteCategory(id)
-            fetchCategories()
+            toast.success('Xóa danh mục thành công')
         } catch (error) {
             console.error('Error deleting category:', error)
-            alert('Lỗi xóa category. Có thể danh mục này đang chứa sản phẩm hoặc danh mục con.')
+            // Rollback nếu lỗi
+            fetchCategories()
+            const errorMsg = resolveErrorMessage(error, 'Lỗi xóa category')
+            toast.error(errorMsg)
         }
     }
 
     const handleMove = async (categoryId: string, newParentId: string | null) => {
         try {
             await BrandCategoryApi.moveCategory(categoryId, newParentId || undefined)
+            // Fetch lại vì cấu trúc cây thay đổi
             fetchCategories()
+            toast.success('Di chuyển danh mục thành công')
         } catch (error) {
             console.error('Error moving category:', error)
-            alert('Lỗi di chuyển danh mục')
+            const errorMsg = resolveErrorMessage(error, 'Lỗi di chuyển danh mục')
+            toast.error(errorMsg)
         }
     }
 
@@ -363,7 +378,7 @@ export default function CategoryManager() {
 
             {/* Create/Edit Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 w-full max-w-md space-y-4 shadow-xl">
                         <h2 className="text-xl font-bold">
                             {editingCategory ? 'Sửa danh mục' : 'Thêm danh mục'}

@@ -94,14 +94,16 @@ export const getOAuthAccounts = async () => {
 // Link OAuth account - Get OAuth URL from backend
 export const linkOAuthAccount = (provider: 'google' | 'facebook') => {
     const redirectUrl = `${window.location.origin}${window.location.pathname}`;
-    window.location.href = `/api/v1/auth/oauth2/link/${provider}?redirect=${encodeURIComponent(redirectUrl)}`;
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8089';
+    window.location.href = `${baseUrl}/api/v1/auth/oauth2/link/${provider}?redirect=${encodeURIComponent(redirectUrl)}`;
 };
 
 // Unlink OAuth account
-export const unlinkOAuthAccount = async (provider: 'GOOGLE' | 'FACEBOOK') => {
-    await api.delete(`/api/v1/auth/oauth2/link/${provider.toLowerCase()}`)
-    // Backend returns 202 Accepted on success
-}
+export const unlinkOAuthAccount = async (provider: 'google' | 'facebook') => {
+    await api.delete(`/api/v1/auth/oauth2/link/${provider}`)
+    // Backend returns 204 No Content on success
+};
+
 
 // Deactivate account - Backend không có API này
 export const deactivateAccount = async (_password: string) => {

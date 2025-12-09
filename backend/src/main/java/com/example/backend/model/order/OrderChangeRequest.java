@@ -63,10 +63,8 @@ public class OrderChangeRequest {
     @JdbcTypeCode(SqlTypes.JSON)
     private Map<String, Object> metadata;
 
-
-    @ColumnDefault("now()")
-    @Column(name = "created_at", nullable = false)
     @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     @UpdateTimestamp

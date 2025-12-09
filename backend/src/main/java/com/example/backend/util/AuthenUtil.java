@@ -20,7 +20,7 @@ public class AuthenUtil {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         Optional<User> user = Optional.empty();
         if (authentication != null && authentication.getPrincipal() instanceof CustomUserDetail userDetail) {
-            user = userRepository.findById(((CustomUserDetail) authentication.getPrincipal()).getId());
+            user = userRepository.findById(userDetail.getId());
         }
         return user;
     }

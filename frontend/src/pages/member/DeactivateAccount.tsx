@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'react-toastify'
 import { useAuthStore } from '../../store/auth'
 import * as ProfileApi from '../../api/profile'
 import { useState } from 'react'
@@ -11,7 +12,7 @@ export default function DeactivateAccount() {
 
     const handleDeactivate = async () => {
         if (!password) {
-            alert('Vui lòng nhập mật khẩu để xác nhận')
+            toast.warning('Vui lòng nhập mật khẩu để xác nhận')
             return
         }
 
@@ -22,12 +23,12 @@ export default function DeactivateAccount() {
         setLoading(true)
         try {
             await ProfileApi.deactivateAccount(password)
-            alert('Tài khoản đã được hủy thành công')
+            toast.success('Tài khoản đã được hủy thành công')
             await logout()
             navigate('/')
         } catch (error) {
             console.error('Failed to deactivate account:', error)
-            alert('Không thể hủy tài khoản. Vui lòng kiểm tra mật khẩu.')
+            toast.error('Không thể hủy tài khoản. Vui lòng kiểm tra mật khẩu.')
         } finally {
             setLoading(false)
         }

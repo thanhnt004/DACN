@@ -17,6 +17,9 @@ import com.example.backend.repository.user.AddressRepository;
 import com.example.backend.repository.auth.OAuthAccountRepository;
 import com.example.backend.repository.user.UserRepository;
 import com.example.backend.service.auth.RefreshTokenService;
+import com.example.backend.service.audit.AuditLogService;
+import com.example.backend.model.enumrator.AuditActionType;
+import com.example.backend.model.enumrator.AuditEntityType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,6 +42,7 @@ public class UserManagerService {
     private final AddressMapper addressMapper;
     private final UserMapper userMapper;
     private final RefreshTokenService refreshTokenService;
+    private final AuditLogService auditLogService;
     public PageResponse<UserProfileDto> getUserList(Role role,Boolean isActive, Pageable pageable)
     {
         Specification<User> specification = (r,query,criteriaBuilder)->{
@@ -106,6 +110,21 @@ public class UserManagerService {
 
     public void band(UUID userId) {
         User user = userRepository.findById(userId).orElseThrow(()->new NotFoundException("User not found!"));
+
+        // Audit log: Khóa tài khoản người dùng
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("target_user_email", user.getEmail());
+        metadata.put("target_user_role", user.getRole().name());
+        metadata.put("old_status", user.getStatus().name());
+        metadata.put("new_status", UserStatus.DISABLED.name());
+
+        auditLogService.logAction(
+            AuditActionType.BAN_USER,
+            AuditEntityType.USER,
+            userId,
+            metadata
+        );
+
         user.setStatus(UserStatus.DISABLED);
         userRepository.save(user);
         refreshTokenService.revokeAllByUser(user,"Banned!");
@@ -113,7 +132,62 @@ public class UserManagerService {
 
     public void restoreUser(UUID userId) {
         User user = userRepository.findById(userId).orElseThrow(()->new NotFoundException("User not found!"));
+
+        // Audit log: Khôi phục tài khoản người dùng
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("target_user_email", user.getEmail());
+        metadata.put("target_user_role", user.getRole().name());
+        metadata.put("old_status", user.getStatus().name());
+        metadata.put("new_status", UserStatus.ACTIVE.name());
+
+        auditLogService.logAction(
+            AuditActionType.RESTORE_USER,
+            AuditEntityType.USER,
+            userId,
+            metadata
+        );
+
         user.setStatus(UserStatus.ACTIVE);
+        userRepository.save(user);
+    }
+
+    public void grantAdminRole(UUID userId) {
+        User user = userRepository.findById(userId).orElseThrow(()->new NotFoundException("User not found!"));
+
+        // Audit log: Cấp quyền Admin
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("target_user_email", user.getEmail());
+        metadata.put("old_role", user.getRole().name());
+        metadata.put("new_role", Role.ADMIN.name());
+
+        auditLogService.logAction(
+            AuditActionType.CHANGE_USER_ROLE,
+            AuditEntityType.USER,
+            userId,
+            metadata
+        );
+
+        user.setRole(Role.ADMIN);
+        userRepository.save(user);
+    }
+
+    public void revokeAdminRole(UUID userId) {
+        User user = userRepository.findById(userId).orElseThrow(()->new NotFoundException("User not found!"));
+
+        // Audit log: Thu hồi quyền Admin
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("target_user_email", user.getEmail());
+        metadata.put("old_role", user.getRole().name());
+        metadata.put("new_role", Role.CUSTOMER.name());
+
+        auditLogService.logAction(
+            AuditActionType.CHANGE_USER_ROLE,
+            AuditEntityType.USER,
+            userId,
+            metadata
+        );
+
+        user.setRole(Role.CUSTOMER);
         userRepository.save(user);
     }
 

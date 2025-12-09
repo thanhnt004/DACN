@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Edit, Facebook } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
+import { toast } from 'react-toastify'
 import * as ProfileApi from '../../api/profile'
 import type { UserProfile, Address, OAuthAccount } from '../../api/profile'
 import { useGhnLocationSelector } from '../../hooks/useGhnLocationSelector'
+import { formatInstant } from '../../lib/dateUtils'
 
 export default function ProfilePage() {
     const [searchParams, setSearchParams] = useSearchParams()
@@ -61,15 +63,27 @@ export default function ProfilePage() {
     const addressLocationSelector = useGhnLocationSelector(updateAddressLocation)
 
     useEffect(() => {
-        loadData()
-
-        // Check for OAuth link callback
         const linkedProvider = searchParams.get('provider')
-        if (linkedProvider) {
-            alert(`✅ Liên kết ${linkedProvider} thành công!`)
-            // Remove the query param
-            searchParams.delete('provider')
+        const errorMessage = searchParams.get('error')
+        
+        if (errorMessage) {
+            // OAuth link failed - show error
+            toast.error(decodeURIComponent(errorMessage))
+            // Remove the error param
+            searchParams.delete('error')
             setSearchParams(searchParams)
+            loadData()
+        } else if (linkedProvider) {
+            // OAuth link callback - reload data first
+            loadData().then(() => {
+                toast.success(`Liên kết ${linkedProvider} thành công!`)
+                // Remove the query param
+                searchParams.delete('provider')
+                setSearchParams(searchParams)
+            })
+        } else {
+            // Normal load
+            loadData()
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
@@ -94,7 +108,7 @@ export default function ProfilePage() {
             })
         } catch (error) {
             console.error('Failed to load profile:', error)
-            alert('Không thể tải thông tin tài khoản')
+            toast.error('Không thể tải thông tin tài khoản')
         } finally {
             setLoading(false)
         }
@@ -112,10 +126,10 @@ export default function ProfilePage() {
             })
             await loadData() // Reload data
             setEditingProfile(false)
-            alert('✅ Cập nhật thông tin thành công!')
+            toast.success('Cập nhật thông tin thành công!')
         } catch (error) {
             console.error('Failed to update profile:', error)
-            alert('❌ Không thể cập nhật thông tin. Vui lòng thử lại.')
+            toast.error('Không thể cập nhật thông tin. Vui lòng thử lại.')
         } finally {
             setUpdatingProfile(false)
         }
@@ -136,10 +150,10 @@ export default function ProfilePage() {
             setAddingAddress(false)
             resetAddressForm()
             addressLocationSelector.resetSelections()
-            alert('✅ Thêm địa chỉ thành công!')
+            toast.success('Thêm địa chỉ thành công!')
         } catch (error) {
             console.error('Failed to add address:', error)
-            alert('❌ Không thể thêm địa chỉ. Vui lòng thử lại.')
+            toast.error('Không thể thêm địa chỉ. Vui lòng thử lại.')
         } finally {
             setSavingAddress(false)
         }
@@ -152,10 +166,10 @@ export default function ProfilePage() {
             await loadData() // Reload addresses
             setEditingAddress(null)
             addressLocationSelector.resetSelections()
-            alert('✅ Cập nhật địa chỉ thành công!')
+            toast.success('Cập nhật địa chỉ thành công!')
         } catch (error) {
             console.error('Failed to update address:', error)
-            alert('❌ Không thể cập nhật địa chỉ. Vui lòng thử lại.')
+            toast.error('Không thể cập nhật địa chỉ. Vui lòng thử lại.')
         } finally {
             setSavingAddress(false)
         }
@@ -167,10 +181,10 @@ export default function ProfilePage() {
         try {
             await ProfileApi.deleteAddress(id)
             await loadData() // Reload addresses
-            alert('✅ Xóa địa chỉ thành công!')
+            toast.success('Xóa địa chỉ thành công!')
         } catch (error) {
             console.error('Failed to delete address:', error)
-            alert('❌ Không thể xóa địa chỉ. Vui lòng thử lại.')
+            toast.error('Không thể xóa địa chỉ. Vui lòng thử lại.')
         } finally {
             setDeletingAddress(null)
         }
@@ -178,7 +192,7 @@ export default function ProfilePage() {
 
     const handleChangePassword = async () => {
         if (passwordForm.newPassword !== passwordForm.newPasswordConfirm) {
-            alert('❌ Mật khẩu xác nhận không khớp')
+            toast.error('Mật khẩu xác nhận không khớp')
             return
         }
         setSavingPassword(true)
@@ -190,25 +204,25 @@ export default function ProfilePage() {
             })
             setChangingPassword(false)
             setPasswordForm({ currentPassword: '', newPassword: '', newPasswordConfirm: '' })
-            alert('✅ Đổi mật khẩu thành công!')
+            toast.success('Đổi mật khẩu thành công!')
         } catch (error) {
             console.error('Failed to change password:', error)
-            alert('❌ Không thể đổi mật khẩu. Vui lòng kiểm tra mật khẩu cũ.')
+            toast.error('Không thể đổi mật khẩu. Vui lòng kiểm tra mật khẩu cũ.')
         } finally {
             setSavingPassword(false)
         }
     }
 
-    const handleUnlinkOAuth = async (provider: 'GOOGLE' | 'FACEBOOK') => {
+    const handleUnlinkOAuth = async (provider: 'google' | 'facebook') => {
         if (!confirm(`Bạn có chắc chắn muốn hủy liên kết tài khoản ${provider}?`)) return
         setUnlinkingOAuth(provider)
         try {
             await ProfileApi.unlinkOAuthAccount(provider)
             await loadData() // Reload OAuth accounts
-            alert('✅ Hủy liên kết thành công!')
+            toast.success('Hủy liên kết thành công!')
         } catch (error) {
             console.error('Failed to unlink OAuth:', error)
-            alert('❌ Không thể hủy liên kết. Vui lòng thử lại.')
+            toast.error('Không thể hủy liên kết. Vui lòng thử lại.')
         } finally {
             setUnlinkingOAuth(null)
         }
@@ -220,7 +234,7 @@ export default function ProfilePage() {
             await ProfileApi.linkOAuthAccount(provider)
         } catch (error) {
             console.error('Failed to initiate OAuth link:', error)
-            alert('❌ Không thể khởi tạo liên kết. Vui lòng thử lại.')
+            toast.error('Không thể khởi tạo liên kết. Vui lòng thử lại.')
         }
     }
 
@@ -379,7 +393,7 @@ export default function ProfilePage() {
                             <div>
                                 <span className="text-gray-600">Ngày sinh:</span>
                                 <span className="ml-4 font-medium">
-                                    {profile.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
+                                    {profile.dateOfBirth ? formatInstant(profile.dateOfBirth, 'vi-VN', { year: 'numeric', month: '2-digit', day: '2-digit' }) : 'Chưa cập nhật'}
                                 </span>
                             </div>
                             <div>
@@ -695,7 +709,7 @@ export default function ProfilePage() {
                                 </label>
                                 <input
                                     type="text"
-                                    value={profile.passwordChangedAt ? new Date(profile.passwordChangedAt).toLocaleString('vi-VN') : 'Chưa đổi'}
+                                    value={profile.passwordChangedAt ? formatInstant(profile.passwordChangedAt, 'vi-VN') : 'Chưa đổi'}
                                     disabled
                                     className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50"
                                 />
@@ -777,20 +791,20 @@ export default function ProfilePage() {
                             </div>
                             <div>
                                 <p className="font-medium">Google</p>
-                                {oauthAccounts.find(acc => acc.provider === 'GOOGLE') ? (
+                                {oauthAccounts.find(acc => acc.provider === 'google') ? (
                                     <p className="text-sm text-green-600">Đã liên kết</p>
                                 ) : (
                                     <p className="text-sm text-gray-500">Chưa liên kết</p>
                                 )}
                             </div>
                         </div>
-                        {oauthAccounts.find(acc => acc.provider === 'GOOGLE') ? (
+                        {oauthAccounts.find(acc => acc.provider === 'google') ? (
                             <button
-                                onClick={() => handleUnlinkOAuth('GOOGLE')}
-                                disabled={unlinkingOAuth === 'GOOGLE'}
+                                onClick={() => handleUnlinkOAuth('google')}
+                                disabled={unlinkingOAuth === 'google'}
                                 className="text-red-600 hover:text-red-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {unlinkingOAuth === 'GOOGLE' ? 'Đang hủy...' : 'Hủy liên kết'}
+                                {unlinkingOAuth === 'google' ? 'Đang hủy...' : 'Hủy liên kết'}
                             </button>
                         ) : (
                             <button
@@ -810,20 +824,20 @@ export default function ProfilePage() {
                             </div>
                             <div>
                                 <p className="font-medium">Facebook</p>
-                                {oauthAccounts.find(acc => acc.provider === 'FACEBOOK') ? (
+                                {oauthAccounts.find(acc => acc.provider === 'facebook') ? (
                                     <p className="text-sm text-green-600">Đã liên kết</p>
                                 ) : (
                                     <p className="text-sm text-gray-500">Chưa liên kết</p>
                                 )}
                             </div>
                         </div>
-                        {oauthAccounts.find(acc => acc.provider === 'FACEBOOK') ? (
+                        {oauthAccounts.find(acc => acc.provider === 'facebook') ? (
                             <button
-                                onClick={() => handleUnlinkOAuth('FACEBOOK')}
-                                disabled={unlinkingOAuth === 'FACEBOOK'}
+                                onClick={() => handleUnlinkOAuth('facebook')}
+                                disabled={unlinkingOAuth === 'facebook'}
                                 className="text-red-600 hover:text-red-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {unlinkingOAuth === 'FACEBOOK' ? 'Đang hủy...' : 'Hủy liên kết'}
+                                {unlinkingOAuth === 'facebook' ? 'Đang hủy...' : 'Hủy liên kết'}
                             </button>
                         ) : (
                             <button

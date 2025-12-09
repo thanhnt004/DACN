@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'react-toastify'
 import * as CatalogApi from '../../api/admin/catalog'
 import type { ColorDto } from '../../api/admin/catalog'
+import ErrorModal from '../../components/common/ErrorModal'
+import ConfirmModal from '../../components/common/ConfirmModal'
+import { useModals } from '../../hooks/useModals'
+import { resolveErrorMessage } from '../../lib/problemDetails'
 
 export default function ColorManager() {
     const [colors, setColors] = useState<ColorDto[]>([])
@@ -8,14 +13,15 @@ export default function ColorManager() {
     const [showModal, setShowModal] = useState(false)
     const [isEditing, setIsEditing] = useState(false)
     const [form, setForm] = useState<ColorDto>({ name: '' })
+    const { errorModal, showError, closeError, confirmModal, showConfirm, closeConfirm } = useModals()
 
     const loadColors = async () => {
         setLoading(true)
         try {
             const res = await CatalogApi.getColors()
             setColors(res)
-        } catch {
-            alert('Không thể tải danh sách màu sắc')
+        } catch (error: any) {
+            showError(error?.response?.data?.message || 'Không thể tải danh sách màu sắc')
         } finally {
             setLoading(false)
         }
@@ -40,26 +46,35 @@ export default function ColorManager() {
     const handleSubmit = async () => {
         try {
             if (isEditing && form.id) {
-                await CatalogApi.updateColor(form.id, form)
+                const updated = await CatalogApi.updateColor(form.id, form)
+                setColors(prev => prev.map(c => c.id === form.id ? updated : c))
+                toast.success('Cập nhật màu sắc thành công')
             } else {
-                await CatalogApi.createColor({ name: form.name, hexCode: form.hexCode })
+                const newColor = await CatalogApi.createColor({ name: form.name, hexCode: form.hexCode })
+                setColors(prev => [newColor, ...prev])
+                toast.success('Thêm màu sắc thành công')
             }
             setShowModal(false)
-            await loadColors()
-        } catch {
-            alert('Lưu màu sắc thất bại')
+        } catch (error: any) {
+            const errorMsg = resolveErrorMessage(error, 'Lưu màu sắc thất bại')
+            showError(errorMsg)
         }
     }
 
     const handleDelete = async (id?: string) => {
         if (!id) return
-        if (!confirm('Bạn có chắc muốn xóa màu sắc này?')) return
-        try {
-            await CatalogApi.deleteColor(id)
-            await loadColors()
-        } catch {
-            alert('Xóa màu sắc thất bại')
-        }
+        
+        showConfirm('Bạn có chắc muốn xóa màu sắc này?', async () => {
+            try {
+                setColors(prev => prev.filter(c => c.id !== id))
+                await CatalogApi.deleteColor(id)
+                toast.success('Xóa màu sắc thành công')
+            } catch (error: any) {
+                loadColors() // Rollback
+                const errorMsg = resolveErrorMessage(error, 'Xóa màu sắc thất bại')
+                showError(errorMsg)
+            }
+        })
     }
 
     return (
@@ -173,6 +188,21 @@ export default function ColorManager() {
                     </div>
                 </div>
             )}
+
+            <ErrorModal
+                isOpen={errorModal.isOpen}
+                onClose={closeError}
+                title={errorModal.title}
+                message={errorModal.message}
+            />
+
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                onClose={closeConfirm}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+            />
         </div>
     )
 }

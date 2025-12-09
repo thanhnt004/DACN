@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { toast } from 'react-toastify'
 import * as ProductsApi from '../../api/admin/products'
 import * as CatalogApi from '../../api/admin/catalog'
 import ImageUploadZone from '../../components/layout/ImageUploadZone'
@@ -79,7 +80,7 @@ export default function ProductVariantEdit() {
             }
         } catch (error) {
             console.error('Error loading data:', error)
-            alert('Lỗi tải dữ liệu')
+            toast.error('Lỗi tải dữ liệu')
         } finally {
             setLoading(false)
         }
@@ -110,11 +111,11 @@ export default function ProductVariantEdit() {
 
             await ProductsApi.updateVariant(productId, variantId, updateData)
 
-            alert('Cập nhật biến thể thành công!')
+            toast.success('Cập nhật biến thể thành công!')
             navigate(`/admin/products/${productId}/edit`)
         } catch (error) {
             console.error('Error saving variant:', error)
-            alert('Lỗi lưu biến thể')
+            toast.error('Lỗi lưu biến thể')
         } finally {
             setSaving(false)
         }

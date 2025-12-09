@@ -20,10 +20,13 @@ public class ProductSummaryResponse {
     private String slug;
     private List<String> colors;
     private List<String> sizes;
-    private double ratingAvg;
     private String imageUrl;
     private String name;
     private ProductStatus status;
     private String gender;
     private long priceAmount;
+    private Boolean isInStock;
+    private Integer totalStock;
+    private UUID brandId;
+    private String brandName;
 }

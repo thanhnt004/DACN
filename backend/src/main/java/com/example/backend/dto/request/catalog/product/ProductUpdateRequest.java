@@ -19,7 +19,7 @@ public class ProductUpdateRequest {
     private String description;
     private String material;
     @Positive
-    private Integer priceAmount;
+    private Long priceAmount; 
     private String gender;
     private String seoTitle;
     private String seoDescription;

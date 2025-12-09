@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'react-toastify';
 
 interface RejectReasonModalProps {
     isOpen: boolean;
@@ -19,12 +20,12 @@ export default function RejectReasonModal({ isOpen, onClose, onSubmit, title, pr
         if (reason.trim()) {
             onSubmit(reason);
         } else {
-            alert('Vui lòng nhập lý do từ chối.');
+            toast.warning('Vui lòng nhập lý do từ chối.');
         }
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+        <div className="fixed inset-0 bg-transparent backdrop-blur-sm flex items-center justify-center z-[100]">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
                 <div className="p-6">
                     <h3 className="text-xl font-semibold mb-4">{title}</h3>

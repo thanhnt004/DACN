@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'react-toastify'
 import * as CatalogApi from '../../api/admin/catalog'
 import type { SizeDto } from '../../api/admin/catalog'
 import z from 'zod'
@@ -32,7 +33,7 @@ export default function SizeManager() {
             const res = await CatalogApi.getSizes()
             setSizes(res)
         } catch {
-            alert('Không thể tải danh sách kích thước')
+            toast.error('Không thể tải danh sách kích thước')
         } finally {
             setLoading(false)
         }
@@ -51,14 +52,17 @@ export default function SizeManager() {
     const submit = async () => {
         try {
             if (isEditing && form.id) {
-                await CatalogApi.updateSize(form.id, form)
+                const updated = await CatalogApi.updateSize(form.id, form)
+                setSizes(prev => prev.map(s => s.id === form.id ? updated : s))
+                toast.success('Cập nhật kích thước thành công')
             } else {
-                await CatalogApi.createSize({ name: form.name, code: form.code })
+                const newSize = await CatalogApi.createSize({ name: form.name, code: form.code })
+                setSizes(prev => [newSize, ...prev])
+                toast.success('Thêm kích thước thành công')
             }
             setShowModal(false)
-            await loadSizes()
         } catch {
-            alert('Lưu kích thước thất bại')
+            toast.error('Lưu kích thước thất bại')
         }
     }
 
@@ -66,21 +70,25 @@ export default function SizeManager() {
         if (!id) return
         if (!confirm('Bạn có chắc muốn xóa kích thước này?')) return
         try {
+            setSizes(prev => prev.filter(s => s.id !== id))
             await CatalogApi.deleteSize(id)
-            await loadSizes()
-        } catch {
-            alert('Xóa kích thước thất bại')
+            toast.success('Xóa kích thước thành công')
+        } catch (error) {
+            loadSizes() // Rollback
+            const errorMsg = resolveErrorMessage(error, 'Xóa kích thước thất bại')
+            toast.error(errorMsg)
         }
     }
     const onSubmit = async (data: SizeFormValues) => {
         console.log("Dữ liệu size:", data)
         try {
-            await CatalogApi.createSize(data)
+            const newSize = await CatalogApi.createSize(data)
+            setSizes(prev => [newSize, ...prev])
+            toast.success('Thêm kích thước thành công')
+            reset()
         } catch {
-            alert('Lưu kích thước thất bại')
+            toast.error('Lưu kích thước thất bại')
         }
-        await loadSizes()
-        reset()
     }
 
     return (

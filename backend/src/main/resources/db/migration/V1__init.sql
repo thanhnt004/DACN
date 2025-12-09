@@ -358,13 +358,6 @@ CREATE TABLE IF NOT EXISTS public.products
     version integer NOT NULL DEFAULT 0,
     price bigint,
     sold_count integer NOT NULL DEFAULT 0,
-    rating_count integer NOT NULL DEFAULT 0,
-    rating_sum integer NOT NULL DEFAULT 0,
-    rating_avg numeric(3, 2) GENERATED ALWAYS AS (
-CASE
-    WHEN (rating_count > 0) THEN round(((rating_sum)::numeric / (GREATEST(rating_count, 1))::numeric), 2)
-    ELSE (0)::numeric
-END) STORED,
     total_stock integer NOT NULL DEFAULT 0,
     is_in_stock boolean NOT NULL DEFAULT false,
     primary_image_url text COLLATE pg_catalog."default",
@@ -410,6 +403,8 @@ CREATE TABLE IF NOT EXISTS public.shipments
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     warehouse text COLLATE pg_catalog."default",
+    is_return_shipment boolean,
+    is_active boolean,
     CONSTRAINT shipments_pkey PRIMARY KEY (id)
 );
 

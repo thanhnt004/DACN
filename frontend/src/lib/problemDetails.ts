@@ -62,3 +62,38 @@ export const extractProblemCode = (source: unknown): string | undefined => {
     const data = source as ProblemDetailsLike
     return typeof data.code === 'string' && data.code.trim().length > 0 ? data.code : undefined
 }
+
+/**
+ * Xử lý lỗi từ API response và trả về message phù hợp
+ * - Nếu lỗi 500: "Vui lòng thử lại sau"
+ * - Nếu có detail/message: hiển thị chi tiết
+ * - Ngược lại: fallback message
+ */
+export const resolveErrorMessage = (error: unknown, fallback: string): string => {
+    // Kiểm tra error object có response không
+    const response = error && typeof error === 'object' && 'response' in error
+        ? (error as { response?: { status?: number; data?: unknown } }).response
+        : undefined
+
+    // Nếu lỗi 500, luôn trả về message chung
+    if (response?.status === 500) {
+        return 'Vui lòng thử lại sau'
+    }
+
+    // Lấy data từ response
+    const responseData = response?.data
+
+    // Nếu có message/detail trong response data, ưu tiên hiển thị
+    const extractedMessage = extractProblemMessage(responseData, '')
+    if (extractedMessage) {
+        return extractedMessage
+    }
+
+    // Nếu error có message property (Error object)
+    if (error instanceof Error && error.message) {
+        return error.message
+    }
+
+    // Fallback
+    return fallback
+}

@@ -149,15 +149,22 @@ public class CategoryService {
     @Transactional(readOnly = true)
     @Cacheable(
         value = "#{@cacheConfig.categoryCache}",
-        key = "(#parentId != null ? #parentId.toString() : 'null') + ':' + (#q != null ? #q : '') + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + (#sort != null ? #sort : '')",
+        key = "(#parentId != null ? #parentId.toString() : 'null') + ':' + (#q != null ? #q : '') + ':' + #pageable.pageNumber + ':' + #pageable.pageSize + ':' + (#sort != null ? #sort : '')+ ':' + #all",
         unless = "#result == null"
     )
-    public PageResponse<CategoryResponse> list(UUID parentId, String q, Pageable pageable,String sort) {
+    public PageResponse<CategoryResponse> list(UUID parentId, String q, Pageable pageable,String sort, boolean all) {
     // Simple Specification
+        System.out.println("CategoryService.list called with all=" + all + ", parentId=" + parentId);
         var spec = (Specification<Category>) (root, query, cb) -> {
             List<jakarta.persistence.criteria.Predicate> ps = new ArrayList<>();
-            if (parentId == null) ps.add(cb.isNull(root.get("parent")));
-            else ps.add(cb.equal(root.get("parent").get("id"), parentId));
+            System.out.println("Building spec with all=" + all);
+            if (!all) {
+                System.out.println("Adding parentId filter");
+                if (parentId == null) ps.add(cb.isNull(root.get("parent")));
+                else ps.add(cb.equal(root.get("parent").get("id"), parentId));
+            } else {
+                System.out.println("Skipping parentId filter (all=true)");
+            }
             if (q != null && !q.isBlank()) {
                 String like = "%" + q.trim().toLowerCase(Locale.ROOT) + "%";
                 ps.add(cb.or(cb.like(cb.lower(root.get("name")), like), cb.like(cb.lower(root.get("slug")), like)));

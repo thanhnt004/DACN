@@ -1,26 +1,30 @@
 package com.example.backend.repository.catalog.product;
 
 import com.example.backend.model.product.*;
+import com.example.backend.entity.*;
 import jakarta.persistence.criteria.*;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public final class ProductSpecification {
     public static Specification<Product> hasStatus(ProductStatus status){
-        return (r,cq,cb)->status == null? null: cb.equal(r.get(Product_.status),status);
+        return (root, query, builder) -> status == null ? null : builder.equal(root.get(Product_.status), status);
     }
-    public static Specification<Product> hasGender(Gender gender) {
-        return (root, query, builder) -> gender == null? null
-                : builder.equal(root.get(Product_.gender), gender);
+
+    /**
+     * Filter products by IDs (used for vector search results)
+     */
+    public static Specification<Product> hasIdIn(Set<UUID> productIds) {
+        return (root, query, builder) -> {
+            if (productIds == null || productIds.isEmpty()) {
+                return null;
+            }
+            return root.get(Product_.id).in(productIds);
+        };
     }
-    // Lọc theo UUID trực tiếp trên Product
-    public static Specification<Product> hasBrand(UUID brandId) {
-        return (root, query, builder) -> brandId == null? null
-                : builder.equal(root.get(Product_.brand), brandId);
-    }
-    // Lọc theo Khoảng giá (Price Range)
     public static Specification<Product> hasMinPrice(Long minPriceAmount) {
         return (root, query, builder) -> minPriceAmount == null? null
                 : builder.greaterThanOrEqualTo(root.get(Product_.priceAmount), minPriceAmount);
@@ -29,6 +33,15 @@ public final class ProductSpecification {
     public static Specification<Product> hasMaxPrice(Long maxPriceAmount) {
         return (root, query, builder) -> maxPriceAmount == null? null
                 : builder.lessThanOrEqualTo(root.get(Product_.priceAmount), maxPriceAmount);
+    }
+
+    public static Specification<Product> hasBrand(UUID brandId) {
+        return (root, query, builder) -> {
+            if (brandId == null) {
+                return null;
+            }
+            return builder.equal(root.get(Product_.brand).get(Brand_.id), brandId);
+        };
     }
 
     // Lọc theo UUID trực tiếp trên Product
@@ -89,6 +102,18 @@ public final class ProductSpecification {
 
             subquery.select(subRoot).where(builder.and(correlation, colorFilter));
             return builder.exists(subquery);
+        };
+    }
+
+    /**
+     * Fetch Brand association to avoid LazyInitializationException
+     */
+    public static Specification<Product> fetchBrand() {
+        return (root, query, builder) -> {
+            if (query.getResultType() != Long.class && query.getResultType() != long.class) {
+                root.fetch(Product_.brand, JoinType.LEFT);
+            }
+            return null;
         };
     }
 }

@@ -101,4 +101,24 @@ public class ReportResponse {
         private BigDecimal totalCost;
         private BigDecimal grossProfit;
     }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ProfitByMonthDTO {
+        private List<ReportProjections.MonthlyProfitProjection> dataPoints;
+        private Instant startDate;
+        private Instant endDate;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ProfitByCategoryDTO {
+        private List<ReportProjections.CategoryProfitProjection> categories;
+        private Instant startDate;
+        private Instant endDate;
+    }
 }

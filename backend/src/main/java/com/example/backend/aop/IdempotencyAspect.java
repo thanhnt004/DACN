@@ -12,6 +12,7 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -41,14 +42,35 @@ public class IdempotencyAspect {
         Idempotent idempotentAnnotation = method.getAnnotation(Idempotent.class);
         //get sessionId from path if exists
         String scopeParamName = idempotentAnnotation.scope(); // Lấy tên biến, VD: "orderId"
-        // Lấy map path variables
-        @SuppressWarnings("unchecked")
-        Map<String, String> pathVariables = (Map<String, String>) request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
+        
+        // Try to get from method arguments first
+        String scopeValue = null;
+        Object[] args = joinPoint.getArgs();
+        java.lang.annotation.Annotation[][] parameterAnnotations = method.getParameterAnnotations();
+        String[] parameterNames = signature.getParameterNames();
+        
+        for (int i = 0; i < parameterAnnotations.length; i++) {
+            for (java.lang.annotation.Annotation annotation : parameterAnnotations[i]) {
+                if (annotation instanceof org.springframework.web.bind.annotation.PathVariable) {
+                    org.springframework.web.bind.annotation.PathVariable pathVar = (org.springframework.web.bind.annotation.PathVariable) annotation;
+                    String pathVarName = pathVar.value().isEmpty() ? parameterNames[i] : pathVar.value();
+                    if (pathVarName.equals(scopeParamName) && args[i] != null) {
+                        scopeValue = args[i].toString();
+                        break;
+                    }
+                }
+            }
+            if (scopeValue != null) break;
+        }
+        
+        // Fallback to request attribute if not found in method args
+        if (scopeValue == null) {
+            @SuppressWarnings("unchecked")
+            Map<String, String> pathVariables = (Map<String, String>) request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
+            scopeValue = (pathVariables != null) ? pathVariables.get(scopeParamName) : null;
+        }
 
-        // Lấy giá trị dựa trên tên biến cấu hình
-        String scopeValue = (pathVariables != null) ? pathVariables.get(scopeParamName) : null;
-
-        // Nếu endpoint này cần scope mà không tìm thấy trong URL -> Lỗi
+        // Nếu endpoint này cần scope mà không tìm thấy -> Lỗi
         if (scopeValue == null) {
             throw new BadRequestException("Missing required path variable: " + scopeParamName);
         }
@@ -66,7 +88,7 @@ public class IdempotencyAspect {
         }
         // Case A: Đã xử lý xong -> Trả lại kết quả cũ
         if (record != null && record.getStatus() == IdempotencyKey.Status.SUCCESS) {
-            return record.getResponseBody();
+            return ResponseEntity.ok(record.getResponseBody());
         }
 
         // Case B: Đang xử lý -> Chặn lại

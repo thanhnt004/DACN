@@ -11,22 +11,25 @@ import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Builder
 @Setter
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "carts")
+@Builder(toBuilder = true)
 public class Cart {
     @Id
     @GeneratedValue
     private UUID id;
+    
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private CartStatus status = CartStatus.ACTIVE;
+    
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
+    
     @UpdateTimestamp
     private Instant updatedAt;
     //relation

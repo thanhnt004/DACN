@@ -24,12 +24,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class InventoryService {
+
     private final InventoryRepository inventoryRepository;
     private final InventoryReservationRepository reservationRepository;
 
-    /**
-     * Lấy số lượng tồn kho khả dụng
-     */
     @Transactional(readOnly = true)
     public int getAvailableStock(UUID variantId) {
         Inventory inventory = inventoryRepository.findById(variantId)
@@ -42,12 +40,14 @@ public class InventoryService {
         return inventory.getQuantityOnHand() - inventory.getQuantityReserved();
     }
 
-    /**
-     * Đặt giữ hàng tồn kho cho order
-     */
     @Transactional
     public void reserveStockForOrder(Order order) {
         for (OrderItem item : order.getItems()) {
+            // Safety check for reservation too
+            if (item.getVariant() == null) {
+                throw new InsufficientStockException("Product data is corrupted (Variant not found) for item: " + item.getProductName());
+            }
+
             UUID variantId = item.getVariant().getId();
             int qty = item.getQuantity();
 
@@ -68,25 +68,32 @@ public class InventoryService {
     }
 
     /**
-     * Giải phóng reservation (khi cancel order)
+     * FIXED: Safe release logic
      */
     @Transactional
     public void releaseReservation(Order order) {
         log.info("Releasing stock reservation for order: {}", order.getOrderNumber());
 
         order.getItems().forEach(orderItem -> {
+            // 1. CHECK NULL FIRST
+            if (orderItem.getVariant() == null) {
+                log.warn("Cannot release stock for OrderItem {}. Variant likely deleted physically.", orderItem.getId());
+                return; // Skip this iteration, do not crash
+            }
+
+            // 2. NOW it is safe to access ID
             UUID variantId = orderItem.getVariant().getId();
             int quantity = orderItem.getQuantity();
 
             Inventory inventory = inventoryRepository.findByIdForUpdate(variantId)
-                    .orElseThrow(() -> new NotFoundException(
-                            "Variant không tồn tại: " + variantId
-                    ));
+                    .orElse(null);
 
-            inventory.setQuantityReserved(
-                    Math.max(0, inventory.getQuantityReserved() - quantity)
-            );
-            inventoryRepository.save(inventory);
+            if (inventory == null) {
+                log.warn("Inventory record not found for variant {}. Skipping stock release.", variantId);
+            } else {
+                inventory.setQuantityReserved(Math.max(0, inventory.getQuantityReserved() - quantity));
+                inventoryRepository.save(inventory);
+            }
 
             // Update reservation record
             reservationRepository.findByOrderIdAndVariantId(order.getId(), variantId)
@@ -99,34 +106,60 @@ public class InventoryService {
         log.info("Stock reservation released for order: {}", order.getOrderNumber());
     }
 
-    /**
-     * Confirm sold (chuyển từ reserved → sold khi order delivered)
-     */
     @Transactional
     public void confirmSold(Order order) {
         log.info("Confirming sold for order: {}", order.getOrderNumber());
 
         order.getItems().forEach(orderItem -> {
+            if (orderItem.getVariant() == null) {
+                log.warn("Skipping confirmSold for item {}: Variant deleted.", orderItem.getId());
+                return;
+            }
+
             UUID variantId = orderItem.getVariant().getId();
             int quantity = orderItem.getQuantity();
 
             Inventory inventory = inventoryRepository.findByIdForUpdate(variantId)
-                    .orElseThrow(() -> new NotFoundException(
-                            "Variant không tồn tại: " + variantId
-                    ));
+                    .orElse(null);
 
-            // Giảm cả on_hand và reserved
-            inventory.setQuantityOnHand(
-                    Math.max(0, inventory.getQuantityOnHand() - quantity)
-            );
-            inventory.setQuantityReserved(
-                    Math.max(0, inventory.getQuantityReserved() - quantity)
-            );
+            if (inventory == null) {
+                log.warn("Inventory record not found for variant {}. Skipping confirm sold.", variantId);
+            } else {
+                inventory.setQuantityOnHand(Math.max(0, inventory.getQuantityOnHand() - quantity));
+                inventory.setQuantityReserved(Math.max(0, inventory.getQuantityReserved() - quantity));
 
-            inventoryRepository.save(inventory);
+                inventoryRepository.save(inventory);
+            }
         });
 
         log.info("Sold confirmed for order: {}", order.getOrderNumber());
+    }
+
+    @Transactional
+    public void revertSold(Order order) {
+        log.info("Reverting sold for order: {}", order.getOrderNumber());
+
+        order.getItems().forEach(orderItem -> {
+            if (orderItem.getVariant() == null) {
+                log.warn("Skipping revertSold for item {}: Variant deleted.", orderItem.getId());
+                return;
+            }
+
+            UUID variantId = orderItem.getVariant().getId();
+            int quantity = orderItem.getQuantity();
+
+            Inventory inventory = inventoryRepository.findByIdForUpdate(variantId)
+                    .orElse(null);
+
+            if (inventory == null) {
+                log.warn("Inventory record not found for variant {}. Skipping revert sold.", variantId);
+            } else {
+                inventory.setQuantityOnHand(inventory.getQuantityOnHand() + quantity);
+                inventoryRepository.save(inventory);
+            }
+        });
+
+        log.info("Sold reverted for order: {}", order.getOrderNumber());
     }
 
     public Map<UUID, VariantStockStatus> getStockStatusForVariants(List<UUID> ids) {
@@ -136,35 +169,10 @@ public class InventoryService {
                         Inventory::getId,
                         inv -> VariantStockStatus.builder()
                                 .inStock(inv.isInStock())
-                                .availableQuantity(
-                                        inv.getQuantityOnHand() - inv.getQuantityReserved()
-                                )
-                                .message(inv.getAvailableStock()<=10?"Sắp hết hàng":"")
-                                .build(
+                                .availableQuantity(inv.getQuantityOnHand() - inv.getQuantityReserved())
+                                .message((inv.getQuantityOnHand() - inv.getQuantityReserved()) <= 10 ? "Sắp hết hàng" : "")
+                                .build()
                 )
-        ));
-    }
-
-    public void revertSold(Order order) {
-        log.info("Reverting sold for order: {}", order.getOrderNumber());
-
-        order.getItems().forEach(orderItem -> {
-            UUID variantId = orderItem.getVariant().getId();
-            int quantity = orderItem.getQuantity();
-
-            Inventory inventory = inventoryRepository.findByIdForUpdate(variantId)
-                    .orElseThrow(() -> new NotFoundException(
-                            "Variant không tồn tại: " + variantId
-                    ));
-
-            // Tăng cả on_hand và giảm sold
-            inventory.setQuantityOnHand(
-                    inventory.getQuantityOnHand() + quantity
-            );
-
-            inventoryRepository.save(inventory);
-        });
-
-        log.info("Sold reverted for order: {}", order.getOrderNumber());
+        );
     }
 }

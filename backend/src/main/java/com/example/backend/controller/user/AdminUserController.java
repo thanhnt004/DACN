@@ -55,4 +55,22 @@ public class AdminUserController {
         userManagerService.restoreUser(userId);
         return ResponseEntity.ok().body(Map.of("status", "success"));
     }
+
+    @PostMapping("/grant_admin/{userId}")
+    @Operation(
+            summary = "Grant admin role to user"
+    )
+    public ResponseEntity<?> grantAdmin(@PathVariable UUID userId){
+        userManagerService.grantAdminRole(userId);
+        return ResponseEntity.ok().body(Map.of("status", "success"));
+    }
+
+    @PostMapping("/revoke_admin/{userId}")
+    @Operation(
+            summary = "Revoke admin role from user"
+    )
+    public ResponseEntity<?> revokeAdmin(@PathVariable UUID userId){
+        userManagerService.revokeAdminRole(userId);
+        return ResponseEntity.ok().body(Map.of("status", "success"));
+    }
 }

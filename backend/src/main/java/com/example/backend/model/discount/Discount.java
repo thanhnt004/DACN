@@ -19,8 +19,8 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 @Table(name = "discounts", uniqueConstraints = @UniqueConstraint(name = "discounts_code_key", columnNames = {"code"}))
+@Builder(toBuilder = true)
 public class Discount {
     @Id
     @GeneratedValue

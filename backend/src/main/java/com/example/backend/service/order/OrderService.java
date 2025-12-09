@@ -5,13 +5,17 @@ import com.example.backend.dto.response.checkout.CheckoutSession;
 import com.example.backend.exception.BadRequestException;
 import com.example.backend.exception.NotFoundException;
 import com.example.backend.model.User;
+import com.example.backend.model.enumrator.AuditActionType;
+import com.example.backend.model.enumrator.AuditEntityType;
 import com.example.backend.model.order.Order;
+import com.example.backend.model.order.OrderChangeRequest;
 import com.example.backend.model.order.OrderItem;
 import com.example.backend.model.payment.Payment;
 import com.example.backend.repository.catalog.product.ProductRepository;
 import com.example.backend.repository.catalog.product.ProductVariantRepository;
 import com.example.backend.repository.order.OrderRepository;
 import com.example.backend.repository.user.UserRepository;
+import com.example.backend.service.audit.AuditLogService;
 import com.example.backend.util.CookieUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.criteria.Join;
@@ -34,8 +38,10 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -56,6 +62,7 @@ public class OrderService {
     private final ProductRepository productRepository;
 
     private final CookieUtil cookieUtil;
+    private final AuditLogService auditLogService;
     private final List<Order.OrderStatus> CANCELABLE_STATUSES = List.of(
             Order.OrderStatus.PENDING,
             Order.OrderStatus.CONFIRMED);
@@ -83,7 +90,13 @@ public class OrderService {
         UUID guestId = null;
         log.info("Creating order from session: sessionId={}, id={}",
                 session.getId(), session.getSessionToken());
-        Optional<User> userOptional = userRepository.findById(session.getUserId());
+        
+        // Check if user is authenticated or guest
+        Optional<User> userOptional = Optional.empty();
+        if (session.getUserId() != null) {
+            userOptional = userRepository.findById(session.getUserId());
+        }
+        
         if (userOptional.isEmpty()) {
             var guestIdCookie = cookieUtil.readCookie(httpRequest, "guest_id");
             if (guestIdCookie.isEmpty()) {
@@ -173,11 +186,27 @@ public class OrderService {
      */
     @Transactional
     public Order updateStatus(Order order, Order.OrderStatus status) {
-        order.setPreviousStatus(order.getStatus());
+        Order.OrderStatus oldStatus = order.getStatus();
+        order.setPreviousStatus(oldStatus);
         order.setStatus(status);
         orderRepository.save(order);
 
         log.info("Order status updated: orderNum={}, status={}", order.getOrderNumber(), status);
+
+        // Audit log: Ghi lại thay đổi trạng thái đơn hàng
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("order_number", order.getOrderNumber());
+        metadata.put("old_status", oldStatus != null ? oldStatus.name() : null);
+        metadata.put("new_status", status.name());
+        metadata.put("total_amount", order.getTotalAmount());
+
+        auditLogService.logAction(
+            AuditActionType.UPDATE_ORDER_STATUS,
+            AuditEntityType.ORDER,
+            order.getId(),
+            metadata
+        );
+
         return order;
     }
 
@@ -221,10 +250,16 @@ public class OrderService {
 
             List<Predicate> predicates = new ArrayList<>();
 
-            userOps.ifPresent(user -> predicates.add(criteriaBuilder.equal(root.get("user"), user)));
-
-            if (guestId != null) {
-                predicates.add(criteriaBuilder.equal(root.get("guestId"), guestId));
+            // Build user/guest filter: user_id = ? OR guest_id = ?
+            if (userOps.isPresent() || guestId != null) {
+                List<Predicate> userOrGuestPredicates = new ArrayList<>();
+                userOps.ifPresent(user -> userOrGuestPredicates.add(criteriaBuilder.equal(root.get("user"), user)));
+                if (guestId != null) {
+                    userOrGuestPredicates.add(criteriaBuilder.equal(root.get("guestId"), guestId));
+                }
+                if (!userOrGuestPredicates.isEmpty()) {
+                    predicates.add(criteriaBuilder.or(userOrGuestPredicates.toArray(new Predicate[0])));
+                }
             }
 
             if (status != null && !status.isEmpty()) {
@@ -306,80 +341,132 @@ public class OrderService {
     }
 
 
-    public Page<Order> getPageOrder(String status, String paymentType, String orderNumber, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
-        Specification<Order> spec = buildAdminOrderSpecification(status, paymentType, orderNumber, startDate, endDate);
+    /**
+     * Lấy danh sách đơn hàng theo tab filter
+     * @param tab Tab filter enum (ALL, UNPAID, TO_CONFIRM, PROCESSING, SHIPPING, COMPLETED, CANCEL_REQ, CANCELLED, RETURN_REQ, REFUNDED)
+     * @param orderNumber Số đơn hàng (optional)
+     * @param startDate Ngày bắt đầu (optional)
+     * @param endDate Ngày kết thúc (optional)
+     * @param pageable Phân trang
+     * @return Page of Orders
+     */
+    public Page<Order> getPageOrder(String tab, String paymentType, String orderNumber, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
+        if (!pageable.getSort().isSorted()) {
+            pageable = org.springframework.data.domain.PageRequest.of(
+                    pageable.getPageNumber(),
+                    pageable.getPageSize(),
+                    org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt")
+            );
+        }
+        Specification<Order> spec = buildOrderSpecificationByTab(tab, orderNumber, startDate, endDate);
         return orderRepository.findAll(spec, pageable);
     }
 
-    private Specification<Order> buildAdminOrderSpecification(String status, String paymentType, String orderNumber,
+    private Specification<Order> buildOrderSpecificationByTab(String tabStr, String orderNumber,
             LocalDateTime startDate, LocalDateTime endDate) {
         return (root, query, criteriaBuilder) -> {
             query.distinct(true);
             List<Predicate> predicates = new ArrayList<>();
 
+            // Filter by order number
             if (orderNumber != null && !orderNumber.trim().isEmpty()) {
                 predicates.add(criteriaBuilder.like(root.get("orderNumber"), "%" + orderNumber.trim() + "%"));
             }
 
+            // Filter by date range
             if (startDate != null) {
-                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("placedAt"), startDate.atZone(ZoneId.systemDefault()).toInstant()));
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("placedAt"), 
+                    startDate.atZone(ZoneId.systemDefault()).toInstant()));
             }
             if (endDate != null) {
-                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("placedAt"), endDate.atZone(ZoneId.systemDefault()).toInstant()));
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("placedAt"), 
+                    endDate.atZone(ZoneId.systemDefault()).toInstant()));
             }
 
-            // --- Status and Payment Logic ---
-            Join<Order, Payment> paymentJoin = root.join("payments", JoinType.LEFT);
+            // Get tab filter enum
+            com.example.backend.model.order.OrderTabFilter tab = 
+                com.example.backend.model.order.OrderTabFilter.fromString(tabStr);
 
-            // Special case for the new "Chờ xác nhận" tab
-            if ("AWAITING_CONFIRMATION".equalsIgnoreCase(status)) {
-                Predicate pendingAndCod = criteriaBuilder.and(
-                    criteriaBuilder.equal(root.get("status"), Order.OrderStatus.PENDING),
-                    criteriaBuilder.like(criteriaBuilder.upper(paymentJoin.get("provider")), "%COD%")
-                );
-                
-                Predicate pendingAndPaid = criteriaBuilder.and(
-                    criteriaBuilder.equal(root.get("status"), Order.OrderStatus.CONFIRMED),
-                    criteriaBuilder.isNotNull(root.get("paidAt"))
-                );
+            // Apply tab-specific filtering logic
+            switch (tab) {
+                case ALL:
+                    // No additional filter - show all orders
+                    break;
 
-                predicates.add(criteriaBuilder.or(pendingAndCod, pendingAndPaid));
+                case UNPAID:
+                    // Status == PENDING AND PaymentMethod != COD AND (Payment Status != SUCCESS OR Payment Status IS NULL)
+                    // Đơn online chưa thanh toán (VNPAY, MOMO chưa thanh toán)
+                    Join<Order, Payment> unpaidPaymentJoin = root.join("payments", JoinType.INNER);
+                    predicates.add(criteriaBuilder.and(
+                        criteriaBuilder.equal(root.get("status"), Order.OrderStatus.PENDING),
+                        criteriaBuilder.notLike(criteriaBuilder.upper(unpaidPaymentJoin.get("provider")), "%COD%"),
+                        criteriaBuilder.or(
+                            criteriaBuilder.notEqual(unpaidPaymentJoin.get("status"), "SUCCESS"),
+                            criteriaBuilder.isNull(unpaidPaymentJoin.get("status"))
+                        )
+                    ));
+                    break;
 
-            } else if ("UNPAID".equalsIgnoreCase(status)) {
-                Predicate pendingAndNotCod = criteriaBuilder.and(
-                    criteriaBuilder.equal(root.get("status"), Order.OrderStatus.PENDING),
-                    criteriaBuilder.notLike(criteriaBuilder.upper(paymentJoin.get("provider")), "%COD%")
-                );
+                case TO_CONFIRM:
+                    // (Status == CONFIRMED) OR (Status == PENDING AND PaymentMethod == COD)
+                    // Bao gồm: Đơn đã thanh toán online (CONFIRMED) HOẶC đơn COD mới (PENDING + COD)
+                    Join<Order, Payment> confirmPaymentJoin = root.join("payments", JoinType.INNER);
+                    
+                    Predicate confirmedOrders = criteriaBuilder.equal(root.get("status"), Order.OrderStatus.CONFIRMED);
+                    Predicate pendingCodOrders = criteriaBuilder.and(
+                        criteriaBuilder.equal(root.get("status"), Order.OrderStatus.PENDING),
+                        criteriaBuilder.like(criteriaBuilder.upper(confirmPaymentJoin.get("provider")), "%COD%")
+                    );
+                    predicates.add(criteriaBuilder.or(confirmedOrders, pendingCodOrders));
+                    break;
 
-                Predicate notPaid = criteriaBuilder.isNull(root.get("paidAt"));
+                case PROCESSING:
+                    // Status == PROCESSING
+                    predicates.add(criteriaBuilder.equal(root.get("status"), Order.OrderStatus.PROCESSING));
+                    break;
 
-                predicates.add(criteriaBuilder.and(pendingAndNotCod, notPaid));
-            }
-            else if (status != null && !status.isEmpty() && !status.equalsIgnoreCase("ALL")) {
-                // Standard status filtering for all other tabs
-                 List<Order.OrderStatus> statuses = Arrays.stream(status.split(","))
-                        .map(String::trim)
-                        .filter(token -> !token.isEmpty())
-                        .map(token -> {
-                            try {
-                                return Order.OrderStatus.valueOf(token.toUpperCase(Locale.ROOT));
-                            } catch (IllegalArgumentException ex) {
-                                throw new BadRequestException("Trạng thái đơn hàng không hợp lệ: " + token);
-                            }
-                        })
-                        .collect(Collectors.toList());
-                if (!statuses.isEmpty()) {
-                    predicates.add(root.get("status").in(statuses));
-                }
-            }
+                case SHIPPING:
+                    // Status == SHIPPED
+                    predicates.add(criteriaBuilder.equal(root.get("status"), Order.OrderStatus.SHIPPED));
+                    break;
 
-            // Payment type filtering (works in conjunction with status)
-            if (paymentType != null && !paymentType.isEmpty() && !paymentType.equalsIgnoreCase("ALL")) {
-                if ("COD".equalsIgnoreCase(paymentType)) {
-                    predicates.add(criteriaBuilder.like(criteriaBuilder.upper(paymentJoin.get("provider")), "%COD%"));
-                } else if ("NON_COD".equalsIgnoreCase(paymentType) || "ONLINE".equalsIgnoreCase(paymentType)) {
-                    predicates.add(criteriaBuilder.notLike(criteriaBuilder.upper(paymentJoin.get("provider")), "%COD%"));
-                }
+                case COMPLETED:
+                    // Status == DELIVERED
+                    predicates.add(criteriaBuilder.equal(root.get("status"), Order.OrderStatus.DELIVERED));
+                    break;
+
+                case CANCEL_REQ:
+                    // Status == CANCELING
+                    predicates.add(criteriaBuilder.equal(root.get("status"), Order.OrderStatus.CANCELING));
+                    break;
+
+                case CANCELLED:
+                    // Status == CANCELLED
+                    predicates.add(criteriaBuilder.equal(root.get("status"), Order.OrderStatus.CANCELLED));
+                    break;
+
+                case RETURN_REQ:
+                    // Status == RETURNING
+                    predicates.add(criteriaBuilder.equal(root.get("status"), Order.OrderStatus.RETURNING));
+                    break;
+
+                case REFUNDED:
+                    // Status == REFUNDED OR Status == RETURNED
+                    predicates.add(root.get("status").in(
+                        Order.OrderStatus.REFUNDED, 
+                        Order.OrderStatus.RETURNED
+                    ));
+                    break;
+
+                case WAITING_REFUND:
+                    // ChangeRequest.Status == WAITING_REFUND
+                    Join<Order, OrderChangeRequest> requestJoin = root.join("changeRequest", JoinType.INNER);
+                    predicates.add(criteriaBuilder.equal(requestJoin.get("status"), "WAITING_REFUND"));
+                    break;
+
+                default:
+                    // Fallback to ALL (no filter)
+                    break;
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));

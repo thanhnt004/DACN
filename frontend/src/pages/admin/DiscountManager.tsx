@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'react-toastify'
 import * as DiscountsApi from '../../api/admin/discounts'
 import type { DiscountResponse, DiscountCreateRequest, DiscountUpdateRequest } from '../../api/admin/discounts'
 import { getProducts } from '../../api/admin/products'
 import { getCategories } from '../../api/admin/brandCategory'
-import { extractProblemMessage } from '../../lib/problemDetails'
+import { resolveErrorMessage } from '../../lib/problemDetails'
+import { instantToDateTimeLocal, formatInstant } from '../../lib/dateUtils'
 
 export default function DiscountManager() {
     const [discounts, setDiscounts] = useState<DiscountResponse[]>([])
@@ -55,7 +57,7 @@ export default function DiscountManager() {
             setTotalPages(res.totalPages)
         } catch (error) {
             console.error('Failed to fetch discounts:', error)
-            alert('❌ Lỗi tải danh sách khuyến mãi')
+            toast.error('Lỗi tải danh sách khuyến mãi')
         } finally {
             setLoading(false)
         }
@@ -82,30 +84,30 @@ export default function DiscountManager() {
         })
     }
 
-    const resolveErrorMessage = (error: unknown, fallback: string): string => {
-        const responseData = error && typeof error === 'object' && 'response' in error
-            ? (error as { response?: { data?: unknown } }).response?.data
-            : undefined
-        const alt = error instanceof Error && error.message ? error.message : fallback
-        return extractProblemMessage(responseData, alt)
-    }
-
     const handleCreate = async () => {
         if (!formData.code || !formData.name || !formData.value) {
-            alert('❌ Vui lòng điền đầy đủ: Mã, Tên, và Giá trị')
+            toast.warning('Vui lòng điền đầy đủ: Mã, Tên, và Giá trị')
             return
         }
 
+        // Convert datetime-local format to ISO-8601
+        const createData = {
+            ...formData,
+            startsAt: formData.startsAt ? new Date(formData.startsAt).toISOString() : undefined,
+            endsAt: formData.endsAt ? new Date(formData.endsAt).toISOString() : undefined,
+        }
+
         try {
-            await DiscountsApi.createDiscount(formData)
+            const newDiscount = await DiscountsApi.createDiscount(createData)
+            // Optimistic update - thêm vào đầu danh sách
+            setDiscounts(prev => [newDiscount, ...prev])
             setShowCreateModal(false)
             resetForm()
-            fetchDiscounts()
-            alert('✅ Tạo mã giảm giá thành công!')
+            toast.success('Tạo mã giảm giá thành công!')
         } catch (error) {
             console.error('Failed to create discount:', error)
             const message = resolveErrorMessage(error, 'Lỗi tạo mã giảm giá')
-            alert(`❌ ${message}`)
+            toast.error(message)
         }
     }
 
@@ -118,8 +120,9 @@ export default function DiscountManager() {
             description: formData.description,
             type: formData.type,
             value: formData.value,
-            startsAt: formData.startsAt || undefined,
-            endsAt: formData.endsAt || undefined,
+            // Convert datetime-local format to ISO-8601 with seconds and timezone
+            startsAt: formData.startsAt ? new Date(formData.startsAt).toISOString() : undefined,
+            endsAt: formData.endsAt ? new Date(formData.endsAt).toISOString() : undefined,
             minOrderAmount: formData.minOrderAmount,
             maxRedemptions: formData.maxRedemptions,
             perUserLimit: formData.perUserLimit,
@@ -127,16 +130,17 @@ export default function DiscountManager() {
         }
 
         try {
-            await DiscountsApi.updateDiscount(editingDiscount.id, updateData)
+            const updated = await DiscountsApi.updateDiscount(editingDiscount.id, updateData)
+            // Optimistic update - cập nhật trong danh sách hiện tại
+            setDiscounts(prev => prev.map(d => d.id === editingDiscount.id ? updated : d))
             setShowEditModal(false)
             setEditingDiscount(null)
             resetForm()
-            fetchDiscounts()
-            alert('✅ Cập nhật mã giảm giá thành công!')
+            toast.success('Cập nhật mã giảm giá thành công!')
         } catch (error) {
             console.error('Failed to update discount:', error)
             const message = resolveErrorMessage(error, 'Lỗi cập nhật mã giảm giá')
-            alert(`❌ ${message}`)
+            toast.error(message)
         }
     }
 
@@ -144,12 +148,15 @@ export default function DiscountManager() {
         if (!confirm('Bạn có chắc muốn xóa mã giảm giá này?')) return
 
         try {
+            // Optimistic update - xóa khỏi UI ngay lập tức
+            setDiscounts(prev => prev.filter(d => d.id !== id))
             await DiscountsApi.deleteDiscount(id)
-            fetchDiscounts()
-            alert('✅ Xóa mã giảm giá thành công!')
+            toast.success('Xóa mã giảm giá thành công!')
         } catch (error) {
             console.error('Failed to delete discount:', error)
-            alert('❌ Lỗi xóa mã giảm giá')
+            // Rollback nếu lỗi
+            fetchDiscounts()
+            toast.error('Lỗi xóa mã giảm giá')
         }
     }
 
@@ -161,8 +168,8 @@ export default function DiscountManager() {
             description: discount.description || '',
             type: discount.type,
             value: discount.value,
-            startsAt: discount.startsAt ? discount.startsAt.slice(0, 16) : '',
-            endsAt: discount.endsAt ? discount.endsAt.slice(0, 16) : '',
+            startsAt: discount.startsAt ? instantToDateTimeLocal(discount.startsAt) : '',
+            endsAt: discount.endsAt ? instantToDateTimeLocal(discount.endsAt) : '',
             minOrderAmount: discount.minOrderAmount,
             maxRedemptions: discount.maxRedemptions,
             perUserLimit: discount.perUserLimit,
@@ -180,7 +187,7 @@ export default function DiscountManager() {
 
     const formatDate = (dateString?: string) => {
         if (!dateString) return '-'
-        return new Date(dateString).toLocaleDateString('vi-VN', {
+        return formatInstant(dateString, 'vi-VN', {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',
@@ -200,7 +207,7 @@ export default function DiscountManager() {
             setAvailableProducts(res.content.map(p => ({ id: p.id, name: p.name })))
         } catch (error) {
             console.error('Failed to fetch products:', error)
-            alert('❌ Lỗi tải danh sách sản phẩm')
+            toast.error('Lỗi tải danh sách sản phẩm')
         }
     }
 
@@ -209,14 +216,16 @@ export default function DiscountManager() {
 
         try {
             await DiscountsApi.addProductsToDiscount(managingDiscount.id, { productIds: selectedProductIds })
+            // Fetch lại discount đang quản lý và cập nhật trong danh sách
+            const updated = await DiscountsApi.getDiscount(managingDiscount.id)
+            setDiscounts(prev => prev.map(d => d.id === managingDiscount.id ? updated : d))
             setShowProductModal(false)
             setManagingDiscount(null)
             setSelectedProductIds([])
-            fetchDiscounts()
-            alert('✅ Thêm sản phẩm thành công!')
+            toast.success('Thêm sản phẩm thành công!')
         } catch (error) {
             console.error('Failed to add products:', error)
-            alert('❌ Lỗi thêm sản phẩm')
+            toast.error('Lỗi thêm sản phẩm')
         }
     }
 
@@ -225,14 +234,16 @@ export default function DiscountManager() {
 
         try {
             await DiscountsApi.removeProductsFromDiscount(managingDiscount.id, { productIds: selectedProductIds })
+            // Fetch lại discount đang quản lý và cập nhật trong danh sách
+            const updated = await DiscountsApi.getDiscount(managingDiscount.id)
+            setDiscounts(prev => prev.map(d => d.id === managingDiscount.id ? updated : d))
             setShowProductModal(false)
             setManagingDiscount(null)
             setSelectedProductIds([])
-            fetchDiscounts()
-            alert('✅ Xóa sản phẩm thành công!')
+            toast.success('Xóa sản phẩm thành công!')
         } catch (error) {
             console.error('Failed to remove products:', error)
-            alert('❌ Lỗi xóa sản phẩm')
+            toast.error('Lỗi xóa sản phẩm')
         }
     }
 
@@ -247,7 +258,7 @@ export default function DiscountManager() {
             setAvailableCategories(res.content.map(c => ({ id: c.id, name: c.name })))
         } catch (error) {
             console.error('Failed to fetch categories:', error)
-            alert('❌ Lỗi tải danh sách danh mục')
+            toast.error('Lỗi tải danh sách danh mục')
         }
     }
 
@@ -256,14 +267,16 @@ export default function DiscountManager() {
 
         try {
             await DiscountsApi.addCategoriesToDiscount(managingDiscount.id, { categoryIds: selectedCategoryIds })
+            // Fetch lại discount đang quản lý và cập nhật trong danh sách
+            const updated = await DiscountsApi.getDiscount(managingDiscount.id)
+            setDiscounts(prev => prev.map(d => d.id === managingDiscount.id ? updated : d))
             setShowCategoryModal(false)
             setManagingDiscount(null)
             setSelectedCategoryIds([])
-            fetchDiscounts()
-            alert('✅ Thêm danh mục thành công!')
+            toast.success('Thêm danh mục thành công!')
         } catch (error) {
             console.error('Failed to add categories:', error)
-            alert('❌ Lỗi thêm danh mục')
+            toast.error('Lỗi thêm danh mục')
         }
     }
 
@@ -272,14 +285,16 @@ export default function DiscountManager() {
 
         try {
             await DiscountsApi.removeCategoriesFromDiscount(managingDiscount.id, { categoryIds: selectedCategoryIds })
+            // Fetch lại discount đang quản lý và cập nhật trong danh sách
+            const updated = await DiscountsApi.getDiscount(managingDiscount.id)
+            setDiscounts(prev => prev.map(d => d.id === managingDiscount.id ? updated : d))
             setShowCategoryModal(false)
             setManagingDiscount(null)
             setSelectedCategoryIds([])
-            fetchDiscounts()
-            alert('✅ Xóa danh mục thành công!')
+            toast.success('Xóa danh mục thành công!')
         } catch (error) {
             console.error('Failed to remove categories:', error)
-            alert('❌ Lỗi xóa danh mục')
+            toast.error('Lỗi xóa danh mục')
         }
     }
 
@@ -498,7 +513,7 @@ export default function DiscountManager() {
 
             {/* Create Modal */}
             {showCreateModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                         <h2 className="text-xl font-bold text-gray-900 mb-4">Thêm mã giảm giá mới</h2>
 
@@ -584,7 +599,7 @@ export default function DiscountManager() {
                                         Bắt đầu từ
                                     </label>
                                     <input
-                                        type="datetime-local"
+                                        type="datetime-local" step="1"
                                         value={formData.startsAt}
                                         onChange={(e) => setFormData({ ...formData, startsAt: e.target.value })}
                                         className="w-full border border-gray-300 rounded px-3 py-2"
@@ -596,7 +611,7 @@ export default function DiscountManager() {
                                         Kết thúc vào
                                     </label>
                                     <input
-                                        type="datetime-local"
+                                        type="datetime-local" step="1"
                                         value={formData.endsAt}
                                         onChange={(e) => setFormData({ ...formData, endsAt: e.target.value })}
                                         className="w-full border border-gray-300 rounded px-3 py-2"
@@ -700,7 +715,7 @@ export default function DiscountManager() {
 
             {/* Edit Modal */}
             {showEditModal && editingDiscount && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                         <h2 className="text-xl font-bold text-gray-900 mb-4">Sửa mã giảm giá</h2>
 
@@ -783,7 +798,7 @@ export default function DiscountManager() {
                                         Bắt đầu từ
                                     </label>
                                     <input
-                                        type="datetime-local"
+                                        type="datetime-local" step="1"
                                         value={formData.startsAt}
                                         onChange={(e) => setFormData({ ...formData, startsAt: e.target.value })}
                                         className="w-full border border-gray-300 rounded px-3 py-2"
@@ -795,7 +810,7 @@ export default function DiscountManager() {
                                         Kết thúc vào
                                     </label>
                                     <input
-                                        type="datetime-local"
+                                        type="datetime-local" step="1"
                                         value={formData.endsAt}
                                         onChange={(e) => setFormData({ ...formData, endsAt: e.target.value })}
                                         className="w-full border border-gray-300 rounded px-3 py-2"
@@ -897,7 +912,7 @@ export default function DiscountManager() {
 
             {/* Product Management Modal */}
             {showProductModal && managingDiscount && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                         <h2 className="text-xl font-bold text-gray-900 mb-4">
                             Quản lý sản phẩm - {managingDiscount.code}
@@ -974,7 +989,7 @@ export default function DiscountManager() {
 
             {/* Category Management Modal */}
             {showCategoryModal && managingDiscount && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                         <h2 className="text-xl font-bold text-gray-900 mb-4">
                             Quản lý danh mục - {managingDiscount.code}

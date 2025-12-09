@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { bindTokenAccess } from '../api/http'
+import { bindTokenAccess, setLoggingOut } from '../api/http'
 import * as AuthApi from '../api/auth'
 import { extractProblemMessage } from '../lib/problemDetails'
 
@@ -133,12 +133,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
     },
     logout: async () => {
+        // Set logging out flag to prevent refresh
+        setLoggingOut(true)
+        
+        // Clear timer trước để tránh auto refresh trong quá trình logout
+        if (refreshTimerId) {
+            clearTimeout(refreshTimerId)
+            refreshTimerId = null
+        }
+        
         try {
             await AuthApi.logout()
+        } catch (error) {
+            // Ignore logout API errors, still proceed with local cleanup
+            console.error('Logout API error:', error)
         } finally {
+            // Clear all auth state
             get().setAccessToken(null)
             get().setIsAdmin(false)
-            set({ user: null, requireEmailVerification: false })
+            set({ 
+                user: null, 
+                requireEmailVerification: false,
+                error: null,
+                loading: false
+            })
+            
+            // Clear localStorage completely
+            localStorage.removeItem('access_token')
+            localStorage.removeItem('is_admin')
+            
+            // Reset logging out flag after cleanup
+            setLoggingOut(false)
         }
     },
     setIsAdmin: (isAdmin) => {

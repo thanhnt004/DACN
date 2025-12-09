@@ -31,8 +31,11 @@ public class Address {
     private String province;
     @Builder.Default
     private boolean isDefaultShipping = false;
+    
     @CreationTimestamp
+    @Column(updatable = false)
     private Instant createdAt;
+    
     @UpdateTimestamp
     private Instant updatedAt;
     //relations

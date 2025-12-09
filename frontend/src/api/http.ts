@@ -40,13 +40,29 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 let isRefreshing = false
 let refreshPromise: Promise<string> | null = null
 let queue: Array<(token: string | null) => void> = []
+let isLoggingOut = false
 
 const notifyQueue = (token: string | null) => {
     queue.forEach((cb) => cb(token))
     queue = []
 }
 
+// Export function to set logout state
+export const setLoggingOut = (value: boolean) => {
+    isLoggingOut = value
+    if (value) {
+        // Clear refresh state when logging out
+        isRefreshing = false
+        refreshPromise = null
+        queue = []
+    }
+}
+
 async function refreshAccessToken(): Promise<string> {
+    // Don't refresh if logging out
+    if (isLoggingOut) {
+        throw new Error('Logging out, skip refresh')
+    }
     if (refreshPromise) return refreshPromise
     isRefreshing = true
     refreshPromise = basicApi

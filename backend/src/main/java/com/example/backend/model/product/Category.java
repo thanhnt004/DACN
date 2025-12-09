@@ -37,6 +37,7 @@ public class Category {
     private String description;
 
     @CreationTimestamp
+    @Column(updatable = false)
     private Instant createdAt;
 
     @UpdateTimestamp

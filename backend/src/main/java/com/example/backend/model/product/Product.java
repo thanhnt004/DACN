@@ -52,19 +52,12 @@ public class Product {
 
     private String seoTitle;
 
-    @Column(name = "price", nullable = false)
+    @Column(name = "price")
     private long priceAmount;
 
     private String seoDescription;
 
     private int soldCount;
-
-    private int ratingCount;
-
-    private int ratingSum;
-
-    @Column(columnDefinition = "NUMERIC(3,2)",updatable = false,insertable = false)
-    private double ratingAvg;
 
     @Builder.Default
     private Boolean isInStock = true;
@@ -72,6 +65,7 @@ public class Product {
     private String primaryImageUrl;
 
     @CreationTimestamp
+    @Column(updatable = false)
     private Instant createdAt;
 
     @UpdateTimestamp
@@ -100,7 +94,7 @@ public class Product {
 
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "brand_id", insertable = false, updatable = false,
+    @JoinColumn(name = "brand_id",
             foreignKey = @ForeignKey(name = "products_brand_id_fkey"))
     private Brand brand;
     // Images
@@ -167,17 +161,31 @@ public class Product {
                 if (existing == null)
                     throw new ProductImageNotFoundException("Không thể tìm thấy ảnh sản phẩm với ID: " + image.getId());
                 existing.setValue(image);
+                existing.setDefault(image.isDefault());
+                if (existing.isDefault()) {
+                    this.primaryImageUrl = existing.getImageUrl();
+                }
                 toRemove.remove(existing);
             }else
             {
                 this.addImage(image);
             }
         }
+        toRemove.forEach(this::removeImage);
+
         for (int i = 0;i< images.size();i++)
         {
             images.get(i).setPosition(i);
         }
-        toRemove.forEach(this::removeImage);
+        boolean hasDefault = this.images.stream().anyMatch(ProductImage::isDefault);
+        if (!hasDefault && !this.images.isEmpty()) {
+            // Tự động chọn ảnh đầu tiên làm default nếu chưa có
+            ProductImage firstImg = this.images.get(0);
+            firstImg.setDefault(true);
+            this.primaryImageUrl = firstImg.getImageUrl();
+        } else if (this.images.isEmpty()) {
+            this.primaryImageUrl = null;
+        }
     }
     //variant
     public void addVariant(ProductVariant variant) {

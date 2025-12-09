@@ -51,8 +51,9 @@ public class VNPayService {
             //place holder
             vnpParams.put("vnp_IpAddr", "127.0.0.1");
 
-            Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
+            Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
             SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
+            formatter.setTimeZone(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
             String vnpCreateDate = formatter.format(cld.getTime());
             vnpParams.put("vnp_CreateDate", vnpCreateDate);
 
@@ -91,33 +92,76 @@ public class VNPayService {
 
     @Transactional
     public ResponseEntity<Map<String, String>> handleIpn(Map<String, String> params, HttpServletRequest request) {
-        String vnpSecureHash = params.remove("vnp_SecureHash");
         String clientIp = HeaderUtil.getClientIp(request);
-        log.info("VNPay IPN from IP={}, txnRef={}",
-                clientIp, params.get("vnp_TxnRef"));
+        log.info("VNPay IPN from IP={}, txnRef={}", clientIp, params.get("vnp_TxnRef"));
 
         // 2. (Optional) Whitelist VNPay IPs
         if (!isVNPayIP(clientIp)) {
             log.warn("Received IPN from unknown IP: {}", clientIp);
-            // Có thể block hoặc chỉ log warning
         }
-        // Sort params theo đúng chuẩn VNPay
-        List<String> fieldNames = new ArrayList<>(params.keySet());
+        
+        // 1. Lấy raw query string để tính hash (KHÔNG dùng params đã decode của Spring)
+        String queryString = request.getQueryString();
+        if (queryString == null || queryString.isEmpty()) {
+            log.error("Empty query string");
+            return rsp("99", "Invalid Request");
+        }
+        
+        log.info("Raw query string: {}", queryString);
+        
+        // 2. Parse query string thành map, giữ nguyên giá trị URL-encoded
+        Map<String, String> rawParams = new LinkedHashMap<>();
+        String vnpSecureHash = null;
+        
+        for (String param : queryString.split("&")) {
+            String[] keyValue = param.split("=", 2);
+            if (keyValue.length == 2) {
+                String key = keyValue[0];
+                String value = keyValue[1]; // Giữ nguyên URL-encoded
+                
+                if ("vnp_SecureHash".equals(key)) {
+                    vnpSecureHash = value;
+                } else if (!"vnp_SecureHashType".equals(key)) {
+                    // Loại bỏ vnp_SecureHash và vnp_SecureHashType
+                    rawParams.put(key, value);
+                }
+            }
+        }
+        
+        if (vnpSecureHash == null) {
+            log.error("Missing vnp_SecureHash");
+            return rsp("99", "Invalid Request");
+        }
+        
+        // 3. Sắp xếp tham số theo thứ tự chữ cái
+        List<String> fieldNames = new ArrayList<>(rawParams.keySet());
         Collections.sort(fieldNames);
 
+        // 4. Xây dựng chuỗi hashData với giá trị URL-encoded
         StringBuilder hashData = new StringBuilder();
         for (String fieldName : fieldNames) {
-            if (hashData.length() > 0)
-                hashData.append("&");
-            hashData.append(fieldName).append("=").append(params.get(fieldName));
+            String fieldValue = rawParams.get(fieldName);
+            if (fieldValue != null && !fieldValue.isEmpty()) {
+                if (hashData.length() > 0) {
+                    hashData.append("&");
+                }
+                hashData.append(fieldName).append("=").append(fieldValue);
+            }
         }
 
-        // Tạo hash để so sánh
-        String signed = hmacSHA512(vnPayConfig.getSecretKey(), hashData.toString());
-        if (!signed.equals(vnpSecureHash)) {
-            log.warn("Invalid signature for IPN: {}", signed);
+        // 5. Tạo HMAC-SHA512 signature và so sánh
+        String calculatedHash = hmacSHA512(vnPayConfig.getSecretKey(), hashData.toString());
+        
+        log.info("Hash data: {}", hashData.toString());
+        log.info("Expected hash: {}", vnpSecureHash);
+        log.info("Calculated hash: {}", calculatedHash);
+        
+        if (!calculatedHash.equalsIgnoreCase(vnpSecureHash)) {
+            log.error("Invalid signature for IPN!");
             return rsp("97", "Invalid Signature"); // Sai chữ ký
         }
+
+        log.info("✅ Signature validated successfully");
 
         // Lấy dữ liệu cần thiết
         String orderInfo = params.get("vnp_OrderInfo");

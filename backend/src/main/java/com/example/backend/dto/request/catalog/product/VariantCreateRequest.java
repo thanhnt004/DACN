@@ -10,6 +10,9 @@ import java.util.UUID;
 @Data
 @ValidCompareAtPrice
 public class VariantCreateRequest {
+    // productId is provided via path parameter, not required in request body
+    private UUID productId;
+
     @NotBlank
     private String sku;
 
@@ -29,12 +32,14 @@ public class VariantCreateRequest {
     private Long historyCost;
 
     @Positive(message = "Cân nặng (grams) phải > 0")
-    @NotNull
-    private Integer weightGrams;
+    private Integer weightGrams = 200; // Default weight 200g
 
     @Pattern(regexp = "ACTIVE|DISCONTINUED")
     private String status = "ACTIVE";
 
     @Valid
     private InventoryRequest inventory;
+
+    @Valid
+    private ProductImageRequest image;
 }

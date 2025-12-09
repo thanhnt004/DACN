@@ -13,27 +13,30 @@ import java.util.UUID;
 public interface ReportRepository extends JpaRepository<Order, UUID> {
     @Query(value = """
     SELECT
-    COUNT(CASE WHEN o.created_at BETWEEN :startDate AND :endDate
-            AND o.status IN ('COMPLETED','DELIVERED') THEN 1 END) AS totalOrders,
-    COALESCE(SUM(CASE WHEN o.created_at BETWEEN :startDate AND :endDate
-            AND o.status IN ('COMPLETED','DELIVERED') THEN o.total_amount END), 0) AS totalRevenue,
-    COALESCE(SUM(CASE WHEN o.created_at BETWEEN :startDate AND :endDate
-            AND o.status IN ('COMPLETED','DELIVERED') THEN o.discount_amount END), 0) AS totalDiscount,
-    COUNT(CASE WHEN o.status = 'PENDING' THEN 1 END) AS pendingOrders
-    FROM orders o;
+        COUNT(o.id) AS totalOrders,
+        COALESCE(SUM(o.total_amount), 0) AS totalRevenue,
+        COALESCE(SUM(o.discount_amount), 0) AS totalDiscount,
+        0 AS pendingOrders
+    FROM orders o
+    WHERE o.created_at BETWEEN :startDate AND :endDate
+      AND o.status IN ('COMPLETED', 'DELIVERED')
     """, nativeQuery = true)
     ReportProjections.DashboardOverview getDashboardOverview(
             @Param("startDate") Instant startDate,
             @Param("endDate") Instant endDate);
+
+    @Query("SELECT count(o) FROM Order o WHERE o.status = :status")
+    long countByStatus(@Param("status") Order.OrderStatus status);
+    
     @Query(value = """
         SELECT
-            TO_CHAR(created_at AT TIME ZONE :timeZone, 'YYYY-MM-DD') as reportDate,
+            TO_CHAR(MAX(created_at) AT TIME ZONE :timeZone, 'YYYY-MM-DD') as reportDate,
             COUNT(id) as orderCount,
             COALESCE(SUM(total_amount), 0) as revenue
         FROM orders
         WHERE created_at BETWEEN :startDate AND :endDate
           AND status IN ('COMPLETED', 'DELIVERED')
-        GROUP BY TO_CHAR(created_at AT TIME ZONE :timeZone, 'YYYY-MM-DD')
+        GROUP BY DATE(created_at AT TIME ZONE :timeZone)
         ORDER BY reportDate ASC
         """, nativeQuery = true)
     List<ReportProjections.RevenueChartPoint> getRevenueChart(
@@ -125,8 +128,47 @@ public interface ReportRepository extends JpaRepository<Order, UUID> {
                 COALESCE(SUM(oi.quantity * oi.history_cost), 0) AS totalCost
             FROM orders o
             JOIN order_items oi ON o.id = oi.order_id
-            WHERE o.status = 'COMPLETED'
+            WHERE o.status = 'DELIVERED'
               AND o.placed_at BETWEEN :startDate AND :endDate
             """, nativeQuery = true)
     ReportProjections.ProfitStats getProfitStats(@Param("startDate") Instant startDate, @Param("endDate") Instant endDate);
+
+    @Query(value = """
+            SELECT
+                TO_CHAR(o.placed_at AT TIME ZONE :timeZone, 'YYYY-MM') as reportMonth,
+                COALESCE(SUM(oi.total_amount), 0) AS totalRevenue,
+                COALESCE(SUM(oi.quantity * oi.history_cost), 0) AS totalCost,
+                COALESCE(SUM(oi.total_amount - (oi.quantity * oi.history_cost)), 0) AS grossProfit,
+                COALESCE(COUNT(DISTINCT o.id), 0) AS orderCount
+            FROM orders o
+            JOIN order_items oi ON o.id = oi.order_id
+            WHERE o.status = 'DELIVERED'
+              AND o.placed_at BETWEEN :startDate AND :endDate
+            GROUP BY reportMonth
+            ORDER BY reportMonth ASC
+            """, nativeQuery = true)
+    List<ReportProjections.MonthlyProfitProjection> findMonthlyProfit(
+            @Param("startDate") Instant startDate,
+            @Param("endDate") Instant endDate,
+            @Param("timeZone") String timeZone);
+
+    @Query(value = """
+            SELECT
+                c.name as categoryName,
+                COALESCE(SUM(oi.total_amount), 0) AS totalRevenue,
+                COALESCE(SUM(oi.quantity * oi.history_cost), 0) AS totalCost,
+                COALESCE(SUM(oi.total_amount - (oi.quantity * oi.history_cost)), 0) AS grossProfit
+            FROM orders o
+            JOIN order_items oi ON o.id = oi.order_id
+            JOIN products p ON oi.product_id = p.id
+            JOIN product_categories pc ON p.id = pc.product_id
+            JOIN categories c ON pc.category_id = c.id
+            WHERE o.status = 'DELIVERED'
+              AND o.placed_at BETWEEN :startDate AND :endDate
+            GROUP BY c.name
+            ORDER BY grossProfit DESC
+            """, nativeQuery = true)
+    List<ReportProjections.CategoryProfitProjection> findCategoryProfit(
+            @Param("startDate") Instant startDate,
+            @Param("endDate") Instant endDate);
 }

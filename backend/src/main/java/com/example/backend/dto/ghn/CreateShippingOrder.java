@@ -19,10 +19,12 @@ public class CreateShippingOrder {
     @JsonProperty("required_note") String requiredNote;
     @JsonProperty("client_order_code") String clientOrderCode;
 
-    // Receiver address (người nhận) - CHỈ DÙNG TEXT NAME
+    // Receiver address (người nhận)
     @JsonProperty("to_name") String toName;
     @JsonProperty("to_phone") String toPhone;
     @JsonProperty("to_address") String toAddress;
+    @JsonProperty("to_ward_code") String toWardCode;
+    @JsonProperty("to_district_id") Integer toDistrictId;
     @JsonProperty("to_ward_name") String toWardName;
     @JsonProperty("to_district_name") String toDistrictName;
     @JsonProperty("to_province_name") String toProvinceName;

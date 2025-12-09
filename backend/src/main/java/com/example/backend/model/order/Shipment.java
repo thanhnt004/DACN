@@ -40,12 +40,12 @@ public class Shipment {
     private String status;
 
     @Builder.Default
-    @Column(name = "is_return_shipment", nullable = false)
-    private boolean isReturnShipment = false;
+    @Column(name = "is_return_shipment")
+    private Boolean isReturnShipment = false;
 
     @Builder.Default
-    @Column(name = "is_active", nullable = false)
-    private boolean isActive = true;
+    @Column(name = "is_active")
+    private Boolean isActive = true;
 
     @Column(name = "shipped_at")
     private Instant shippedAt;

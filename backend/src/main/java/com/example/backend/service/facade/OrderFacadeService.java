@@ -15,6 +15,10 @@ import com.example.backend.exception.BadRequestException;
 import com.example.backend.exception.ConflictException;
 import com.example.backend.exception.NotFoundException;
 import com.example.backend.exception.cart.CheckoutSessionNotFoundException;
+import com.example.backend.exception.shipping.ShippingNotFoundException;
+import com.example.backend.model.User;
+import com.example.backend.model.enumrator.AuditActionType;
+import com.example.backend.model.enumrator.AuditEntityType;
 import com.example.backend.model.order.Order;
 import com.example.backend.model.order.OrderChangeRequest;
 import com.example.backend.model.order.OrderItem;
@@ -22,6 +26,7 @@ import com.example.backend.model.order.Shipment;
 import com.example.backend.model.payment.Payment;
 import com.example.backend.repository.order.OrderChangeRequestRepository;
 import com.example.backend.service.MessageService;
+import com.example.backend.service.audit.AuditLogService;
 import com.example.backend.service.cart.CartService;
 import com.example.backend.service.order.OrderService;
 import com.example.backend.service.payment.PaymentService;
@@ -36,6 +41,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.hibernate.Hibernate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -62,7 +71,11 @@ public class OrderFacadeService {
     private final ShippingService shipmentService;
     private final AuthenUtil authenUtil;
     private final CookieUtil cookieUtil;
+    private final AuditLogService auditLogService;
 
+    @Autowired
+    @Lazy
+    private OrderFacadeService self;
     private final OrderChangeRequestRepository requestRepository;
     private final List<Order.OrderStatus> CANCELABLE_STATUSES = List.of(
             Order.OrderStatus.PENDING,
@@ -88,17 +101,18 @@ public class OrderFacadeService {
             inventoryService.reserveStockForOrder(order);
             log.debug("Inventory reserved for order: {}", order.getId());
 
-            // 5. Tạo Payment record
-            Payment payment = paymentService.createPayment(
-                    order,
-                    checkoutSession.getSelectedPaymentMethod().getId());
+            // 5. Validate payment method
+            if (checkoutSession.getSelectedPaymentMethod() == null) {
+                throw new BadRequestException("Payment method is required");
+            }
+            String paymentMethodId = checkoutSession.getSelectedPaymentMethod().getId();
+
+            // 6. Tạo Payment record
+            Payment payment = paymentService.createPayment(order, paymentMethodId);
             //tao shipping here if needed
             Shipment shipment = shipmentService.createShipmentForOrder(order,checkoutSession);
-            // 6. Generate payment URL
-            String paymentUrl = paymentService.generatePaymentUrl(
-                    order,
-                    payment,
-                    checkoutSession.getSelectedPaymentMethod().getId());
+            // 7. Generate payment URL
+            String paymentUrl = paymentService.generatePaymentUrl(order, payment, paymentMethodId);
 
             log.debug("Payment URL generated: orderId={}", order.getId());
 
@@ -240,6 +254,20 @@ public class OrderFacadeService {
                 .toList();
         List<DiscountRedemptionResponse> discountResponses = List.of(); // Placeholder
 
+        // Lấy thông tin vận chuyển (shipment active, không phải return)
+        var shipmentOpt = shipmentService.getAllShipmentsByOrder(order.getId()).stream()
+                .filter(s -> Boolean.TRUE.equals(s.getIsActive()) && !Boolean.TRUE.equals(s.getIsReturnShipment()))
+                .findFirst();
+        
+        var shipmentResponse = shipmentOpt.map(s -> com.example.backend.dto.response.shipping.ShipmentResponse.builder()
+                .id(s.getId())
+                .carrier(s.getCarrier())
+                .trackingNumber(s.getTrackingNumber())
+                .status(s.getStatus())
+                .deliveredAt(s.getDeliveredAt())
+                .warehouse(s.getWarehouse())
+                .build()).orElse(null);
+
         OrderResponse.OrderResponseBuilder responseBuilder = OrderResponse.builder()
                 .id(order.getId())
                 .notes(order.getNotes())
@@ -257,22 +285,14 @@ public class OrderFacadeService {
                 .payments(paymentResponses)
                 .version(order.getVersion())
                 .updatedAt(order.getUpdatedAt())
-                .discountRedemptions(discountResponses);
+                .discountRedemptions(discountResponses)
+                .shipment(shipmentResponse);
         
-//        // If the order is in a state that implies a pending request, fetch and attach the request details.
-//        if (order.getStatus() == Order.OrderStatus.CANCELING || order.getStatus() == Order.OrderStatus.RETURNING) {
-//            requestRepository.findFirstByOrderIdAndStatusOrderByCreatedAtDesc(order.getId(), "PENDING")
-//                    .ifPresent(changeRequest -> {
-//                        OrderResponse.OrderChangeRequestResponse changeRequestResponse = OrderResponse.OrderChangeRequestResponse.builder()
-//                                .id(changeRequest.getId())
-//                                .type(changeRequest.getType())
-//                                .status(changeRequest.getStatus())
-//                                .reason(changeRequest.getReason())
-//                                .images(changeRequest.getImages())
-//                                .build();
-//                        responseBuilder.changeRequest(changeRequestResponse);
-//                    });
-//        }
+        // Thêm thông tin change request nếu có
+        OrderChangeRequestResponse changeRequest = getChangeRequestForOrder(order.getId());
+        if (changeRequest != null) {
+            responseBuilder.changeRequest(changeRequest);
+        }
 
         return responseBuilder.build();
     }
@@ -280,8 +300,8 @@ public class OrderFacadeService {
     private OrderItemDTO buildOrderItemResponse(OrderItem orderItem) {
         return OrderItemDTO.builder()
                 .id(orderItem.getId())
-                .productId(orderItem.getProduct().getId())
-                .variantId(orderItem.getVariant().getId())
+                .productId(orderItem.getProduct()==null?null:orderItem.getProduct().getId())
+                .variantId(orderItem.getVariant()==null?null:orderItem.getVariant().getId())
                 .sku(orderItem.getSku())
                 .productName(orderItem.getProductName())
                 .variantName(orderItem.getVariantName())
@@ -306,27 +326,32 @@ public class OrderFacadeService {
     }
 
     public OrderResponse getOrderDetail(UUID orderId, HttpServletRequest request, HttpServletResponse response) {
-        var userOps = authenUtil.getAuthenUser();
         var guestIdCookie = cookieUtil.readCookie(request, "guest_id");
-        if (userOps.isEmpty() && guestIdCookie.isEmpty()) {
-            throw new AuthenticationException(401, "User not authenticated");
-        }
         Order order;
         if (guestIdCookie.isPresent()) {
             UUID guestId = UUID.fromString(guestIdCookie.get().getValue());
             // reset cookie to extend expiration
             response.addCookie(cookieUtil.createGuestId(guestId));
-            order = orderService.getOrderDetailByUserOrGuest(userOps, guestId, orderId);
+            order = orderService.getOrderById(orderId);
         } else {
-            order = orderService.getOrderDetailByUserOrGuest(userOps, null, orderId);
+            order = orderService.getOrderById(orderId);
         }
         return buildOrderResponse(order);
     }
 
 
-    public PageResponse<OrderResponse> getOrderListByAdmin(String status, String paymentType, String orderNumber,
+    /**
+     * Lấy danh sách đơn hàng theo tab filter cho admin
+     * @param tab Tab filter (ALL, UNPAID, TO_CONFIRM, PROCESSING, SHIPPING, COMPLETED, CANCEL_REQ, CANCELLED, RETURN_REQ, REFUNDED)
+     * @param orderNumber Số đơn hàng (optional)
+     * @param startDate Ngày bắt đầu (optional)
+     * @param endDate Ngày kết thúc (optional)
+     * @param pageable Phân trang
+     * @return PageResponse of OrderResponse
+     */
+    public PageResponse<OrderResponse> getOrderListByAdmin(String tab, String orderNumber,
                                                            LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
-        return new PageResponse<>(orderService.getPageOrder(status, paymentType, orderNumber, startDate, endDate, pageable)
+        return new PageResponse<>(orderService.getPageOrder(tab, null, orderNumber, startDate, endDate, pageable)
                 .map(this::buildOrderResponse));
     }
 
@@ -334,7 +359,7 @@ public class OrderFacadeService {
         BatchResult<UUID> result = new BatchResult<UUID>();
         orderIds.forEach(orderId->{
             try {
-                confirmSingleOrder(orderId);
+                self.confirmSingleOrder(orderId);
                 result.addSuccess(orderId);
             } catch (Exception e) {
                 log.error("Failed to confirm order: {}", orderId, e);
@@ -344,24 +369,38 @@ public class OrderFacadeService {
         return result;
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public BatchResult<UUID> shipOrders(List<UUID> orderIds) {
         BatchResult<UUID> result = new BatchResult<UUID>();
         orderIds.forEach(orderId->{
-            try {
-                shipSingleOrder(orderId);
+            String errorMsg = self.shipSingleOrderWithNewTransaction(orderId);
+            if (errorMsg == null) {
                 result.addSuccess(orderId);
-            }catch (Exception e)
-            {
-                log.error("Failed to ship order: {}", orderId, e);
-                result.addFailure(orderId, e.getMessage());
+            } else {
+                result.addFailure(orderId, errorMsg);
             }
         });
         return result;
     }
+    
+    /**
+     * Returns null if success, error message if failed
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    protected void confirmSingleOrder(UUID orderId) {
+    public String shipSingleOrderWithNewTransaction(UUID orderId) {
+        try {
+            shipSingleOrder(orderId);
+            return null; // Success
+        } catch (Exception e) {
+            log.error("Failed to ship order: {}", orderId, e);
+            return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName() + ": " + e.toString();
+        }
+    }
+    
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void confirmSingleOrder(UUID orderId) {
         Order order = orderService.getOrderById(orderId);
-
+        Hibernate.initialize(order.getItems());
         if (!order.getStatus().equals(Order.OrderStatus.PENDING) &&
                 !order.getStatus().equals(Order.OrderStatus.CONFIRMED)) {
             throw new BadRequestException("Order cannot be confirmed: " + order.getOrderNumber());
@@ -370,39 +409,126 @@ public class OrderFacadeService {
         orderService.updateStatus(order, Order.OrderStatus.PROCESSING);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     protected void shipSingleOrder(UUID orderId) {
         Order order = orderService.getOrderById(orderId);
 
         if (!order.getStatus().equals(Order.OrderStatus.PROCESSING)) {
             if (!order.getStatus().equals(Order.OrderStatus.RETURNING))
-                throw new BadRequestException("Không thể tạo đơn giao hàng cho đơn hàng: " + order.getOrderNumber());
+                throw new BadRequestException("Không thể tạo đơn giao hàng cho đơn hàng: " + order.getOrderNumber() + ". Trạng thái hiện tại: " + order.getStatus());
         }
 
-        Shipment shipment = shipmentService.getCurrentShipmentByOrder(orderId);
+        if (order.getShippingAddress() == null) {
+            throw new BadRequestException("Đơn hàng " + order.getOrderNumber() + " không có địa chỉ giao hàng");
+        }
+        
+        // Validate địa chỉ có đầy đủ thông tin province/district/ward
+        UserAddress addr = order.getShippingAddress();
+        if (addr.getProvince() == null || addr.getProvince().isBlank() ||
+            addr.getDistrict() == null || addr.getDistrict().isBlank() ||
+            addr.getWard() == null || addr.getWard().isBlank()) {
+            throw new BadRequestException(
+                String.format("Đơn hàng %s thiếu thông tin địa chỉ giao hàng (Tỉnh/Thành phố, Quận/Huyện, Phường/Xã). " +
+                    "Vui lòng cập nhật địa chỉ đầy đủ trước khi tạo đơn vận chuyển. " +
+                    "Địa chỉ hiện tại: Province=%s, District=%s, Ward=%s",
+                    order.getOrderNumber(),
+                    addr.getProvince(),
+                    addr.getDistrict(),
+                    addr.getWard()
+                )
+            );
+        }
+
+        // Lấy hoặc tạo shipment
+        Shipment shipment;
+        try {
+            shipment = shipmentService.getCurrentShipmentByOrder(orderId);
+            log.info("Tìm thấy shipment hiện tại cho order: {}", order.getOrderNumber());
+        } catch (ShippingNotFoundException e) {
+            log.info("Chưa có shipment cho order: {}, tạo mới", order.getOrderNumber());
+            // Tạo shipment mới nếu chưa có
+            shipment = shipmentService.createShipmentForOrderManual(order);
+        }
 
         // Validate before creating GHN order
-        if (shipment.getTrackingNumber() != null) {
-            throw new BadRequestException("Đơn hàng đã có tracking number");
+        if (shipment.getTrackingNumber() != null && !shipment.getTrackingNumber().isEmpty()) {
+            throw new BadRequestException("Đơn hàng " + order.getOrderNumber() + " đã có mã vận đơn: " + shipment.getTrackingNumber());
         }
 
-        shipmentService.createShippingOrderInGHN(shipment, order.getShippingAddress());
-        orderService.updateStatus(order, Order.OrderStatus.SHIPPED);
+        try {
+            shipmentService.createShippingOrderInGHN(shipment, order.getShippingAddress());
+            orderService.updateStatus(order, Order.OrderStatus.SHIPPED);
+            log.info("Đã tạo đơn giao hàng GHN thành công cho order: {}", order.getOrderNumber());
+        } catch (Exception e) {
+            log.error("Lỗi khi tạo đơn giao hàng GHN cho order: {}", order.getOrderNumber(), e);
+            throw new BadRequestException("Không thể tạo đơn giao hàng: " + e.getMessage());
+        }
     }
     public String getPrintUrlForOrders(List<UUID> orderIds) {
+        log.info("[GET_PRINT_URL] Bắt đầu xử lý {} đơn hàng", orderIds.size());
+        if (orderIds == null || orderIds.isEmpty()) {
+            throw new BadRequestException("Danh sách đơn hàng trống");
+        }
+        
+        if (orderIds.size() > 100) {
+            throw new BadRequestException("Không thể in quá 100 đơn hàng cùng lúc");
+        }
+        
         List<Order> orders = orderIds.stream()
                 .map(orderService::getOrderById)
                 .toList();
-        if (orders.size()>100)
-            throw new BadRequestException("Cannot print more than 100 orders at once");
-        return shipmentService.getPrintUrl(orders);
+        log.info("[GET_PRINT_URL] Đã tải thông tin {} đơn hàng", orders.size());
+        
+        // Kiểm tra các đơn hàng có shipment không
+        for (Order order : orders) {
+            log.debug("[GET_PRINT_URL] Kiểm tra đơn {}: status={}", order.getOrderNumber(), order.getStatus());
+            if (order.getStatus() == Order.OrderStatus.PENDING || 
+                order.getStatus() == Order.OrderStatus.CONFIRMED) {
+                throw new BadRequestException("Đơn hàng " + order.getOrderNumber() + " chưa được giao hàng");
+            }
+        }
+        
+        try {
+            log.info("[GET_PRINT_URL] Gọi shipmentService.getPrintUrl");
+            String printUrl = shipmentService.getPrintUrl(orders);
+            log.info("[GET_PRINT_URL] Tạo URL in đơn thành công: {}", printUrl);
+            return printUrl;
+        } catch (Exception e) {
+            log.error("[GET_PRINT_URL] Lỗi khi tạo URL in đơn", e);
+            throw new BadRequestException("Không thể tạo URL in đơn: " + e.getMessage());
+        }
     }
     public void cancelOrderByAdmin(UUID orderId,String adminReason) {
         Order order = orderService.getOrderById(orderId);
+        
+        log.info("[CANCEL_ORDER] Admin hủy đơn hàng: {} ({}), trạng thái hiện tại: {}", 
+            order.getOrderNumber(), orderId, order.getStatus());
+
+        // Audit log: Admin hủy đơn hàng
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("order_number", order.getOrderNumber());
+        metadata.put("old_status", order.getStatus().name());
+        metadata.put("reason", adminReason);
+        metadata.put("total_amount", order.getTotalAmount());
+        metadata.put("is_paid", order.getPaidAt() != null);
+
+        auditLogService.logAction(
+            AuditActionType.CANCEL_ORDER,
+            AuditEntityType.ORDER,
+            order.getId(),
+            metadata
+        );
+
         // Tạo request để lưu lịch sử (đánh dấu là đã duyệt xong phần hủy)
         OrderChangeRequest request = createChangeRequestEntity(order, "CANCEL", adminReason, null, null, true);
-        // Thực hiện hủy
-        doCancelOrderLogic(order, request);
+        
+        try {
+            // Thực hiện hủy
+            doCancelOrderLogic(order, request);
+            log.info("[CANCEL_ORDER] Hủy đơn hàng thành công: {}", order.getOrderNumber());
+        } catch (Exception e) {
+            log.error("[CANCEL_ORDER] Lỗi khi hủy đơn hàng: {}", order.getOrderNumber(), e);
+            throw new BadRequestException("Không thể hủy đơn hàng: " + e.getMessage());
+        }
     }
 
     public void returnOrderByAdmin(UUID orderId,String adminReason) {
@@ -410,6 +536,21 @@ public class OrderFacadeService {
         if (order.getStatus()!= Order.OrderStatus.DELIVERED) {
             throw new BadRequestException("Chỉ có thể trả hàng cho đơn hàng đã giao");
         }
+
+        // Audit log: Admin xử lý trả hàng
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("order_number", order.getOrderNumber());
+        metadata.put("old_status", order.getStatus().name());
+        metadata.put("reason", adminReason);
+        metadata.put("total_amount", order.getTotalAmount());
+
+        auditLogService.logAction(
+            AuditActionType.RETURN_ORDER,
+            AuditEntityType.ORDER,
+            order.getId(),
+            metadata
+        );
+
         OrderChangeRequest request = createChangeRequestEntity(order, "CANCEL", adminReason, null, null, true);
         doReturnOrderLogic(order, request);
     }
@@ -420,8 +561,25 @@ public class OrderFacadeService {
         if (!request.getStatus().equals("PENDING")) {
             throw new BadRequestException("Yêu cầu không ở trạng thái chờ duyệt");
         }
+
+        Order order = request.getOrder();
+
+        // Audit log: Duyệt hoặc từ chối yêu cầu thay đổi
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("request_id", requestId.toString());
+        metadata.put("request_type", request.getType());
+        metadata.put("order_number", order.getOrderNumber());
+        metadata.put("review_status", dto.getStatus());
+        metadata.put("admin_note", dto.getAdminNote());
+        metadata.put("customer_reason", request.getReason());
+
         if (dto.getStatus().equals("APPROVED")) {
-            Order order = request.getOrder();
+            auditLogService.logAction(
+                AuditActionType.APPROVE_CHANGE_REQUEST,
+                AuditEntityType.ORDER_CHANGE_REQUEST,
+                requestId,
+                metadata
+            );
 
             if ("CANCEL".equals(request.getType())) {
                 doCancelOrderLogic(order, request);
@@ -430,6 +588,13 @@ public class OrderFacadeService {
                 doReturnOrderLogic(order, request);
             }
         } else if (dto.getStatus().equals("REJECTED")) {
+            auditLogService.logAction(
+                AuditActionType.REJECT_CHANGE_REQUEST,
+                AuditEntityType.ORDER_CHANGE_REQUEST,
+                requestId,
+                metadata
+            );
+
             orderService.updateStatus(request.getOrder(), request.getOrder().getPreviousStatus());
             request.setStatus("REJECTED");
         } else {
@@ -514,11 +679,14 @@ public class OrderFacadeService {
             // reset cookie to extend expiration
             response.addCookie(cookieUtil.createGuestId(guestId));
         }
-        Map<String, Object> metadata = Map.of(
-                "refundMethod", paymentRefundOption.getMethod(),
-                "refundData", paymentRefundOption.getData(),
-                "returnAddress", null
-        );
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("returnAddress", null); // HashMap cho phép value null
+
+        if (paymentRefundOption != null&& orderService.getOrderById(orderId).getPaidAt()!=null)
+         {
+        metadata.put("refundMethod", paymentRefundOption.getMethod());
+        metadata.put("refundData", paymentRefundOption.getData());
+        }
         Order order = orderService.getOrderDetailByUserOrGuest(userOps, guestId, orderId);
         if (order.getStatus().ordinal() > Order.OrderStatus.SHIPPED.ordinal())
         {
@@ -537,9 +705,10 @@ public class OrderFacadeService {
 
     }
     public OrderChangeRequestResponse getChangeRequestForOrder(UUID orderId) {
-        OrderChangeRequest orderChangeRequest = orderChangeRequestRepository.findByOrderId(orderId).orElseThrow(
-                ()->new NotFoundException("Change request not found")
-        );
+        OrderChangeRequest orderChangeRequest = orderChangeRequestRepository.findByOrderId(orderId).orElse(null);
+        if (orderChangeRequest == null) {
+            return null;
+        }
         return OrderChangeRequestResponse.builder()
                 .id(orderChangeRequest.getId())
                 .type(orderChangeRequest.getType())
@@ -547,34 +716,55 @@ public class OrderFacadeService {
                 .reason(orderChangeRequest.getReason())
                 .status(orderChangeRequest.getStatus())
                 .adminNote(orderChangeRequest.getAdminNote())
+                .metadata(orderChangeRequest.getMetadata())
                 .build();
     }
     public Object rePay(UUID orderId) {
+        log.info("Re-pay request for orderId: {}", orderId);
         Order order = orderService.getOrderById(orderId);
 
+        log.info("Order status: {}, isPaid: {}, createdAt: {}", order.getStatus(), order.isPaid(), order.getCreatedAt());
+
         if (order.getStatus() != Order.OrderStatus.PENDING) {
+            log.warn("Cannot re-pay: order status is {}", order.getStatus());
             throw new BadRequestException("Chỉ có thể thanh toán lại cho đơn hàng đang chờ xử lý.");
         }
         if (order.isPaid()) {
+            log.warn("Cannot re-pay: order already paid");
             throw new BadRequestException("Đơn hàng đã được thanh toán.");
         }
-        if (order.getCreatedAt().plus(30, ChronoUnit.MINUTES).isBefore(Instant.now())) {
+        
+        Instant expirationTime = order.getCreatedAt().plus(30, ChronoUnit.MINUTES);
+        log.info("Expiration time: {}, current time: {}, expired: {}", expirationTime, Instant.now(), expirationTime.isBefore(Instant.now()));
+        
+        if (expirationTime.isBefore(Instant.now())) {
+            log.warn("Cannot re-pay: payment window expired");
             throw new BadRequestException("Đã hết thời gian thanh toán cho đơn hàng này.");
         }
 
         Payment activePayment = order.getActivePayment();
+        log.info("Active payment: {}", activePayment != null ? activePayment.getId() : "null");
 
         if (activePayment == null) {
+            log.error("No active payment found for order: {}", orderId);
             throw new NotFoundException("Không tìm thấy thông tin thanh toán hợp lệ cho đơn hàng.");
         }
+        
+        log.info("Payment status: {}, provider: {}", activePayment.getStatus(), activePayment.getProvider());
+        
         if (activePayment.getStatus() == Payment.PaymentStatus.CAPTURED) {
+            log.warn("Cannot re-pay: payment already captured");
             throw new BadRequestException("Đơn hàng đã được thanh toán");
         }
         if ("COD".equalsIgnoreCase(activePayment.getProvider())) {
+            log.warn("Cannot re-pay: payment method is COD");
             throw new BadRequestException("Không thể thanh toán lại cho đơn hàng COD.");
         }
 
-        String paymentUrl = paymentService.generatePaymentUrl(order, activePayment, activePayment.getProvider());
+        // Tạo payment URL mới (sẽ tạo Payment record mới và set payment cũ thành FAILED)
+        log.info("Creating new payment URL for repay with provider: {}", activePayment.getProvider());
+        String paymentUrl = paymentService.getPaymentUrl(orderId, activePayment.getProvider());
+        log.info("Payment URL created successfully: {}", paymentUrl);
 
         return Map.of("paymentUrl", paymentUrl);
     }
@@ -589,7 +779,7 @@ public class OrderFacadeService {
         // Kiểm tra xem đã có return shipment chưa
         List<Shipment> shipments = shipmentService.getAllShipmentsByOrder(orderId);
         boolean hasReturnShipment = shipments.stream()
-                .anyMatch(s -> s.isReturnShipment() && s.getTrackingNumber() != null);
+                .anyMatch(s -> Boolean.TRUE.equals(s.getIsReturnShipment()) && s.getTrackingNumber() != null);
 
         if (hasReturnShipment) {
             throw new BadRequestException("Đơn hàng đã có đơn trả hàng");
@@ -632,36 +822,49 @@ public class OrderFacadeService {
         if (currentMeta == null) {
             currentMeta = new HashMap<>();
         }
-        Map<String, Object> metadata = Map.of(
-                "refundMethod", newOption.getMethod(),
-                "refundData", newOption.getData(),
-                "returnAddress", null
-        );
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("refundMethod", newOption.getMethod());
+        metadata.put("refundData", newOption.getData());
         currentMeta.putAll(metadata);
         //Hibernate đôi khi không detect được thay đổi trong Map, nên set lại
         changeRequest.setMetadata(currentMeta);
         requestRepository.save(changeRequest);
     }
     private void doCancelOrderLogic(Order order, OrderChangeRequest request) {
+        log.info("[DO_CANCEL] Bắt đầu hủy đơn hàng: {}, status: {}", order.getOrderNumber(), order.getStatus());
+        
         if (order.getStatus() == Order.OrderStatus.SHIPPED) {
             try {
+                log.info("[DO_CANCEL] Đơn đang ship, hủy vận đơn GHN...");
                 shipmentService.cancelShippingOrderInGHN(shipmentService.getCurrentShipmentByOrder(order.getId()));
             } catch (Exception e) {
-                throw new BadRequestException("Không thể hủy đơn hàng đang được vận chuyển");
+                log.error("[DO_CANCEL] Lỗi khi hủy vận đơn GHN", e);
+                throw new BadRequestException("Không thể hủy đơn hàng đang được vận chuyển: " + e.getMessage());
             }
         }
-        inventoryService.releaseReservation(order);
+        
+        try {
+            log.info("[DO_CANCEL] Giải phóng inventory...");
+            inventoryService.releaseReservation(order);
+        } catch (Exception e) {
+            log.error("[DO_CANCEL] Lỗi khi giải phóng inventory", e);
+            throw new BadRequestException("Không thể giải phóng hàng tồn kho: " + e.getMessage());
+        }
 
+        log.info("[DO_CANCEL] Cập nhật trạng thái đơn hàng thành CANCELLED");
         orderService.updateStatus(order, Order.OrderStatus.CANCELLED);
 
         // Nếu đã thanh toán (PaidAt != null) -> Chuyển request sang trạng thái chờ hoàn tiền
         if (order.getPaidAt() != null) {
+            log.info("[DO_CANCEL] Đơn đã thanh toán, chuyển sang WAITING_REFUND");
             request.setStatus("WAITING_REFUND");
             request.setRequestedAmount(order.getTotalAmount()); // Mặc định hoàn full nếu hủy
         } else {
+            log.info("[DO_CANCEL] Đơn chưa thanh toán, đánh dấu COMPLETED");
             request.setStatus("COMPLETED");
         }
         requestRepository.save(request);
+        log.info("[DO_CANCEL] Hoàn tất hủy đơn hàng: {}", order.getOrderNumber());
     }
 
     private void doReturnOrderLogic(Order order, OrderChangeRequest request) {
@@ -686,6 +889,8 @@ public class OrderFacadeService {
         request.setReason(reason);
         request.setImages(images);
         request.setMetadata(metadata);
+        request.setCreatedAt(Instant.now());
+        request.setUpdatedAt(Instant.now());
 
         request.setStatus(isAdmin ? "APPROVED" : "PENDING");
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'react-toastify'
 import * as UsersApi from '../../api/admin/users'
 import type { UserProfileDto } from '../../api/admin/users'
 
@@ -32,18 +33,46 @@ export default function UserManager() {
         if (!confirm('Bạn có chắc muốn khóa người dùng này?')) return
         try {
             await UsersApi.banUser(userId)
-            fetchUsers()
-        } catch {
-            alert('Lỗi khóa người dùng')
+            setUsers(prev => prev.map(u => u.id === userId ? { ...u, isActive: false } : u))
+            toast.success('Khóa người dùng thành công')
+        } catch (error) {
+            const errorMsg = resolveErrorMessage(error, 'Lỗi khóa người dùng')
+            toast.error(errorMsg)
         }
     }
 
     const handleRestore = async (userId: string) => {
         try {
             await UsersApi.restoreUser(userId)
-            fetchUsers()
-        } catch {
-            alert('Lỗi mở khóa người dùng')
+            setUsers(prev => prev.map(u => u.id === userId ? { ...u, isActive: true } : u))
+            toast.success('Mở khóa người dùng thành công')
+        } catch (error) {
+            const errorMsg = resolveErrorMessage(error, 'Lỗi mở khóa người dùng')
+            toast.error(errorMsg)
+        }
+    }
+
+    const handleGrantAdmin = async (userId: string) => {
+        if (!confirm('Bạn có chắc muốn cấp quyền ADMIN cho người dùng này?')) return
+        try {
+            await UsersApi.grantAdminRole(userId)
+            setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: 'ADMIN' as const } : u))
+            toast.success('Đã cấp quyền ADMIN thành công!')
+        } catch (error) {
+            const errorMsg = resolveErrorMessage(error, 'Lỗi cấp quyền ADMIN')
+            toast.error(errorMsg)
+        }
+    }
+
+    const handleRevokeAdmin = async (userId: string) => {
+        if (!confirm('Bạn có chắc muốn thu hồi quyền ADMIN của người dùng này?')) return
+        try {
+            await UsersApi.revokeAdminRole(userId)
+            setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: 'USER' as const } : u))
+            toast.success('Đã thu hồi quyền ADMIN thành công!')
+        } catch (error) {
+            const errorMsg = resolveErrorMessage(error, 'Lỗi thu hồi quyền ADMIN')
+            toast.error(errorMsg)
         }
     }
 
@@ -112,22 +141,39 @@ export default function UserManager() {
                                             <span className="text-red-600">Bị khóa</span>
                                         )}
                                     </td>
-                                    <td className="border p-2 space-x-2">
-                                        {u.isActive ? (
-                                            <button
-                                                onClick={() => handleBan(u.id)}
-                                                className="text-red-600 hover:underline"
-                                            >
-                                                Khóa
-                                            </button>
-                                        ) : (
-                                            <button
-                                                onClick={() => handleRestore(u.id)}
-                                                className="text-blue-600 hover:underline"
-                                            >
-                                                Mở khóa
-                                            </button>
-                                        )}
+                                    <td className="border p-2">
+                                        <div className="flex flex-col gap-1">
+                                            {u.isActive ? (
+                                                <button
+                                                    onClick={() => handleBan(u.id)}
+                                                    className="text-red-600 hover:underline text-left"
+                                                >
+                                                    Khóa
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleRestore(u.id)}
+                                                    className="text-blue-600 hover:underline text-left"
+                                                >
+                                                    Mở khóa
+                                                </button>
+                                            )}
+                                            {u.role === 'ADMIN' ? (
+                                                <button
+                                                    onClick={() => handleRevokeAdmin(u.id)}
+                                                    className="text-orange-600 hover:underline text-left"
+                                                >
+                                                    Thu hồi Admin
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleGrantAdmin(u.id)}
+                                                    className="text-green-600 hover:underline text-left"
+                                                >
+                                                    Cấp quyền Admin
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

@@ -98,10 +98,9 @@ public class DiscountController {
     }
     @GetMapping("/get-available")
     public ResponseEntity<List<DiscountResponse>> getAvailableForProduct(
-            @RequestBody List<UUID> productIds,
-            @PageableDefault(size = 20) Pageable pageable)
+            @RequestParam(required = false) List<UUID> productIds)
     {
-        List<DiscountResponse> discounts = discountService.getAvailable(productIds);
+        List<DiscountResponse> discounts = discountService.getAvailable(productIds != null ? productIds : List.of());
         return ResponseEntity.ok(discounts);
     }
 }

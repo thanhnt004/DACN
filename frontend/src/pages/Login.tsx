@@ -77,7 +77,7 @@ export default function Login() {
         <div className="w-full min-h-screen flex bg-white">
             <div className="hidden md:flex flex-col w-1/2 items-center justify-center py-12 bg-gray-50">
                 <div className='text-red-600 text-3xl font-bold'>WearWave Store</div>
-                <img src="/src/assets/img/logo.svg"
+                <img src="/img/logo.svg"
                     alt="WearWave Logo"
                     className="h-1/2 w-2/3" />
 
@@ -171,6 +171,13 @@ export default function Login() {
                         <span className="text-sm font-medium text-gray-700">Facebook</span>
                     </div>
                 </div>
+
+                {/* --- QUÊN MẬT KHẨU --- */}
+                <p className="text-center mt-4 text-sm">
+                    <Link to="/forgot-password" className="text-blue-600 hover:underline">
+                        Quên mật khẩu?
+                    </Link>
+                </p>
 
                 {/* --- LINK ĐĂNG KÝ --- */}
                 <p className="text-center mt-6 text-sm text-gray-600">

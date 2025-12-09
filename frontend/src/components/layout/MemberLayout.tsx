@@ -5,7 +5,6 @@ import Footer from './Footer'
 import { useAuthStore } from '../../store/auth'
 
 const menuItems = [
-    { icon: Home, label: 'Tổng quan', path: '/member' },
     { icon: ShoppingBag, label: 'Lịch sử mua hàng', path: '/member/orders' },
     { icon: FileText, label: 'Thông tin tài khoản', path: '/member/profile' },
     { icon: FileText, label: 'Góp ý - Phản hồi - Hỗ trợ', path: '/member/support' },

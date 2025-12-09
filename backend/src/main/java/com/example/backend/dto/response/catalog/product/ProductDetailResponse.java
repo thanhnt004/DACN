@@ -5,7 +5,6 @@ import com.example.backend.dto.response.catalog.BrandDto;
 import com.example.backend.dto.response.catalog.category.CategoryResponse;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -14,7 +13,6 @@ import java.util.List;
 import java.util.UUID;
 
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -31,9 +29,13 @@ public class ProductDetailResponse {
     private String seoDescription;
     private Integer version;
 
+    private String primaryImageUrl;
+    private Boolean isInStock;
+
     private Options options;
 
     private UUID brandId;
+    private BrandDto brand; // Brand info with name, slug
     private List<CategoryResponse> categories;
     private List<ProductImageResponse> images;
     private List<VariantResponse> variants;

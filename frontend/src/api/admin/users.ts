@@ -42,4 +42,14 @@ export const restoreUser = async (userId: string) => {
     return res.data
 }
 
-export default { getUsers, banUser, restoreUser }
+export const grantAdminRole = async (userId: string) => {
+    const res = await api.post<{ status: string }>(`/api/v1/users/grant_admin/${userId}`)
+    return res.data
+}
+
+export const revokeAdminRole = async (userId: string) => {
+    const res = await api.post<{ status: string }>(`/api/v1/users/revoke_admin/${userId}`)
+    return res.data
+}
+
+export default { getUsers, banUser, restoreUser, grantAdminRole, revokeAdminRole }

@@ -12,6 +12,7 @@ export default function ProductsPage() {
     const [searchParams] = useSearchParams()
     const [products, setProducts] = useState<ProductsApi.ProductSummaryResponse[]>([])
     const [loading, setLoading] = useState(true)
+    const [isInitialLoad, setIsInitialLoad] = useState(true)
     const [page, setPage] = useState(0)
     const [totalPages, setTotalPages] = useState(1)
     const [totalElements, setTotalElements] = useState(0)
@@ -61,6 +62,7 @@ export default function ProductsPage() {
                 setTotalElements(0)
             } finally {
                 setLoading(false)
+                setIsInitialLoad(false)
             }
         }
         loadProducts()
@@ -93,7 +95,7 @@ export default function ProductsPage() {
         setPage(0)
     }
 
-    if (loading) {
+    if (isInitialLoad && loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-gray-600">Đang tải sản phẩm...</div>
@@ -117,7 +119,7 @@ export default function ProductsPage() {
                     </aside>
 
                     {/* Main Content */}
-                    <div className="flex-1">
+                    <div className="flex-1 relative">
                         {/* Sort & Results Count */}
                         <div className="flex items-center justify-between mb-6">
                             <div className="text-sm text-gray-600">
@@ -140,6 +142,16 @@ export default function ProductsPage() {
                             </div>
                         </div>
 
+                        {/* Loading Overlay */}
+                        {loading && !isInitialLoad && (
+                            <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 rounded-lg">
+                                <div className="flex flex-col items-center">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mb-2"></div>
+                                    <span className="text-gray-600 text-sm">Đang tải...</span>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Product Grid */}
                         {products && products.length > 0 ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -149,12 +161,12 @@ export default function ProductsPage() {
                                         id={product.id}
                                         slug={product.slug}
                                         colors={product.colors}
-                                        ratingAvg={product.ratingAvg}
+                                        sizes={product.sizes}
                                         imageUrl={product.imageUrl}
                                         name={product.name}
                                         gender={product.gender}
                                         priceAmount={product.priceAmount}
-                                        onFavoriteClick={handleFavoriteClick}
+                                        isInStock={product.isInStock}
                                     />
                                 ))}
                             </div>

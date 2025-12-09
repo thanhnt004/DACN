@@ -5,6 +5,7 @@ import com.example.backend.dto.response.user.UserAddress;
 import com.example.backend.model.User;
 import com.example.backend.model.discount.DiscountRedemption;
 import com.example.backend.model.payment.Payment;
+import com.example.backend.model.order.OrderChangeRequest;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -21,11 +22,11 @@ import java.util.UUID;
 @Table(name = "orders", uniqueConstraints = {
         @UniqueConstraint(name = "orders_order_number_key", columnNames = {"order_number"})
 })
-@Builder
 @Setter
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder(toBuilder = true)
 public class Order {
 
     @Id
@@ -92,6 +93,9 @@ public class Order {
     private List<OrderItem> items = new ArrayList<>();
     @OneToMany(mappedBy = "order",cascade = CascadeType.PERSIST)
     private List<DiscountRedemption> discountRedemptions;
+
+    @OneToOne(mappedBy = "order", fetch = FetchType.LAZY)
+    private OrderChangeRequest changeRequest;
 
     public void addPayment(Payment payment) {
         if (this.getPayments() == null) {

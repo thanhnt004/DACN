@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'react-toastify'
 import * as CatalogApi from '../../api/admin/catalog'
 import type { SizeDto, ColorDto } from '../../api/admin/catalog'
 
@@ -19,7 +20,7 @@ export default function SizeAndColorManager() {
             const res = await CatalogApi.getSizes()
             setSizes(res)
         } catch {
-            alert('Lỗi tải sizes')
+            toast.error('Lỗi tải sizes')
         } finally {
             setLoadingSizes(false)
         }
@@ -31,7 +32,7 @@ export default function SizeAndColorManager() {
             const res = await CatalogApi.getColors()
             setColors(res)
         } catch {
-            alert('Lỗi tải colors')
+            toast.error('Lỗi tải colors')
         } finally {
             setLoadingColors(false)
         }
@@ -49,7 +50,7 @@ export default function SizeAndColorManager() {
             setNewSize({ name: '' })
             fetchSizes()
         } catch {
-            alert('Lỗi tạo size')
+            toast.error('Lỗi tạo size')
         }
     }
 
@@ -59,7 +60,7 @@ export default function SizeAndColorManager() {
             await CatalogApi.deleteSize(id)
             fetchSizes()
         } catch {
-            alert('Lỗi xóa size')
+            toast.error('Lỗi xóa size')
         }
     }
 
@@ -70,7 +71,7 @@ export default function SizeAndColorManager() {
             setNewColor({ name: '' })
             fetchColors()
         } catch {
-            alert('Lỗi tạo color')
+            toast.error('Lỗi tạo color')
         }
     }
 
@@ -80,7 +81,7 @@ export default function SizeAndColorManager() {
             await CatalogApi.deleteColor(id)
             fetchColors()
         } catch {
-            alert('Lỗi xóa color')
+            toast.error('Lỗi xóa color')
         }
     }
 

@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   db:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -15,6 +15,18 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD:  admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
   redis:
     image: redis:7-alpine
     ports:
@@ -44,9 +56,10 @@ services:
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
       REDIS_HOST: redis
       REDIS_URL: redis://redis:6379
-      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
-      FACEBOOK_REDIRECT_URI: ${FACEBOOK_REDIRECT_URI}
-      FRONTEND_URL: ${FRONTEND_URL}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8089/login/oauth2/code/google}
+      FACEBOOK_REDIRECT_URI: ${FACEBOOK_REDIRECT_URI:-http://localhost:8089/login/oauth2/code/facebook}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
     ports:
       - "8089:8089"
     depends_on:
@@ -73,3 +86,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  pgadmin_data:

@@ -74,7 +74,7 @@ public class ShipmentSyncService {
                 order.setStatus(Order.OrderStatus.DELIVERED);
                 if (order.getPaidAt() == null)
                     order.setPaidAt(eventTime);
-                if (shipment.isReturnShipment())
+                if (Boolean.TRUE.equals(shipment.getIsReturnShipment()))
                 {
                     order.setStatus(Order.OrderStatus.RETURNED);
                     inventoryService.revertSold(order);

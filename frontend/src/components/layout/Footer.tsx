@@ -1,4 +1,4 @@
-import { Facebook, Instagram, Youtube, Mail, Phone, MapPin } from 'lucide-react'
+import { Facebook, Instagram, Youtube, Mail, Phone, MapPin, CreditCard, Wallet, Smartphone, Building2 } from 'lucide-react';
 
 export default function Footer() {
     return (
@@ -9,7 +9,7 @@ export default function Footer() {
                     <div>
                         <div className="flex items-center gap-3 mb-4">
                             <img
-                                src="/src/assets/img/logo.svg"
+                                src="/img/logo.svg"
                                 alt="WearWave Logo"
                                 className="h-12 w-12"
                             />
@@ -41,8 +41,13 @@ export default function Footer() {
                         <h4 className="text-lg font-bold mb-4 uppercase">Hỗ Trợ</h4>
                         <ul className="space-y-2 text-sm text-gray-300">
                             <li>
-                                <a href="#" className="hover:text-red-500 transition-colors">
-                                    Hỏi đáp
+                                <a href="/terms" className="hover:text-red-500 transition-colors">
+                                    Điều khoản sử dụng
+                                </a>
+                            </li>
+                            <li>
+                                <a href="/feedback" className="hover:text-red-500 transition-colors">
+                                    Góp ý - Phản hồi
                                 </a>
                             </li>
                             <li>
@@ -87,6 +92,11 @@ export default function Footer() {
                                     Lịch sử đặt hàng
                                 </a>
                             </li>
+                            <li>
+                                <a href="/orders/track" className="hover:text-red-500 transition-colors">
+                                    Tra cứu đơn hàng
+                                </a>
+                            </li>
                         </ul>
                     </div>
 
@@ -129,17 +139,29 @@ export default function Footer() {
                         <div>
                             <h5 className="text-sm font-semibold mb-3 uppercase">Phương Thức Thanh Toán</h5>
                             <div className="flex flex-wrap gap-2">
-                                <div className="bg-white rounded px-2 py-1">
-                                    <img src="https://via.placeholder.com/40x25?text=ATM" alt="ATM" className="h-5" />
+                                <div className="bg-white rounded px-3 py-2 flex items-center gap-1.5 shadow-sm">
+                                    <CreditCard className="w-4 h-4 text-blue-600" />
+                                    <span className="text-xs font-medium text-gray-700">VISA</span>
                                 </div>
-                                <div className="bg-white rounded px-2 py-1">
-                                    <img src="https://via.placeholder.com/40x25?text=VISA" alt="VISA" className="h-5" />
+                                <div className="bg-white rounded px-3 py-2 flex items-center gap-1.5 shadow-sm">
+                                    <CreditCard className="w-4 h-4 text-orange-600" />
+                                    <span className="text-xs font-medium text-gray-700">Master</span>
                                 </div>
-                                <div className="bg-white rounded px-2 py-1">
-                                    <img src="https://via.placeholder.com/40x25?text=MASTER" alt="MasterCard" className="h-5" />
+                                <div className="bg-white rounded px-3 py-2 flex items-center gap-1.5 shadow-sm">
+                                    <Building2 className="w-4 h-4 text-green-600" />
+                                    <span className="text-xs font-medium text-gray-700">ATM</span>
                                 </div>
-                                <div className="bg-white rounded px-2 py-1">
-                                    <img src="https://via.placeholder.com/40x25?text=JCB" alt="JCB" className="h-5" />
+                                <div className="bg-white rounded px-3 py-2 flex items-center gap-1.5 shadow-sm">
+                                    <Smartphone className="w-4 h-4 text-pink-600" />
+                                    <span className="text-xs font-medium text-gray-700">MoMo</span>
+                                </div>
+                                <div className="bg-white rounded px-3 py-2 flex items-center gap-1.5 shadow-sm">
+                                    <Wallet className="w-4 h-4 text-blue-500" />
+                                    <span className="text-xs font-medium text-gray-700">ZaloPay</span>
+                                </div>
+                                <div className="bg-white rounded px-3 py-2 flex items-center gap-1.5 shadow-sm">
+                                    <Wallet className="w-4 h-4 text-red-600" />
+                                    <span className="text-xs font-medium text-gray-700">VNPay</span>
                                 </div>
                             </div>
                         </div>

@@ -73,4 +73,30 @@ export const resendVerification = async (payload: ResendVerificationRequest) => 
     return res.data
 }
 
-export default { login, logout, refresh, register, verifyEmail, resendVerification }
+export interface ForgotPasswordRequest {
+    email: string
+}
+
+export interface ResetPasswordRequest {
+    token: string
+    password: string
+}
+
+export const forgotPassword = async (email: string): Promise<{ message: string }> => {
+    const res = await basicApi.post('/api/v1/auth/forgot-password', { email })
+    return res.data
+}
+
+export const validateResetToken = async (token: string): Promise<{ message: string }> => {
+    const res = await basicApi.post('/api/v1/auth/reset-password/validate-token', null, {
+        params: { token }
+    })
+    return res.data
+}
+
+export const resetPassword = async (token: string, password: string): Promise<{ message: string }> => {
+    const res = await basicApi.post('/api/v1/auth/reset-password', { token, password })
+    return res.data
+}
+
+export default { login, logout, refresh, register, verifyEmail, resendVerification, forgotPassword, validateResetToken, resetPassword }

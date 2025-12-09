@@ -41,10 +41,14 @@ public class CategoryController {
     public ResponseEntity<PageResponse<CategoryResponse>> getCategoriesFlat(@RequestParam(defaultValue = "0") int page,
                                                                             @RequestParam(defaultValue = "20") int size,
                                                                             @RequestParam(required = false) String search,
-                                                                            @RequestParam(required = false) UUID parentId,@RequestParam(required = false) String sort)
+                                                                            @RequestParam(required = false) UUID parentId,
+                                                                            @RequestParam(defaultValue = "false") boolean all,
+                                                                            @RequestParam(required = false) String sort)
     {
+        System.out.println("getCategoriesFlat called with all=" + all + ", parentId=" + parentId + ", size=" + size);
         Pageable pageable = PageRequest.of(page, size);
-        PageResponse<CategoryResponse> categories = categoryService.list(parentId,search,pageable,sort);
+        PageResponse<CategoryResponse> categories = categoryService.list(parentId, search, pageable, sort, all);
+        System.out.println("Returning " + categories.getTotalElements() + " categories");
         return ResponseEntity.ok(categories);
     }
     @PostMapping

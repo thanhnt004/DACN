@@ -49,7 +49,10 @@ export interface ProductDetailResponse {
     seoTitle?: string
     seoDescription?: string
     version?: number
+    primaryImageUrl?: string
+    isInStock?: boolean
     brandId?: string
+    brand?: { id: string; name: string; slug: string }
     categories?: CategoryResponse[]
     images?: ProductImageResponse[]
     variants?: VariantResponse[]
@@ -61,12 +64,17 @@ export interface ProductDetailResponse {
 export interface ProductSummaryResponse {
     id: string
     slug: string
-    colors?: string[]
-    ratingAvg?: number
+    colors?: string[] // List of color names
+    sizes?: string[] // List of size names
     imageUrl?: string
     name: string
     gender?: string
+    status?: ProductStatus
     priceAmount: number
+    isInStock?: boolean
+    totalStock?: number
+    brandId?: string
+    brandName?: string
 }
 
 export interface VariantResponse {
@@ -76,6 +84,8 @@ export interface VariantResponse {
     barcode?: string
     sizeId?: string
     colorId?: string
+    size?: { id: string; name: string; code: string }
+    color?: { id: string; name: string; hexCode: string }
     priceAmount: number
     compareAtAmount?: number
     historyCost?: number
@@ -86,6 +96,7 @@ export interface VariantResponse {
     deletedAt?: string
     version?: number
     inventory?: InventoryResponse
+    image?: ProductImageResponse
 }
 
 export interface VariantCreateRequest {
@@ -99,11 +110,14 @@ export interface VariantCreateRequest {
     weightGrams?: number
     status?: VariantStatus
     inventory?: InventoryPayload
+    image?: ProductImagePayload
 }
 
 export interface VariantUpdateRequest {
     sku?: string
     barcode?: string
+    sizeId?: string
+    colorId?: string
     priceAmount?: number
     compareAtAmount?: number
     historyCost?: number
@@ -111,6 +125,7 @@ export interface VariantUpdateRequest {
     status?: VariantStatus
     version: number
     inventory?: InventoryPayload
+    image?: ProductImagePayload
 }
 
 export interface ProductCreateRequest {
@@ -201,6 +216,11 @@ export const createVariant = async (productId: string, data: VariantCreateReques
     return res.data
 }
 
+export const createVariantBulk = async (productId: string, data: VariantCreateRequest[]) => {
+    const res = await api.post<VariantResponse[]>(`/api/v1/products/${productId}/variants/bulk`, data)
+    return res.data
+}
+
 export const updateVariant = async (productId: string, variantId: string, data: VariantUpdateRequest) => {
     const res = await api.put<VariantResponse>(`/api/v1/products/${productId}/variants/${variantId}`, data)
     return res.data
@@ -236,6 +256,7 @@ export default {
     changeProductStatus,
     getProductVariants,
     createVariant,
+    createVariantBulk,
     updateVariant,
     deleteVariant,
     getProductImages,

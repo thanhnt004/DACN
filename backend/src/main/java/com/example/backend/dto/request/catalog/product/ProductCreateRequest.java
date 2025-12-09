@@ -1,5 +1,6 @@
 package com.example.backend.dto.request.catalog.product;
 
+import com.example.backend.model.product.ProductStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -21,9 +22,7 @@ public class ProductCreateRequest {
 
     private List<UUID> categoryId;
 
-    @Positive
-    @NotNull
-    private long priceAmount;
+    private Long priceAmount; // Optional, can be set later with variants
 
     private String description;
 
@@ -31,6 +30,8 @@ public class ProductCreateRequest {
 
     @Pattern(regexp = "men|women|unisex")
     private String gender;
+
+    private ProductStatus status = ProductStatus.DRAFT; // Default to DRAFT when creating
 
     private String seoTitle;
 

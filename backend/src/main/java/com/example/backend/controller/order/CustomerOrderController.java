@@ -25,12 +25,11 @@ public class CustomerOrderController {
     @GetMapping("/get-order-list")
     public ResponseEntity<PageResponse<OrderResponse>> getOrderList(@RequestParam(value = "status") String status,
                                                                     @RequestParam(value = "paymentType", required = false) String paymentType,
-                                                                    @PageableDefault(page = 0, size = 20) Pageable pageable,
+                                                                    @PageableDefault(page = 0, size = 20, sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC) Pageable pageable,
                                                                     HttpServletResponse response,
                                                                     HttpServletRequest request) {
         return ResponseEntity.ok(orderFacadeService.getOrderList(status, paymentType, pageable, request, response));
     }
-    @Idempotent(expire = 300, scope = "orderId")
     @PostMapping("{orderId}/cancel")
     public ResponseEntity<?> cancelOrderByCus(@PathVariable("orderId") UUID orderId,
                                          @RequestBody @Valid CancelOrderRequest cancelOrderRequest,
@@ -39,7 +38,6 @@ public class CustomerOrderController {
         orderFacadeService.cancelOrderByCus(orderId, request, response,cancelOrderRequest);
         return ResponseEntity.noContent().build();
     }
-    @Idempotent(expire = 300, scope = "orderId")
     @PostMapping("{orderId}/return")
     public ResponseEntity<?> returnOrderByCus(@PathVariable("orderId") UUID orderId,
                                               @RequestBody ReturnOrderRequest returnOrderRequest,
@@ -55,7 +53,7 @@ public class CustomerOrderController {
         orderFacadeService.mergeOrders(request, response);
         return ResponseEntity.ok().build();
     }
-    @Idempotent(expire = 300, scope = "orderId")
+    
     @PostMapping("{orderId}/re-pay")
     public ResponseEntity<?> rePay(@PathVariable("orderId") UUID orderId) {
         return ResponseEntity.ok(orderFacadeService.rePay(orderId));

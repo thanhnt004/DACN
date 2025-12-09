@@ -59,4 +59,21 @@ public class ReportProjections {
         BigDecimal getTotalRevenue();
         BigDecimal getTotalCost();
     }
+
+    // 8. Lợi nhuận theo tháng
+    public interface MonthlyProfitProjection {
+        String getReportMonth(); // YYYY-MM
+        BigDecimal getTotalRevenue();
+        BigDecimal getTotalCost();
+        BigDecimal getGrossProfit();
+        Long getOrderCount();
+    }
+
+    // 9. Lợi nhuận theo danh mục
+    public interface CategoryProfitProjection {
+        String getCategoryName();
+        BigDecimal getTotalRevenue();
+        BigDecimal getTotalCost();
+        BigDecimal getGrossProfit();
+    }
 }

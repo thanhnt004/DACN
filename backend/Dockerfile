@@ -1,10 +1,10 @@
 # Build stage
 FROM eclipse-temurin:24-jdk-alpine AS build
 WORKDIR /workspace
-# Copy maven wrapper & pom from backend directory
+# Copy maven wrapper & pom (context is root, so use backend/ prefix)
 COPY backend/mvnw backend/pom.xml ./
 COPY backend/.mvn ./.mvn
-# Copy backend source code
+# Copy source code
 COPY backend/src ./src
 RUN chmod +x mvnw
 RUN ./mvnw -B -DskipTests package -DskipDockerBuild=true

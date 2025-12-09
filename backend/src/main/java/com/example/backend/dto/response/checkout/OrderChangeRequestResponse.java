@@ -15,6 +15,6 @@ public class OrderChangeRequestResponse {
     private String status;
     private String reason;
     private String adminNote;
-    private Map<String,String> metadata;
+    private Map<String,Object> metadata;
     private List<String> images;
 }

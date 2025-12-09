@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'react-toastify'
 import * as BrandCategoryApi from '../../api/admin/brandCategory'
 import type { BrandDto, BrandFilter } from '../../api/admin/brandCategory'
+import { formatInstant } from '../../lib/dateUtils'
+import { resolveErrorMessage } from '../../lib/problemDetails'
 
 export default function BrandManager() {
     const [brands, setBrands] = useState<BrandDto[]>([])
@@ -39,8 +42,9 @@ export default function BrandManager() {
             const res = await BrandCategoryApi.getBrands({ ...filter, page })
             setBrands(res.content)
             setTotalPages(res.totalPages)
-        } catch {
-            alert('Lỗi tải brands')
+        } catch (error: any) {
+            const errorMsg = error?.response?.data?.message || error?.message || 'Lỗi tải brands'
+            toast.error(errorMsg)
         } finally {
             setLoading(false)
         }
@@ -53,36 +57,41 @@ export default function BrandManager() {
 
     const handleSubmit = async () => {
         if (!formData.name.trim()) {
-            alert('Vui lòng nhập tên thương hiệu')
+            toast.warning('Vui lòng nhập tên thương hiệu')
             return
         }
         if (!formData.slug?.trim()) {
-            alert('Vui lòng nhập slug')
+            toast.warning('Vui lòng nhập slug')
             return
         }
 
         try {
             if (editingBrand?.id) {
                 await BrandCategoryApi.updateBrand(editingBrand.id, formData)
+                toast.success('Cập nhật thương hiệu thành công')
             } else {
                 await BrandCategoryApi.createBrand(formData)
+                toast.success('Tạo thương hiệu thành công')
             }
             setShowModal(false)
             setEditingBrand(null)
             setFormData({ name: '', slug: '' })
             fetchBrands()
-        } catch {
-            alert('Lỗi lưu brand')
+        } catch (error: any) {
+            const errorMsg = resolveErrorMessage(error, 'Lỗi lưu thương hiệu')
+            toast.error(errorMsg)
         }
     }
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Bạn có chắc muốn xóa brand này?')) return
+        if (!confirm('Bạn có chắc muốn xóa thương hiệu này?')) return
         try {
             await BrandCategoryApi.deleteBrand(id)
+            toast.success('Xóa thương hiệu thành công')
             fetchBrands()
-        } catch {
-            alert('Lỗi xóa brand')
+        } catch (error: any) {
+            const errorMsg = resolveErrorMessage(error, 'Lỗi xóa thương hiệu')
+            toast.error(errorMsg)
         }
     }
 
@@ -217,7 +226,7 @@ export default function BrandManager() {
                                     <td className="border p-2 text-center">{b.productsCount ?? 0}</td>
                                     <td className="border p-2 text-right">{b.totalSales?.toLocaleString() ?? 0}</td>
                                     <td className="border p-2">
-                                        {b.createdAt ? new Date(b.createdAt).toLocaleDateString() : '-'}
+                                        {b.createdAt ? formatInstant(b.createdAt, 'vi-VN', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-'}
                                     </td>
                                     <td className="border p-2 space-x-2">
                                         <button

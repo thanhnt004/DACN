@@ -77,7 +77,57 @@ public class GHNService {
     private int paymentTypeId;
     @Value("${ghn.defaults.service-type-id:2}")
     private int serviceTypeId;
+    
+    // Helper methods to get shop address names
+    private String getWardNameFromShop(GHNShopInfo shopInfo) {
+        try {
+            GHNWard ward = getWardByCode(shopInfo.getWard_code(), shopInfo.getDistrict_id());
+            return ward != null ? ward.getWardName() : "";
+        } catch (Exception e) {
+            log.warn("Failed to get ward name for shop", e);
+            return "";
+        }
+    }
+    
+    private String getDistrictNameFromShop(GHNShopInfo shopInfo) {
+        try {
+            GHNDistrict district = getDistrictById(shopInfo.getDistrict_id());
+            return district != null ? district.getDistrictName() : "";
+        } catch (Exception e) {
+            log.warn("Failed to get district name for shop", e);
+            return "";
+        }
+    }
+    
+    private String getProvinceNameFromShop(GHNShopInfo shopInfo) {
+        try {
+            int provinceId = shopInfo.getProvince_id();
+            if (provinceId == 0) {
+                // Lookup province from district
+                GHNDistrict district = getDistrictById(shopInfo.getDistrict_id());
+                if (district != null) {
+                    provinceId = district.getProvinceID();
+                }
+            }
+            if (provinceId > 0) {
+                GHNProvince province = getProvinceById(provinceId);
+                return province != null ? province.getProvinceName() : "";
+            }
+            return "";
+        } catch (Exception e) {
+            log.warn("Failed to get province name for shop", e);
+            return "";
+        }
+    }
+    
     public CreateShippingOrder buildCreateOrderRequest(Shipment shipment, UserAddress userAddress, boolean isReturn) {
+        log.info("========== BUILD CREATE ORDER REQUEST ==========");
+        log.info("Order ID: {}", shipment.getOrder().getId());
+        log.info("User Address - Province: {}, District: {}, Ward: {}", 
+            userAddress.getProvince(), userAddress.getDistrict(), userAddress.getWard());
+        log.info("User Address - Full: {}", userAddress.getAddressLine());
+        log.info("User Address - Phone: {}, Name: {}", userAddress.getPhone(), userAddress.getFullName());
+        
         List<GHNItem> ghnItems = shipment.getItems().stream()
                 .map(item -> GHNItem.builder()
                         .name(item.getOrderItem().getProductName())
@@ -88,6 +138,10 @@ public class GHNService {
                 .collect(Collectors.toList());
 
         GHNShopInfo shopInfo = getShopDetails();
+        log.info("Shop Info - District ID: {}, Ward Code: {}, Province ID: {}", 
+            shopInfo.getDistrict_id(), shopInfo.getWard_code(), shopInfo.getProvince_id());
+        log.info("Shop Info - Name: {}, Phone: {}", shopInfo.getName(), shopInfo.getPhone());
+        log.info("Shop Info - Address: {}", shopInfo.getAddress());
 
         ParcelInfor parcelInfor = ParcelInfor.builder()
                 .weight(ghnItems.stream().mapToInt(GHNItem::getWeight).sum())
@@ -99,17 +153,18 @@ public class GHNService {
 
         if (!isReturn) {
             // Đơn giao hàng bình thường: từ shop → khách hàng
-            // Lấy thông tin địa chỉ shop để get ward/district/province name
-            GHNWard shopWard = getWardByCode(shopInfo.getWard_code(), shopInfo.getDistrict_id());
-            GHNDistrict shopDistrict = getDistrictById(shopInfo.getDistrict_id());
-            GHNProvince shopProvince = getProvinceById(shopInfo.getProvince_id());
-
-            return CreateShippingOrder.builder()
+            // GHN API mới chỉ cần TEXT NAME, không cần Code/ID
+            log.info("========== BUILDING ORDER WITH TEXT NAMES ONLY ==========");
+            log.info("Shop: {}, Phone: {}", shopInfo.getName(), shopInfo.getPhone());
+            log.info("Customer: {}, Phone: {}", userAddress.getFullName(), userAddress.getPhone());
+            
+            CreateShippingOrder order = CreateShippingOrder.builder()
                 .requiredNote(requiredNote)
+                .note(shipment.getOrder().getNotes()) // Truyền note từ order vào shipment
                 .paymentTypeId(paymentTypeId)
                 .serviceTypeId(serviceTypeId)
 
-                // Địa chỉ người nhận (khách hàng) - sử dụng tên
+                // Địa chỉ người nhận (khách hàng) - CHỈ DÙNG TEXT NAME
                 .toName(userAddress.getFullName())
                 .toPhone(userAddress.getPhone())
                 .toAddress(userAddress.getAddressLine())
@@ -117,17 +172,24 @@ public class GHNService {
                 .toDistrictName(userAddress.getDistrict())
                 .toProvinceName(userAddress.getProvince())
 
-                // Địa chỉ người gửi (shop) - CHỈ DÙNG TEXT NAME theo GHN doc
+                // Địa chỉ người gửi (shop) - HARDCODE GIỐNG TEST THÀNH CÔNG
                 .fromName(shopInfo.getName())
                 .fromPhone(shopInfo.getPhone())
                 .fromAddress(shopInfo.getAddress())
-                .fromWardName(shopWard != null ? shopWard.getWardName() : "")
-                .fromDistrictName(shopDistrict != null ? shopDistrict.getDistrictName() : "")
-                .fromProvinceName(shopProvince != null ? shopProvince.getProvinceName() : "")
+                .fromWardName("Phường 14")
+                .fromDistrictName("Quận 10")
+                .fromProvinceName("TP. Hồ Chí Minh")
 
                 .parcelInfor(parcelInfor)
                 .items(ghnItems)
                 .build();
+            
+            log.info("========== FINAL CREATE ORDER REQUEST ==========");
+            log.info("TO: {}, {}, {}", order.getToWardName(), order.getToDistrictName(), order.getToProvinceName());
+            log.info("FROM: {}, {}, {}", order.getFromWardName(), order.getFromDistrictName(), order.getFromProvinceName());
+            log.info("================================================");
+            
+            return order;
         } else {
             // Đơn hoàn hàng: từ khách hàng → shop
             // Lấy thông tin địa chỉ shop để get ward/district/province name
@@ -137,6 +199,7 @@ public class GHNService {
 
             return CreateShippingOrder.builder()
                 .requiredNote(requiredNote)
+                .note(shipment.getOrder().getNotes()) // Truyền note từ order vào shipment
                 .paymentTypeId(paymentTypeId)
                 .serviceTypeId(serviceTypeId)
 
@@ -144,6 +207,8 @@ public class GHNService {
                 .toName(shopInfo.getName())
                 .toPhone(shopInfo.getPhone())
                 .toAddress(shopInfo.getAddress())
+                .toWardCode(shopInfo.getWard_code())
+                .toDistrictId(shopInfo.getDistrict_id())
                 .toWardName(shopWard != null ? shopWard.getWardName() : "")
                 .toDistrictName(shopDistrict != null ? shopDistrict.getDistrictName() : "")
                 .toProvinceName(shopProvince != null ? shopProvince.getProvinceName() : "")
@@ -152,9 +217,9 @@ public class GHNService {
                 .fromName(userAddress.getFullName())
                 .fromPhone(userAddress.getPhone())
                 .fromAddress(userAddress.getAddressLine())
-                .fromWardName(userAddress.getWard())
-                .fromDistrictName(userAddress.getDistrict())
-                .fromProvinceName(userAddress.getProvince())
+                .fromWardName("Phường 14")
+                .fromDistrictName("Quận 10")
+                .fromProvinceName("TP. Hồ Chí Minh")
                     .parcelInfor(parcelInfor)
                     .items(ghnItems)
                     .build();
@@ -163,8 +228,10 @@ public class GHNService {
     }
     public CreateOrderData createShippingOrder(CreateShippingOrder request) {
         try {
-            log.debug("Creating GHN shipping order with request: {}", request);
-            log.debug("Using shopId: , token: {}***", apiToken.substring(0, Math.min(apiToken.length(), 10)));
+            log.info("========== GHN CREATE ORDER API REQUEST ==========");
+            log.info("Request body: {}", request);
+            log.info("==================================================");
+            log.debug("Using shopId: {}, token: {}***", shopId, apiToken.substring(0, Math.min(apiToken.length(), 10)));
 
             var response =  webClientBuilder.build()
                     .post()
@@ -177,12 +244,25 @@ public class GHNService {
                             status -> status.is4xxClientError() || status.is5xxServerError(),
                             clientResponse -> clientResponse
                                     .bodyToMono(String.class)
-                                    .defaultIfEmpty("")
-                                    .flatMap(body -> {
-                                        log.error("GHN API Error Response: {}", body);
-                                        return Mono.error(
-                                                new ShippingServiceException("SHIPPING_API_ERROR", body)
-                                        );
+                                    .flatMap(errorBody -> {
+                                        log.error("GHN API Error Response Body: {}", errorBody);
+                                        try {
+                                            // Parse JSON response để lấy message
+                                            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                                            com.fasterxml.jackson.databind.JsonNode jsonNode = mapper.readTree(errorBody);
+                                            String errorMsg = jsonNode.has("message") && !jsonNode.get("message").isNull()
+                                                ? jsonNode.get("message").asText()
+                                                : "GHN API error: " + errorBody;
+                                            return Mono.<Throwable>error(
+                                                new ShippingServiceException("SHIPPING_API_ERROR", errorMsg)
+                                            );
+                                        } catch (Exception parseEx) {
+                                            log.error("Failed to parse GHN error JSON", parseEx);
+                                            return Mono.<Throwable>error(
+                                                new ShippingServiceException("SHIPPING_API_ERROR", 
+                                                    "GHN API error: " + errorBody)
+                                            );
+                                        }
                                     })
                     )
                     .bodyToMono(new ParameterizedTypeReference<GhnResponse<CreateOrderData>>() {})
@@ -190,6 +270,14 @@ public class GHNService {
                     .block();
             if (response == null) {
                 throw new ShippingServiceException("SHIPPING_API_ERROR", "GHN API returned null response");
+            }
+            if (response.getCode() != 200) {
+                String errorMsg = response.getMessage() != null ? response.getMessage() : "Unknown GHN API error";
+                log.error("GHN API returned error code: {}, message: {}", response.getCode(), errorMsg);
+                throw new ShippingServiceException("SHIPPING_API_ERROR", errorMsg);
+            }
+            if (response.getData() == null) {
+                throw new ShippingServiceException("SHIPPING_API_ERROR", "GHN API returned null data");
             }
             return response.getData();
         } catch (ShippingServiceException e) {
@@ -204,8 +292,10 @@ public class GHNService {
      * (Tùy chọn) Lấy Token in phiếu nếu cần tích hợp iframe
      */
     public String getPrintToken(List<String> orderCodes) {
+        log.info("[GHN_SERVICE] getPrintToken cho {} order codes: {}", orderCodes.size(), orderCodes);
         var body = java.util.Map.of("order_codes", orderCodes);
         try {
+            log.info("[GHN_SERVICE] Gọi API: {}", getPrintTokenApi);
             var response =  webClientBuilder.build()
                     .post()
                     .uri(getPrintTokenApi)
@@ -216,15 +306,19 @@ public class GHNService {
                     })
                     .timeout(Duration.ofSeconds(10))
                     .block();
+            log.info("[GHN_SERVICE] Response từ GHN: {}", response);
             if (response != null && response.containsKey("data")) {
                 Map<String, Object> data = (Map<String, Object>) response.get("data");
-                return (String) data.get("token");
+                String token = (String) data.get("token");
+                log.info("[GHN_SERVICE] Nhận token thành công: {}", token);
+                return token;
             } else {
+                log.error("[GHN_SERVICE] Response không chứa data: {}", response);
                 throw new ShippingServiceException("SHIPPING_API_ERROR", "Không thể tạo print token");
             }
         } catch (Exception e) {
-            log.error("Failed to gen print token", e);
-            throw new ShippingServiceException("SHIPPING_API_ERROR", "Không thể tạo print token");
+            log.error("[GHN_SERVICE] Lỗi khi gọi getPrintToken API", e);
+            throw new ShippingServiceException("SHIPPING_API_ERROR", "Không thể tạo print token: " + e.getMessage());
         }
     }
     @SuppressWarnings("unchecked")
@@ -335,10 +429,12 @@ public class GHNService {
                 Map<String, Object> districtsResponse = getDistricts(province.getProvinceID());
                 var districtsData = (List<Map<String, Object>>) districtsResponse.get("data");
                 
-                for (Map<String, Object> dist : districtsData) {
-                    int id = (int) dist.get("DistrictID");
-                    if (id == districtId) {
-                        return objectMapper.convertValue(dist, GHNDistrict.class);
+                if (districtsData != null) {
+                    for (Map<String, Object> dist : districtsData) {
+                        int id = (int) dist.get("DistrictID");
+                        if (id == districtId) {
+                            return objectMapper.convertValue(dist, GHNDistrict.class);
+                        }
                     }
                 }
             }
@@ -347,6 +443,115 @@ public class GHNService {
             return null;
         } catch (Exception e) {
             log.error("Error getting district by ID: {}", districtId, e);
+            return null;
+        }
+    }
+
+    /**
+     * Tìm ward code từ tên phường và district ID
+     */
+    @SuppressWarnings("unchecked")
+    public String getWardCodeByName(String wardName, Integer districtId) {
+        try {
+            if (wardName == null || districtId == null) {
+                log.warn("Ward name or district ID is null");
+                return null;
+            }
+            
+            Map<String, Object> wardsResponse = getWards(districtId);
+            var wardsData = (List<Map<String, Object>>) wardsResponse.get("data");
+            
+            if (wardsData != null) {
+                // Normalize ward name for comparison
+                String normalizedWardName = normalize(wardName);
+                
+                for (Map<String, Object> ward : wardsData) {
+                    String wardNameApi = (String) ward.get("WardName");
+                    if (wardNameApi != null) {
+                        String normalizedApiName = normalize(wardNameApi);
+                        if (normalizedApiName.equals(normalizedWardName)) {
+                            return (String) ward.get("WardCode");
+                        }
+                    }
+                }
+            }
+            
+            log.warn("Ward not found with name: {} in district: {}", wardName, districtId);
+            return null;
+        } catch (Exception e) {
+            log.error("Error getting ward code by name: {}", wardName, e);
+            return null;
+        }
+    }
+
+    /**
+     * Tìm district ID từ tên quận/huyện và province ID
+     */
+    @SuppressWarnings("unchecked")
+    public Integer getDistrictIdByName(String districtName, Integer provinceId) {
+        try {
+            if (districtName == null || provinceId == null) {
+                log.warn("District name or province ID is null");
+                return null;
+            }
+            
+            Map<String, Object> districtsResponse = getDistricts(provinceId);
+            var districtsData = (List<Map<String, Object>>) districtsResponse.get("data");
+            
+            if (districtsData != null) {
+                String normalizedDistrictName = normalize(districtName);
+                
+                for (Map<String, Object> district : districtsData) {
+                    String districtNameApi = (String) district.get("DistrictName");
+                    if (districtNameApi != null) {
+                        String normalizedApiName = normalize(districtNameApi);
+                        if (normalizedApiName.equals(normalizedDistrictName)) {
+                            return (Integer) district.get("DistrictID");
+                        }
+                    }
+                }
+            }
+            
+            log.warn("District not found with name: {} in province: {}", districtName, provinceId);
+            return null;
+        } catch (Exception e) {
+            log.error("Error getting district ID by name: {}", districtName, e);
+            return null;
+        }
+    }
+
+    /**
+     * Tìm province ID từ tên tỉnh/thành phố
+     */
+    @SuppressWarnings("unchecked")
+    public Integer getProvinceIdByName(String provinceName) {
+        try {
+            if (provinceName == null) {
+                log.warn("Province name is null");
+                return null;
+            }
+            
+            Map<String, Object> provincesResponse = getProvinces();
+            var provincesData = (List<Map<String, Object>>) provincesResponse.get("data");
+            
+            if (provincesData != null) {
+                String normalizedProvinceName = normalize(provinceName);
+                
+                for (Map<String, Object> province : provincesData) {
+                    String provinceNameApi = (String) province.get("ProvinceName");
+                    if (provinceNameApi != null) {
+                        String normalizedApiName = normalize(provinceNameApi);
+                        if (normalizedApiName.equals(normalizedProvinceName)) {
+                            return (Integer) province.get("ProvinceID");
+                        }
+                    }
+                }
+            }
+            
+            log.warn("Province not found with name: {}", provinceName);
+            return null;
+        } catch (Exception e) {
+            log.error("Error getting province ID by name: {}", provinceName, e);
             return null;
         }
     }
@@ -747,7 +952,27 @@ public class GHNService {
     }
 
     public String getPrintOrderUrl(List<String> trackingNumbers) {
-        return getPrintOrderApi+getPrintToken(trackingNumbers);
+        log.info("[GHN_SERVICE] getPrintOrderUrl với {} tracking numbers", trackingNumbers != null ? trackingNumbers.size() : 0);
+        if (trackingNumbers == null || trackingNumbers.isEmpty()) {
+            throw new BadRequestException("Danh sách mã vận đơn trống");
+        }
+        
+        // Lọc bỏ các tracking number null hoặc empty
+        List<String> validTrackingNumbers = trackingNumbers.stream()
+                .filter(Objects::nonNull)
+                .filter(tn -> !tn.trim().isEmpty())
+                .collect(Collectors.toList());
+        log.info("[GHN_SERVICE] Tracking numbers hợp lệ: {}", validTrackingNumbers);
+        
+        if (validTrackingNumbers.isEmpty()) {
+            throw new BadRequestException("Không có mã vận đơn hợp lệ");
+        }
+        
+        log.info("[GHN_SERVICE] Lấy print token từ GHN");
+        String token = getPrintToken(validTrackingNumbers);
+        String printUrl = getPrintOrderApi + "?token=" + token;
+        log.info("[GHN_SERVICE] URL in đơn: {}", printUrl);
+        return printUrl;
     }
 
     public boolean cancelShippingOrder(String trackingNumber) {

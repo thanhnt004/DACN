@@ -28,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -49,6 +50,28 @@ public class CartService {
     }
 
     private CartResponse buildCartResponse(Cart cart) {
+        // Remove items with deleted variants before mapping
+        cart.getItems().removeIf(item -> {
+            try {
+                ProductVariant variant = item.getVariant();
+                return variant == null || variant.getDeletedAt() != null;
+            } catch (jakarta.persistence.EntityNotFoundException e) {
+                // Variant was deleted, remove this item
+                cartItemRepository.delete(item);
+                return true;
+            }
+        });
+        
+        // Sort items by createdAt to maintain consistent order (null-safe)
+        cart.getItems().sort((a, b) -> {
+            Instant aTime = a.getCreatedAt();
+            Instant bTime = b.getCreatedAt();
+            if (aTime == null && bTime == null) return 0;
+            if (aTime == null) return 1;
+            if (bTime == null) return -1;
+            return aTime.compareTo(bTime);
+        });
+        
         CartResponse cartResponse = cartMapper.toDto(cart);
 
         // Handle null or empty items list
@@ -89,7 +112,8 @@ public class CartService {
     public CartResponse addItemToCart(@Valid CartItemRequest cartItemRequest, Optional<UUID> guestCartId) {
         Optional<User> user = authenUtil.getAuthenUser();
         Cart cart = findOrCreateActiveCart(user, guestCartId);
-        ProductVariant variant = variantRepository.getReferenceById(cartItemRequest.getVariantId());
+        ProductVariant variant = variantRepository.findById(cartItemRequest.getVariantId())
+                .orElseThrow(() -> new VariantNotFoundException("Không tìm thấy biến thể sản phẩm"));
         cart = upsertItem(cart, variant, cartItemRequest.getQuantity());
         return buildCartResponse(cartRepository.save(cart));
     }
@@ -260,6 +284,11 @@ public class CartService {
     public void clearCart(CheckoutSession checkoutSession) {
         List<CheckoutItemDetail> items = checkoutSession.getItems();
         if (items == null || items.isEmpty()) {
+            return;
+        }
+
+        // For BuyNow flow, cartId is null - skip cart clearing
+        if (checkoutSession.getCartId() == null) {
             return;
         }
 

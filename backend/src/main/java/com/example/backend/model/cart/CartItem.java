@@ -11,12 +11,12 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Builder
 @Setter
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "cart_items")
+@Builder(toBuilder = true)
 public class CartItem {
     @Id
     @GeneratedValue
@@ -26,12 +26,16 @@ public class CartItem {
     private long unitPriceAmount;
 
     @CreationTimestamp
+    @Column(updatable = false)
     private Instant createdAt;
+    
     @UpdateTimestamp
     private Instant updatedAt;
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cart_id",nullable = false)
     private Cart cart;
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "variant_id",nullable = false)
     private ProductVariant variant;

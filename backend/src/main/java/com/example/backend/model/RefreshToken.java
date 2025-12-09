@@ -36,7 +36,7 @@ public class RefreshToken {
     private Instant lastUsedAt;
 
     @CreationTimestamp
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     @Column(name = "is_revoked", nullable = false)

@@ -128,6 +128,7 @@ public class AuthService {
         RefreshToken refreshToken = refreshTokenService.findByRawToken(token);
         if (refreshTokenService.revokeToken(refreshToken, "Logout")) {
             cookieUtil.clearCookie(response, CookieUtil.REFRESH_TOKEN_COOKIE);
+            cookieUtil.clearCookie(response, CookieUtil.OAUTH_STATE_COOKIE);
             return LogoutResponse.builder()
                     .message("Log out successful!")
                     .build();
@@ -142,6 +143,7 @@ public class AuthService {
         RefreshToken refreshToken = refreshTokenService.findByRawToken(token);
         if (refreshTokenService.revokeAllByUser(refreshToken.getUser(), "Log out") > 0) {
             cookieUtil.clearCookie(response, CookieUtil.REFRESH_TOKEN_COOKIE);
+            cookieUtil.clearCookie(response, CookieUtil.OAUTH_STATE_COOKIE);
             return LogoutResponse.builder()
                     .message("Log out successful!")
                     .build();

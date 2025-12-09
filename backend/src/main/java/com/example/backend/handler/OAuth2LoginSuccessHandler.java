@@ -47,7 +47,6 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private final CookieUtil cookieUtil;
 
     @Override
-    @Transactional
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
             Authentication authentication) {
         OAuth2User oUser = (OAuth2User) authentication.getPrincipal();
@@ -60,6 +59,9 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         String avatar = extractAvatar(oUser, provider);
 
         String redirectOverride = null;
+        boolean isLinkMode = false;
+        UUID linkUserId = null;
+        
         // neu de link tai khoan
         Optional<Cookie> linkStateCookie = cookieUtil.readCookie(request, "oauth_link_state");
         // Process link state safely
@@ -71,12 +73,46 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
             redirectOverride = Optional.ofNullable((String) claims.get("redirect")).filter(s -> !s.isBlank())
                     .orElse(null);
             if ("link".equals(mode) && provider.equals(prov)) {
-                UUID linkUserId = UUID.fromString(uid);
+                isLinkMode = true;
+                linkUserId = UUID.fromString(uid);
+                
                 User targetUser = users.findById(linkUserId).orElseThrow(
                         () -> new AuthenticationException(401, "Not found user!"));
-                // Thực hiện liên kết/idempotent
-                oauthService.link(targetUser.getId(), provider, providerUserId, email, name);
-                issueCookieAndRedirect(response, provider, targetUser, redirectOverride);
+                
+                // Log trước khi link
+                log.info("BEFORE LINK - User: {}, Role: {}, Phone: {}, HasPassword: {}", 
+                    targetUser.getEmail(), targetUser.getRole(), targetUser.getPhone(), 
+                    targetUser.getPasswordHash() != null);
+                
+                try {
+                    // Thực hiện liên kết/idempotent
+                    oauthService.link(targetUser.getId(), provider, providerUserId, email, name);
+                    
+                    // Reload user from DB để đảm bảo dữ liệu mới nhất
+                    targetUser = users.findById(linkUserId).orElseThrow(
+                            () -> new AuthenticationException(401, "Not found user!"));
+                    
+                    // Log sau khi link
+                    log.info("AFTER LINK - User: {}, Role: {}, Phone: {}, HasPassword: {}", 
+                        targetUser.getEmail(), targetUser.getRole(), targetUser.getPhone(), 
+                        targetUser.getPasswordHash() != null);
+                    
+                    issueCookieAndRedirect(response, provider, targetUser, redirectOverride);
+                } catch (IllegalStateException e) {
+                    // OAuth account already linked to different user
+                    log.error("Link failed: {}", e.getMessage());
+                    String errorUrl = (redirectOverride != null && !redirectOverride.isBlank())
+                            ? redirectOverride
+                            : frontendUrl + "/member/profile";
+                    String errorMessage = URLEncoder.encode(e.getMessage(), StandardCharsets.UTF_8);
+                    String url = errorUrl + (errorUrl.contains("?") ? "&" : "?") + "error=" + errorMessage;
+                    try {
+                        cookieUtil.clearCookie(response, CookieUtil.OAUTH_STATE_COOKIE);
+                        response.sendRedirect(url);
+                    } catch (Exception ex) {
+                        log.error("Failed to redirect after link error", ex);
+                    }
+                }
                 cookieUtil.clearCookie(response, CookieUtil.OAUTH_STATE_COOKIE);
                 return;
             }
@@ -85,7 +121,24 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         Optional<OAuthAccount> byLink = oauthAccounts.findByProviderAndProviderUserId(provider, providerUserId);
         User user;
         if (byLink.isPresent()) {
-            user = users.findById(byLink.get().getUserId()).orElseThrow(
+            UUID existingUserId = byLink.get().getUserId();
+            
+            log.info("OAuth account found - Provider: {}, ExistingUserId: {}, isLinkMode: {}, linkUserId: {}", 
+                provider, existingUserId, isLinkMode, linkUserId);
+            
+            // Nếu đang ở LINK mode mà OAuth account đã tồn tại
+            if (isLinkMode) {
+                // Nếu OAuth account thuộc về user khác (không phải user đang link)
+                if (!existingUserId.equals(linkUserId)) {
+                    log.error("SECURITY VIOLATION: User {} tried to link OAuth account that belongs to user {}", 
+                        linkUserId, existingUserId);
+                    throw new IllegalStateException("Tài khoản " + provider + " này đã được liên kết với tài khoản khác. Vui lòng sử dụng tài khoản " + provider + " khác.");
+                }
+                // Nếu OAuth account đã thuộc về chính user này → Idempotent, cho phép
+                log.info("OAuth account already linked to same user - allowing idempotent operation");
+            }
+            
+            user = users.findById(existingUserId).orElseThrow(
                     () -> new AuthenticationException(401, "User not found"));
         } else {
             // cập nhật user theo email hoặc tạo mới
@@ -116,6 +169,9 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
     private void issueCookieAndRedirect(HttpServletResponse response, String provider, User user,
             String redirectOverride) {
+        // Clear OAuth state cookie to prevent interference with future requests
+        cookieUtil.clearCookie(response, CookieUtil.OAUTH_STATE_COOKIE);
+
         String rawRefresh = refreshTokenService.createToken(user);
         Cookie cookie = cookieUtil.createRefreshTokenCookie(rawRefresh);
         response.addCookie(cookie);

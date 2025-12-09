@@ -4,30 +4,34 @@ import { Link } from 'react-router-dom'
 import OrderDetailModal from './components/OrderDetailModal'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
+import { formatInstant } from '../../lib/dateUtils'
 
 type StatusFilterOption = {
     value: string
     label: string
     query: string
+    paymentType?: string
 }
 
 const STATUS_FILTER_OPTIONS: readonly StatusFilterOption[] = [
     { value: 'ALL', label: 'Tất cả', query: 'ALL' },
-    { value: 'PENDING_UNPAID', label: 'Chờ thanh toán', query: 'PENDING', paymentType: 'NON_COD' },
-    { value: 'PENDING_COD', label: 'Chờ xác nhận', query: 'PENDING', paymentType: 'COD' },
-    { value: 'AWAITING_SHIPMENT', label: 'Chờ vận chuyển', query: 'CONFIRMED,PROCESSING' },
-    { value: 'SHIPPED', label: 'Đang giao hàng', query: 'SHIPPED' },
-    { value: 'DELIVERED', label: 'Đã giao', query: 'DELIVERED' },
-    { value: 'CANCELING', label: 'Hủy đơn', query: 'CANCELING,CANCELLED' },
-    { value: 'RETURNING', label: 'Trả hàng', query: 'RETURNING,RETURNED,REFUNDED' },
+    { value: 'UNPAID', label: 'Chờ thanh toán', query: 'UNPAID' },
+    { value: 'TO_CONFIRM', label: 'Chờ xác nhận', query: 'TO_CONFIRM' },
+    { value: 'PROCESSING', label: 'Đã xác nhận', query: 'PROCESSING' },
+    { value: 'SHIPPING', label: 'Đang giao hàng', query: 'SHIPPING' },
+    { value: 'COMPLETED', label: 'Đã giao', query: 'COMPLETED' },
+    { value: 'CANCEL_REQ', label: 'Chờ hủy', query: 'CANCEL_REQ' },
+    { value: 'CANCELLED', label: 'Đã hủy', query: 'CANCELLED' },
+    { value: 'RETURN_REQ', label: 'Chờ duyệt trả hàng', query: 'RETURN_REQ' },
+    { value: 'REFUNDED', label: 'Đã trả hàng', query: 'REFUNDED' },
 ]
 
 type OrderStatusFilter = (typeof STATUS_FILTER_OPTIONS)[number]['value']
 
 const STATUS_BADGE_MAP: Record<string, { label: string; className: string }> = {
     PENDING: { label: 'Chưa thanh toán', className: 'bg-yellow-100 text-yellow-800' },
-    CONFIRMED: { label: 'Đã xác nhận', className: 'bg-blue-100 text-blue-800' },
-    PROCESSING: { label: 'Chờ vận chuyển', className: 'bg-indigo-100 text-indigo-800' },
+    CONFIRMED: { label: 'Đã thanh toán - Chờ xác nhận', className: 'bg-blue-100 text-blue-800' },
+    PROCESSING: { label: 'Đã xác nhận', className: 'bg-indigo-100 text-indigo-800' },
     SHIPPED: { label: 'Đang giao hàng', className: 'bg-sky-100 text-sky-800' },
     DELIVERED: { label: 'Đã giao', className: 'bg-green-100 text-green-800' },
     CANCELING: { label: 'Đang hủy', className: 'bg-red-100 text-red-800' },
@@ -49,10 +53,13 @@ export default function MemberOrders() {
         setError(null)
         try {
             const selectedOption = STATUS_FILTER_OPTIONS.find(option => option.value === statusFilter) ?? STATUS_FILTER_OPTIONS[0]
+            console.log('🔍 Fetching orders with:', { status: selectedOption.query, paymentType: selectedOption.paymentType })
             const response = await OrderApi.getOrders(selectedOption.query, 0, 100, selectedOption.paymentType)
+            console.log('✅ Orders response:', response)
+            console.log('📦 Orders count:', response.content?.length || 0)
             setOrders(response.content)
         } catch (err) {
-            console.error('Failed to load orders:', err)
+            console.error('❌ Failed to load orders:', err)
             setOrders([])
             setError('Không thể tải danh sách đơn hàng. Vui lòng thử lại sau.')
         } finally {
@@ -148,7 +155,7 @@ export default function MemberOrders() {
                                         <div>
                                             <p className="font-medium text-base">Đơn hàng #{order.orderNumber}</p>
                                             <p className="text-sm text-gray-500">
-                                                {new Date(order.placedAt).toLocaleString('vi-VN', {
+                                                {formatInstant(order.placedAt, 'vi-VN', {
                                                     day: '2-digit',
                                                     month: '2-digit',
                                                     year: 'numeric',

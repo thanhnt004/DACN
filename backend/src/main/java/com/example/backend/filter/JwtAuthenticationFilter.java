@@ -94,7 +94,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
+        log.info("request path: {} method: {} should not filter check", request.getRequestURI(), request.getMethod());
         String path = request.getRequestURI();
+        String method = request.getMethod();
+        
+        // Allow GET requests for catalog endpoints without authentication
+        // This allows guests to browse products, categories, brands, etc.
+        if ("GET".equalsIgnoreCase(method)) {
+            if (path.startsWith("/api/v1/categories") || 
+                path.startsWith("/api/v1/brands") || 
+                path.startsWith("/api/v1/sizes") || 
+                path.startsWith("/api/v1/colors") ||
+                path.startsWith("/api/v1/discounts")) {
+                log.trace("Allowing GET request for catalog endpoint: {}", path);
+                return true;
+            }
+        }
+        
+        // Allow GET requests for products (public read)
+        if ("GET".equalsIgnoreCase(method) && path.startsWith("/api/v1/products")) {
+            log.trace("Allowing GET request for products endpoint: {}", path);
+            return true;
+        }
+        
+        // Check against configured public endpoints
         return isPublicEndpoint(path);
     }
 

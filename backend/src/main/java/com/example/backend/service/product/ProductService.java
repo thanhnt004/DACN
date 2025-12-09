@@ -15,18 +15,18 @@ import com.example.backend.dto.response.wraper.PageResponse;
 import com.example.backend.exception.BadRequestException;
 import com.example.backend.exception.product.DuplicateProductException;
 import com.example.backend.exception.product.ProductNotFoundException;
-import com.example.backend.mapper.CategoryMapper;
-import com.example.backend.mapper.ImageMapper;
-import com.example.backend.mapper.ProductMapper;
-import com.example.backend.mapper.ProductVariantMapper;
+import com.example.backend.mapper.*;
+import com.example.backend.model.product.Brand;
 import com.example.backend.model.product.Category;
 import com.example.backend.model.product.Product;
 import com.example.backend.model.product.ProductImage;
 import com.example.backend.model.product.ProductStatus;
+import com.example.backend.repository.catalog.brand.BrandRepository;
 import com.example.backend.repository.catalog.categoty.CategoryRepository;
 import com.example.backend.repository.catalog.product.ProductRepository;
 import com.example.backend.repository.catalog.product.ProductSpecification;
 import com.example.backend.repository.catalog.product.ProductVariantRepository;
+import com.example.backend.service.ProductEmbeddingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -47,6 +47,8 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductVariantRepository variantRepository;
     private final CategoryRepository categoryRepository;
+    private final BrandMapper brandMapper;
+    private final BrandRepository brandRepository;
 
     private final ProductMapper productMapper;
     private final ImageMapper imageMapper;
@@ -56,6 +58,8 @@ public class ProductService {
 
     private final CacheConfig cacheConfig;
     private static final Set<String> ALLOWED_INCLUDES = Set.of("variants", "images", "categories", "options");
+
+    private final ProductEmbeddingService embeddingService;
 
     private boolean slugExist(String slug, UUID excludedId) {
         if (excludedId == null) {
@@ -107,8 +111,15 @@ public class ProductService {
             throw new DuplicateProductException("SLUG", "Slug sản phẩm đã tồn tại");
         }
         product.setSlug(productCreateRequest.getSlug());
-        if (product.getSeoTitle().isBlank())
+        if (product.getSeoTitle() == null || product.getSeoTitle().isBlank())
             product.setSeoTitle(product.getName());
+
+        // Handle brand
+        if (productCreateRequest.getBrandId() != null) {
+            Brand brand = brandRepository.findById(productCreateRequest.getBrandId())
+                .orElseThrow(() -> new IllegalArgumentException("Brand không tồn tại với ID: " + productCreateRequest.getBrandId()));
+            product.setBrand(brand);
+        }
 
         // Handle categories
         if (productCreateRequest.getCategoryId() != null && !productCreateRequest.getCategoryId().isEmpty()) {
@@ -127,7 +138,7 @@ public class ProductService {
 
     @Transactional
     @Caching(evict = {
-            @CacheEvict(value = "#{@cacheConfig.productCache}", key = "#id"),
+            @CacheEvict(value = "#{@cacheConfig.productCache}", allEntries = true),
             @CacheEvict(value = "#{@cacheConfig.productVariantsCache}", key = "#id"),
             @CacheEvict(value = "#{@cacheConfig.productListCache}", allEntries = true)
     })
@@ -140,6 +151,13 @@ public class ProductService {
             }
         }
         productMapper.updateFromDto(request, exist);
+
+        // Handle brand
+        if (request.getBrandId() != null) {
+            Brand brand = brandRepository.findById(request.getBrandId())
+                .orElseThrow(() -> new IllegalArgumentException("Brand không tồn tại với ID: " + request.getBrandId()));
+            exist.setBrand(brand);
+        }
 
         // Handle categories
         if (request.getCategoryId() != null) {
@@ -194,6 +212,11 @@ public class ProductService {
         Set<String> includeSet = normalizeIncludes(includes);
         ProductDetailResponse response = productMapper.toDto(product);
 
+        // Populate brand using BrandMapper
+        if (product.getBrand() != null) {
+            response.setBrand(brandMapper.toDto(product.getBrand()));
+        }
+
         if (includeSet.contains("variants")) {
             response.setVariants(variantsMapper.toResponse(product.getVariants()));
         }
@@ -247,17 +270,24 @@ public class ProductService {
     }
 
     private Specification<Product> getFilterSpecification(ProductFilter filter) {
-        // Lọc trực tiếp trên Product (Category, Brand, Price)
+        // If search query exists, use vector search to filter products
+        Set<UUID> searchProductIds = null;
+        if (filter.getSearch() != null && !filter.getSearch().trim().isEmpty()) {
+            Map<UUID, Double> similarityMap = embeddingService.searchProductIdsBySimilarity(filter.getSearch());
+            searchProductIds = similarityMap.keySet();
+        }
 
         return Specification.allOf(
                 ProductSpecification.hasStatus(filter.getStatus()),
-                ProductSpecification.hasGender(filter.getGender()),
                 ProductSpecification.hasCategory(filter.getCategoryId()),
                 ProductSpecification.hasBrand(filter.getBrandId()),
                 ProductSpecification.hasMinPrice(filter.getMinPriceAmount()),
                 ProductSpecification.hasMaxPrice(filter.getMaxPriceAmount()),
+                ProductSpecification.hasIdIn(searchProductIds),
+                ProductSpecification.hasVariantColors(filter.getColorIds()),
                 ProductSpecification.hasVariantSizes(filter.getSizeIds()),
-                ProductSpecification.hasVariantColors(filter.getColorIds()));
+                ProductSpecification.fetchBrand()
+        );
     }
 
     private Pageable buildPageable(ProductFilter filter, Pageable pageable) {
@@ -300,13 +330,31 @@ public class ProductService {
         r.setId(p.getId());
         r.setSlug(p.getSlug());
         r.setColors(colors);
-        r.setRatingAvg(p.getRatingAvg());
         r.setImageUrl(p.getPrimaryImageUrl());
         r.setName(p.getName());
         r.setSizes(sizes);
         r.setStatus(p.getStatus());
         r.setGender(String.valueOf(p.getGender()));
         r.setPriceAmount(p.getPriceAmount());
+        
+        // Check if product has any variant in stock and calculate total available stock
+        int totalStock = 0;
+        boolean inStock = false;
+        if (p.getVariants() != null) {
+            for (var v : p.getVariants()) {
+                if (v.getInventory() != null && v.getInventory().getAvailableStock() > 0) {
+                    inStock = true;
+                    totalStock += v.getInventory().getAvailableStock();
+                }
+            }
+        }
+        r.setIsInStock(inStock);
+        r.setTotalStock(totalStock);
+        
+        if (p.getBrand() != null) {
+            r.setBrandId(p.getBrand().getId());
+            r.setBrandName(p.getBrand().getName());
+        }
         return r;
     }
     public String normalizeKeyForCache(Object idOrSlug, List<String> includes) {

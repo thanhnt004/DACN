@@ -1,6 +1,7 @@
 package com.example.backend.dto.response.catalog.product;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,6 +19,9 @@ public class ProductImageResponse {
     private String imageUrl;
     private String alt;
     private Integer position;
+    
+    @JsonProperty("isDefault")
     private boolean isDefault;
+    
     private UUID colorId;
 }

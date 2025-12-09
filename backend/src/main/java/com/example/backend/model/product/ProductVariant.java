@@ -98,4 +98,11 @@ public class ProductVariant {
         this.inventory = inventory;
         inventory.setVariant(this);
     }
+    public void setImage(ProductImage image) {
+        this.image = image;
+        if (image != null) {
+            image.setVariant(this);
+        }
+    }
+
 }

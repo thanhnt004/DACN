@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { toast } from 'react-toastify'
 import { Header } from '../components/layout/Header'
 import Footer from '../components/layout/Footer'
 import { useCartStore } from '../store/cart'
 import * as CheckoutApi from '../api/checkout'
 import * as ProfileApi from '../api/profile'
+import * as DiscountsApi from '../api/discounts'
 import type { Address } from '../api/profile'
+import { formatInstant } from '../lib/dateUtils'
 import { useAuthStore } from '../store/auth'
-import { Plus, X, Ticket } from 'lucide-react'
+import { Plus, X, Ticket, Search, Tag, Calendar, Percent } from 'lucide-react'
 import { useGhnLocationSelector } from '../hooks/useGhnLocationSelector'
 import type { ProvinceOption, DistrictOption, WardOption } from '../api/location'
 import { extractProblemMessage } from '../lib/problemDetails'
@@ -54,6 +57,10 @@ export default function CheckoutPage() {
     // Voucher State
     const [voucherCode, setVoucherCode] = useState('')
     const [applyingVoucher, setApplyingVoucher] = useState(false)
+    const [showDiscountModal, setShowDiscountModal] = useState(false)
+    const [availableDiscounts, setAvailableDiscounts] = useState<DiscountsApi.DiscountResponse[]>([])
+    const [loadingDiscounts, setLoadingDiscounts] = useState(false)
+    const [discountSearchTerm, setDiscountSearchTerm] = useState('')
 
     const [formData, setFormData] = useState({
         customerName: '',
@@ -172,7 +179,7 @@ export default function CheckoutPage() {
     const handleAddAddress = async () => {
         if (!newAddressForm.fullName || !newAddressForm.phone || !newAddressForm.line1 || 
             !newAddressForm.province || !newAddressForm.district || !newAddressForm.ward) {
-            alert('Vui lòng điền đầy đủ thông tin địa chỉ')
+            toast.warning('Vui lòng điền đầy đủ thông tin địa chỉ')
             return
         }
 
@@ -197,10 +204,10 @@ export default function CheckoutPage() {
             })
             
             closeAddAddressModal()
-            alert('Thêm địa chỉ thành công')
+            toast.success('Thêm địa chỉ thành công')
         } catch (error) {
             console.error('Failed to add address:', error)
-            alert('Không thể thêm địa chỉ, vui lòng thử lại')
+            toast.error('Không thể thêm địa chỉ, vui lòng thử lại')
         } finally {
             setAddingAddress(false)
         }
@@ -262,7 +269,7 @@ export default function CheckoutPage() {
             } catch (error) {
                 if (isCancelled) return
                 console.error('Failed to update shipping address:', error)
-                alert('Không thể cập nhật địa chỉ giao hàng, vui lòng thử lại.')
+                toast.error('Không thể cập nhật địa chỉ giao hàng, vui lòng thử lại.')
             } finally {
                 if (!isCancelled) {
                     setAddressUpdating(false)
@@ -293,7 +300,9 @@ export default function CheckoutPage() {
         console.log('[DEBUG] Starting session initialization...');
         initializingRef.current = true;
         const buyNowItem = location.state?.buyNowItem;
+        const selectedItems = location.state?.selectedItems;
         console.log('[DEBUG] buyNowItem:', buyNowItem);
+        console.log('[DEBUG] selectedItems:', selectedItems);
 
         const getSessionPayload = (): CheckoutApi.CheckoutSessionCreateRequest | null => {
             if (buyNowItem) {
@@ -305,9 +314,14 @@ export default function CheckoutPage() {
                 };
             }
             if (cart?.id && cart.items.length > 0) {
+                // Use selectedItems if provided from cart page, otherwise use all cart items
+                const itemsToCheckout = selectedItems && selectedItems.length > 0 
+                    ? cart.items.filter(item => selectedItems.includes(item.id))
+                    : cart.items;
+                    
                 return {
                     cartId: cart.id,
-                    items: cart.items.map(item => ({
+                    items: itemsToCheckout.map(item => ({
                         cartItemId: item.id,
                         variantId: item.variantId,
                         quantity: item.quantity
@@ -360,7 +374,7 @@ export default function CheckoutPage() {
             }
         } catch (error) {
             console.error('Failed to init checkout session:', error);
-            alert('Không thể khởi tạo phiên thanh toán');
+            toast.error('Không thể khởi tạo phiên thanh toán');
         } finally {
             console.log('[DEBUG] Finally block - mounted:', mounted.value);
             // Always set initializing to false
@@ -447,7 +461,7 @@ export default function CheckoutPage() {
             syncPaymentState(updatedSession)
         } catch (error) {
             console.error('Failed to update payment method:', error)
-            alert('Không thể cập nhật phương thức thanh toán, vui lòng thử lại.')
+            toast.error('Không thể cập nhật phương thức thanh toán, vui lòng thử lại.')
             setFormData(prev => ({ ...prev, paymentMethod: previousMethod }))
         } finally {
             setPaymentUpdating(false)
@@ -457,47 +471,56 @@ export default function CheckoutPage() {
     const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
         if (e) e.preventDefault()
         if (!sessionId || !sessionToken) {
-            alert('Phiên thanh toán không hợp lệ')
+            toast.error('Phiên thanh toán không hợp lệ')
             return
         }
 
         if (!formData.paymentMethod) {
-            alert('Vui lòng chọn phương thức thanh toán')
+            toast.warning('Vui lòng chọn phương thức thanh toán')
             return
         }
 
         const selectedMethod = paymentMethods.find(method => method.id === formData.paymentMethod)
         if (!selectedMethod) {
-            alert('Phương thức thanh toán không khả dụng')
+            toast.error('Phương thức thanh toán không khả dụng')
             return
         }
 
         if (selectedMethod.isAvailable === false) {
-            alert(selectedMethod.unavailableReason || 'Phương thức thanh toán không khả dụng')
+            toast.error(selectedMethod.unavailableReason || 'Phương thức thanh toán không khả dụng')
             return
         }
 
         if (addressUpdating || paymentUpdating) {
-            alert('Thông tin đang được cập nhật, vui lòng đợi')
+            toast.info('Thông tin đang được cập nhật, vui lòng đợi')
             return
         }
 
         if (applyingVoucher) {
-            alert('Đang áp dụng mã giảm giá, vui lòng đợi')
+            toast.info('Đang áp dụng mã giảm giá, vui lòng đợi')
             return
         }
 
         if (isAuthenticated) {
             if (!selectedAddress) {
-                alert('Vui lòng chọn địa chỉ giao hàng')
+                toast.warning('Vui lòng chọn địa chỉ giao hàng')
                 return
             }
         } else {
             if (!customerName || !customerPhone || !line1 || !province || !district || !ward) {
-                alert('Vui lòng điền đầy đủ thông tin giao hàng')
+                toast.warning('Vui lòng điền đầy đủ thông tin giao hàng')
                 return
             }
         }
+
+        // Validate sessionId and sessionToken
+        if (!sessionId || !sessionToken) {
+            console.error('[CHECKOUT ERROR] Missing sessionId or sessionToken:', { sessionId, sessionToken });
+            toast.error('Phiên thanh toán không hợp lệ. Vui lòng thử lại.');
+            return;
+        }
+
+        console.log('[CHECKOUT] Confirming order with:', { sessionId, sessionToken, idempotencyKey: ensureIdempotencyKey() });
 
         setSubmitting(true)
         try {
@@ -511,7 +534,7 @@ export default function CheckoutPage() {
             // Refresh cart (should be empty now)
             await fetchCart()
 
-            alert(`Đặt hàng thành công! Mã đơn hàng: ${order.orderNumber}`)
+            toast.success(`Đặt hàng thành công! Mã đơn hàng: ${order.orderNumber}`)
 
             idempotencyKeyRef.current = null
 
@@ -530,8 +553,9 @@ export default function CheckoutPage() {
             const responseData = typeof error === 'object' && error && 'response' in error
                 ? (error as { response?: { data?: unknown } }).response?.data
                 : undefined
+            console.error('[CHECKOUT ERROR] Response data:', responseData);
             const message = extractProblemMessage(responseData, 'Lỗi đặt hàng')
-            alert(message)
+            toast.error(message)
         } finally {
             setSubmitting(false)
         }
@@ -540,7 +564,7 @@ export default function CheckoutPage() {
     const handleApplyVoucher = async () => {
         if (!sessionId || !sessionToken) return
         if (!voucherCode.trim()) {
-            alert('Vui lòng nhập mã giảm giá')
+            toast.warning('Vui lòng nhập mã giảm giá')
             return
         }
 
@@ -549,14 +573,78 @@ export default function CheckoutPage() {
             const updatedSession = await CheckoutApi.updateDiscount(sessionId, sessionToken, voucherCode)
             setSessionData(updatedSession)
             syncPaymentState(updatedSession)
-            alert('Áp dụng mã giảm giá thành công')
+            toast.success('Áp dụng mã giảm giá thành công')
+            setShowDiscountModal(false)
         } catch (error) {
             console.error('Failed to apply voucher:', error)
-            alert('Mã giảm giá không hợp lệ hoặc đã hết hạn')
+            toast.error('Mã giảm giá không hợp lệ hoặc đã hết hạn')
             setVoucherCode('')
         } finally {
             setApplyingVoucher(false)
         }
+    }
+
+    const handleVoucherInputFocus = async () => {
+        if (showDiscountModal) return // Đã mở rồi thì không gọi lại
+        
+        setShowDiscountModal(true)
+        setLoadingDiscounts(true)
+        try {
+            // Lấy product IDs từ cart hoặc buy now item
+            const productIds: string[] = []
+            if (location.state?.buyNowItem) {
+                productIds.push(location.state.buyNowItem.productId)
+            } else if (cart?.items) {
+                productIds.push(...cart.items.map(item => item.productId))
+            }
+            
+            const discounts = await DiscountsApi.getAvailableForProducts(productIds)
+            setAvailableDiscounts(discounts)
+        } catch (error) {
+            console.error('Failed to load discounts:', error)
+            toast.error('Không thể tải danh sách mã giảm giá')
+        } finally {
+            setLoadingDiscounts(false)
+        }
+    }
+
+    const handleSearchDiscounts = async () => {
+        if (!discountSearchTerm.trim()) {
+            // Reload all if search is empty
+            handleOpenDiscountModal()
+            return
+        }
+        
+        setLoadingDiscounts(true)
+        try {
+            const response = await DiscountsApi.searchDiscounts(discountSearchTerm)
+            setAvailableDiscounts(response.content)
+        } catch (error) {
+            console.error('Failed to search discounts:', error)
+            toast.error('Không thể tìm kiếm mã giảm giá')
+        } finally {
+            setLoadingDiscounts(false)
+        }
+    }
+
+    const handleSelectDiscount = (code: string) => {
+        setVoucherCode(code)
+        setShowDiscountModal(false)
+    }
+
+    const formatDiscountValue = (discount: DiscountsApi.DiscountResponse) => {
+        if (discount.discountType === 'PERCENTAGE') {
+            return `Giảm ${discount.discountValue}%${discount.maxDiscountAmount ? ` (tối đa ${discount.maxDiscountAmount.toLocaleString()}đ)` : ''}`
+        } else {
+            return `Giảm ${discount.discountValue.toLocaleString()}đ`
+        }
+    }
+
+    const isDiscountValid = (discount: DiscountsApi.DiscountResponse) => {
+        const now = new Date()
+        const endDate = new Date(discount.endDate)
+        return discount.isActive && endDate > now && 
+               (!discount.usageLimit || discount.usageCount < discount.usageLimit)
     }
 
     const calculateTotal = () => {
@@ -938,6 +1026,8 @@ export default function CheckoutPage() {
                                             placeholder="Mã giảm giá"
                                             value={voucherCode}
                                             onChange={(e) => setVoucherCode(e.target.value)}
+                                            onKeyPress={(e) => e.key === 'Enter' && handleApplyVoucher()}
+                                            onFocus={handleVoucherInputFocus}
                                             className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-red-500 focus:border-red-500"
                                         />
                                     </div>
@@ -987,7 +1077,7 @@ export default function CheckoutPage() {
 
             {/* Address List Modal */}
             {showAddressListModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90vh] flex flex-col">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-semibold">Chọn địa chỉ</h3>
@@ -1041,7 +1131,7 @@ export default function CheckoutPage() {
 
             {/* Add Address Modal */}
             {showAddAddressModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-semibold">Thêm địa chỉ mới</h3>
@@ -1142,6 +1232,143 @@ export default function CheckoutPage() {
                             >
                                 {addingAddress ? 'Đang lưu...' : 'Lưu địa chỉ'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Discount Modal */}
+            {showDiscountModal && (
+                <div className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-6 border-b">
+                            <h2 className="text-xl font-semibold">Chọn mã giảm giá</h2>
+                            <button
+                                onClick={() => setShowDiscountModal(false)}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        {/* Search */}
+                        <div className="p-4 border-b">
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Tìm kiếm mã giảm giá..."
+                                        value={discountSearchTerm}
+                                        onChange={(e) => setDiscountSearchTerm(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && handleSearchDiscounts()}
+                                        className="w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleSearchDiscounts}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                >
+                                    Tìm
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Discount List */}
+                        <div className="flex-1 overflow-y-auto p-4">
+                            {loadingDiscounts ? (
+                                <div className="flex justify-center items-center py-12">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                </div>
+                            ) : availableDiscounts.length === 0 ? (
+                                <div className="text-center py-12 text-gray-500">
+                                    <Tag className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                                    <p>Không tìm thấy mã giảm giá</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {availableDiscounts.map((discount) => {
+                                        const isValid = isDiscountValid(discount)
+                                        return (
+                                            <div
+                                                key={discount.id}
+                                                className={`border rounded-lg p-4 transition-all ${
+                                                    isValid
+                                                        ? 'hover:border-blue-500 hover:shadow-md cursor-pointer'
+                                                        : 'opacity-60 cursor-not-allowed'
+                                                }`}
+                                                onClick={() => isValid && handleSelectDiscount(discount.code)}
+                                            >
+                                                <div className="flex items-start justify-between gap-4">
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <div className="bg-red-100 text-red-600 px-3 py-1 rounded font-mono font-bold text-sm">
+                                                                {discount.code}
+                                                            </div>
+                                                            {!isValid && (
+                                                                <span className="text-xs text-red-500 font-medium">
+                                                                    Hết hạn
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-sm text-gray-600 mb-2">
+                                                            {discount.description}
+                                                        </p>
+                                                        <div className="flex items-center gap-4 text-xs text-gray-500">
+                                                            <div className="flex items-center gap-1">
+                                                                <Percent className="w-3 h-3" />
+                                                                <span>{formatDiscountValue(discount)}</span>
+                                                            </div>
+                                                            {discount.minOrderAmount && (
+                                                                <div className="flex items-center gap-1">
+                                                                    <span>Đơn tối thiểu: {discount.minOrderAmount.toLocaleString()}đ</span>
+                                                                </div>
+                                                            )}
+                                                            <div className="flex items-center gap-1">
+                                                                <Calendar className="w-3 h-3" />
+                                                                <span>HSD: {formatInstant(discount.endDate, 'vi-VN', { year: 'numeric', month: '2-digit', day: '2-digit' })}</span>
+                                                            </div>
+                                                        </div>
+                                                        {discount.usageLimit && (
+                                                            <div className="mt-2">
+                                                                <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                                                                    <span>Đã dùng: {discount.usageCount}/{discount.usageLimit}</span>
+                                                                    <span>{Math.round((discount.usageCount / discount.usageLimit) * 100)}%</span>
+                                                                </div>
+                                                                <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                                                    <div
+                                                                        className="bg-blue-600 h-1.5 rounded-full"
+                                                                        style={{ width: `${(discount.usageCount / discount.usageLimit) * 100}%` }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {isValid && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                handleSelectDiscount(discount.code)
+                                                            }}
+                                                            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 whitespace-nowrap"
+                                                        >
+                                                            Chọn
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 border-t bg-gray-50">
+                            <p className="text-xs text-gray-500 text-center">
+                                Nhấn vào mã giảm giá để áp dụng cho đơn hàng
+                            </p>
                         </div>
                     </div>
                 </div>

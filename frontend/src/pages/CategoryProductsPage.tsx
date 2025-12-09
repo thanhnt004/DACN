@@ -371,12 +371,12 @@ export default function CategoryProductsPage() {
                                         id={product.id}
                                         slug={product.slug}
                                         colors={product.colors}
-                                        ratingAvg={product.ratingAvg}
+                                        sizes={product.sizes}
                                         imageUrl={product.imageUrl}
                                         name={product.name}
                                         gender={product.gender}
                                         priceAmount={product.priceAmount}
-                                        onFavoriteClick={handleFavoriteClick}
+                                        isInStock={product.isInStock}
                                     />
                                 ))}
                             </div>

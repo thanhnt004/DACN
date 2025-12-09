@@ -5,6 +5,7 @@ import { Header } from '../components/layout/Header'
 import Footer from '../components/layout/Footer'
 import { ChevronRight, Share2, Minus, Plus, Package, Truck, RotateCcw } from 'lucide-react'
 import { useCartStore } from '../store/cart'
+import { toast } from 'react-toastify'
 
 export default function ProductDetail() {
     const { slug } = useParams()
@@ -33,23 +34,7 @@ export default function ProductDetail() {
                 const res = await ProductsApi.getProductDetail(slug, ['images', 'variants', 'options'])
                 if (!cancelled) {
                     setProduct(res)
-                    // Auto-select first available size and color
-                    if (res.options?.size && res.options.size.length > 0) {
-                        const firstAvailableSize = res.options.size.find(size =>
-                            res.variants?.some(v => v.sizeId === size.id && v.inventory?.available && v.inventory.available > 0)
-                        )
-                        if (firstAvailableSize) {
-                            setSelectedSize(firstAvailableSize.id)
-                        }
-                    }
-                    if (res.options?.color && res.options.color.length > 0) {
-                        const firstAvailableColor = res.options.color.find(color =>
-                            res.variants?.some(v => v.colorId === color.id && v.inventory?.available && v.inventory.available > 0)
-                        )
-                        if (firstAvailableColor) {
-                            setSelectedColor(firstAvailableColor.id)
-                        }
-                    }
+                    // Don't auto-select size and color - user must choose
                 }
             } catch (err) {
                 console.error(err)
@@ -72,6 +57,19 @@ export default function ProductDetail() {
                 }
                 return prev
             })
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedSize, selectedColor])
+
+    // Auto-switch to variant image in gallery when variant is selected
+    useEffect(() => {
+        const variant = getSelectedVariant()
+        if (variant?.image?.imageUrl && product?.images) {
+            // Find the index of variant image in the gallery
+            const variantImageIndex = product.images.findIndex(img => img.imageUrl === variant.image!.imageUrl)
+            if (variantImageIndex !== -1) {
+                setSelectedImage(variantImageIndex)
+            }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedSize, selectedColor])
@@ -118,33 +116,32 @@ export default function ProductDetail() {
     const handleAddToCart = async () => {
         // Validate selection
         if (!selectedSize || !selectedColor) {
-            alert('Vui lòng chọn size và màu sắc')
+            toast.warning('Vui lòng chọn size và màu sắc')
             return
         }
 
         const variant = getSelectedVariant()
         if (!variant) {
-            alert('Không tìm thấy biến thể sản phẩm')
+            toast.error('Không tìm thấy biến thể sản phẩm')
             return
         }
 
         // Check if variant is available
         if (!variant.inventory?.available || variant.inventory.available < quantity) {
-            alert('Sản phẩm không đủ số lượng trong kho')
+            toast.error('Sản phẩm không đủ số lượng trong kho')
             return
         }
 
         setAddingToCart(true)
         try {
             await addToCart(variant.id, quantity)
-            alert('Đã thêm sản phẩm vào giỏ hàng!')
-            // Optionally fetch cart to update count in header
+            toast.success('Đã thêm sản phẩm vào giỏ hàng!')
             await fetchCart()
         } catch (error) {
             console.error('Error adding to cart:', error)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const message = (error as any)?.message || 'Có lỗi khi thêm vào giỏ hàng. Vui lòng thử lại.'
-            alert(message)
+            toast.error(message)
         } finally {
             setAddingToCart(false)
         }
@@ -153,19 +150,19 @@ export default function ProductDetail() {
     const handleBuyNow = async () => {
         // Validate selection
         if (!selectedSize || !selectedColor) {
-            alert('Vui lòng chọn size và màu sắc')
+            toast.warning('Vui lòng chọn size và màu sắc')
             return
         }
 
         const variant = getSelectedVariant()
         if (!variant) {
-            alert('Không tìm thấy biến thể sản phẩm')
+            toast.error('Không tìm thấy biến thể sản phẩm')
             return
         }
 
         // Check if variant is available
         if (!variant.inventory?.available || variant.inventory.available < quantity) {
-            alert('Sản phẩm không đủ số lượng trong kho')
+            toast.error('Sản phẩm không đủ số lượng trong kho')
             return
         }
 
@@ -208,7 +205,7 @@ export default function ProductDetail() {
     const discount = calculateDiscount()
     const currentPrice = getCurrentPrice()
     const images = product.images || []
-    const mainImage = images[selectedImage]?.imageUrl || (images[0]?.imageUrl ?? '')
+    const mainImage = images[selectedImage]?.imageUrl || (images[0]?.imageUrl ?? product.primaryImageUrl ?? '')
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -221,6 +218,12 @@ export default function ProductDetail() {
                         <Link to="/" className="hover:text-red-600">Trang chủ</Link>
                         <ChevronRight className="w-4 h-4" />
                         <Link to="/products" className="hover:text-red-600">Sản phẩm</Link>
+                        {product.brand && (
+                            <>
+                                <ChevronRight className="w-4 h-4" />
+                                <span className="hover:text-red-600">{product.brand.name}</span>
+                            </>
+                        )}
                         {product.categories && product.categories.length > 0 && (
                             <>
                                 <ChevronRight className="w-4 h-4" />
@@ -441,22 +444,28 @@ export default function ProductDetail() {
                                     })()}
                                 </div>
 
-                                <div className="flex gap-3">
-                                    <button
-                                        onClick={handleAddToCart}
-                                        disabled={addingToCart || !selectedSize || !selectedColor}
-                                        className="flex-1 bg-red-600 text-white py-4 rounded-lg font-medium hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {addingToCart ? 'ĐANG THÊM...' : 'THÊM VÀO GIỎ HÀNG'}
-                                    </button>
-                                    <button
-                                        onClick={handleBuyNow}
-                                        disabled={addingToCart || !selectedSize || !selectedColor}
-                                        className="px-6 py-4 border-2 border-red-600 text-red-600 rounded-lg font-medium hover:bg-red-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        MUA NGAY
-                                    </button>
-                                </div>
+                                {!selectedSize || !selectedColor ? (
+                                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                                        <p className="text-yellow-800 font-medium">Vui lòng chọn màu sắc và kích cỡ</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={handleAddToCart}
+                                            disabled={addingToCart}
+                                            className="flex-1 bg-red-600 text-white py-4 rounded-lg font-medium hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {addingToCart ? 'ĐANG THÊM...' : 'THÊM VÀO GIỎ HÀNG'}
+                                        </button>
+                                        <button
+                                            onClick={handleBuyNow}
+                                            disabled={addingToCart}
+                                            className="px-6 py-4 border-2 border-red-600 text-red-600 rounded-lg font-medium hover:bg-red-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            MUA NGAY
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Shipping & Return Info */}
@@ -496,8 +505,42 @@ export default function ProductDetail() {
                                         <Plus className={`w-5 h-5 transition-transform ${expandedSections.description ? 'rotate-45' : ''}`} />
                                     </button>
                                     {expandedSections.description && (
-                                        <div className="pb-4 text-gray-600 text-sm leading-relaxed">
-                                            {product.description || 'Chưa có mô tả'}
+                                        <div className="pb-4 space-y-4">
+                                            <div className="text-gray-600 text-sm leading-relaxed">
+                                                {product.description || 'Chưa có mô tả'}
+                                            </div>
+                                            
+                                            {/* Category & Brand Info */}
+                                            <div className="pt-3 border-t space-y-3">
+                                                {/* Brand */}
+                                                {product.brand && (
+                                                    <div className="flex items-start gap-2">
+                                                        <span className="text-sm font-medium text-gray-700 min-w-[100px]">Thương hiệu:</span>
+                                                        <span className="text-sm text-gray-900 font-medium">
+                                                            {product.brand.name}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Categories */}
+                                                {product.categories && product.categories.length > 0 && (
+                                                    <div className="flex items-start gap-2">
+                                                        <span className="text-sm font-medium text-gray-700 min-w-[100px]">Phân loại:</span>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {product.categories.map((category, idx) => (
+                                                                <Link
+                                                                    key={category.id}
+                                                                    to={`/products?category=${category.slug}`}
+                                                                    className="inline-flex items-center px-3 py-1 bg-gray-100 hover:bg-red-50 text-gray-700 hover:text-red-600 text-sm rounded-full transition-colors border border-gray-200 hover:border-red-300"
+                                                                >
+                                                                    {category.name}
+                                                                    <ChevronRight className="w-3 h-3 ml-1" />
+                                                                </Link>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>

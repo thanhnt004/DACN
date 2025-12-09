@@ -2,6 +2,7 @@ package com.example.backend.dto.response.checkout;
 
 import com.example.backend.dto.response.discount.DiscountRedemptionResponse;
 import com.example.backend.dto.response.payment.PaymentDTO;
+import com.example.backend.dto.response.shipping.ShipmentResponse;
 import com.example.backend.dto.response.user.UserAddress;
 import lombok.Builder;
 import lombok.Data;
@@ -39,4 +40,6 @@ public class OrderResponse {
     private List<OrderItemDTO> items;
     private List<PaymentDTO> payments;
     private List<DiscountRedemptionResponse> discountRedemptions;
+    private ShipmentResponse shipment; // Thông tin vận chuyển (lấy shipment active, không phải return)
+    private OrderChangeRequestResponse changeRequest; // Thông tin yêu cầu thay đổi (nếu có)
 }

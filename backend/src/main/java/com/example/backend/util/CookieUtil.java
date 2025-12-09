@@ -68,8 +68,9 @@ public class CookieUtil {
             cookie.setDomain(cookieDomain);
         }
 
-        // SameSite attribute (Spring Boot 2.6+)
-        cookie.setAttribute("SameSite", "Strict");
+        // SameSite=Lax allows cookie to be sent when redirecting back from OAuth provider
+        // Strict would block the cookie on cross-site top-level navigation
+        cookie.setAttribute("SameSite", "Lax");
         return cookie;
     }
     //Guest id

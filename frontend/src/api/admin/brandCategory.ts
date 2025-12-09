@@ -62,6 +62,7 @@ export interface GetCategoriesParams {
     search?: string
     parentId?: string
     sort?: string
+    all?: boolean
 }
 
 // Brand APIs

@@ -1,54 +1,124 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Header } from '../components/layout/Header'
 import Footer from '../components/layout/Footer'
 import { useCartStore } from '../store/cart'
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react'
+import ErrorModal from '../components/common/ErrorModal'
+import ConfirmModal from '../components/common/ConfirmModal'
+import { useModals } from '../hooks/useModals'
+import { toast } from 'react-toastify'
 
 export default function CartPage() {
     const navigate = useNavigate()
     const { cart, loading, fetchCart, removeFromCart, updateCartItem, clearCart } = useCartStore()
+    const { errorModal, closeError, confirmModal, showConfirm, closeConfirm } = useModals()
+    const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
 
     useEffect(() => {
         fetchCart()
     }, [fetchCart])
 
-    const handleUpdateQuantity = async (itemId: string, variantId: string, newQuantity: number) => {
+    // Select all items by default when cart loads
+    useEffect(() => {
+        if (cart?.items) {
+            setSelectedItems(new Set(cart.items.map(item => item.id)))
+        }
+    }, [cart?.items])
+
+    const toggleSelectItem = (itemId: string) => {
+        setSelectedItems(prev => {
+            const newSet = new Set(prev)
+            if (newSet.has(itemId)) {
+                newSet.delete(itemId)
+            } else {
+                newSet.add(itemId)
+            }
+            return newSet
+        })
+    }
+
+    const toggleSelectAll = () => {
+        if (cart?.items) {
+            if (selectedItems.size === cart.items.length) {
+                setSelectedItems(new Set())
+            } else {
+                setSelectedItems(new Set(cart.items.map(item => item.id)))
+            }
+        }
+    }
+
+    const handleUpdateQuantity = async (itemId: string, currentVariantId: string, newQuantity: number) => {
         if (newQuantity < 1) return
         try {
-            await updateCartItem(itemId, variantId, newQuantity)
-        } catch (error) {
+            // Keep the same variant, just update quantity
+            await updateCartItem(itemId, currentVariantId, newQuantity)
+            toast.success('Cập nhật số lượng thành công')
+        } catch (error: unknown) {
             console.error('Failed to update quantity:', error)
+            const message = (error as {response?: {data?: {message?: string}}})?.response?.data?.message || 'Không thể cập nhật số lượng sản phẩm'
+            toast.error(message)
         }
     }
 
     const handleRemoveItem = async (itemId: string) => {
-        if (!confirm('Bạn có chắc muốn xóa sản phẩm này khỏi giỏ hàng?')) return
-        try {
-            await removeFromCart(itemId)
-        } catch (error) {
-            console.error('Failed to remove item:', error)
-        }
+        showConfirm('Bạn có chắc muốn xóa sản phẩm này khỏi giỏ hàng?', async () => {
+            try {
+                await removeFromCart(itemId)
+                setSelectedItems(prev => {
+                    const newSet = new Set(prev)
+                    newSet.delete(itemId)
+                    return newSet
+                })
+                toast.success('Đã xóa sản phẩm khỏi giỏ hàng')
+            } catch (error: unknown) {
+                console.error('Failed to remove item:', error)
+                const message = (error as {response?: {data?: {message?: string}}})?.response?.data?.message || 'Không thể xóa sản phẩm'
+                toast.error(message)
+            }
+        })
     }
 
     const handleClearCart = async () => {
-        if (!confirm('Bạn có chắc muốn xóa tất cả sản phẩm khỏi giỏ hàng?')) return
-        try {
-            await clearCart()
-        } catch (error) {
-            console.error('Failed to clear cart:', error)
-        }
+        showConfirm('Bạn có chắc muốn xóa tất cả sản phẩm khỏi giỏ hàng?', async () => {
+            try {
+                await clearCart()
+                setSelectedItems(new Set())
+                toast.success('Đã xóa tất cả sản phẩm')
+            } catch (error: unknown) {
+                console.error('Failed to clear cart:', error)
+                const message = (error as {response?: {data?: {message?: string}}})?.response?.data?.message || 'Không thể xóa giỏ hàng'
+                toast.error(message)
+            }
+        })
     }
 
-    const calculateSubtotal = () => {
+    const calculateSelectedSubtotal = () => {
         if (!cart || !cart.items) return 0
-        return cart.items.reduce((sum, item) => sum + (item.unitPriceAmount * item.quantity), 0)
+        return cart.items
+            .filter(item => selectedItems.has(item.id))
+            .reduce((sum, item) => sum + (item.unitPriceAmount * item.quantity), 0)
     }
 
     const calculateTotal = () => {
-        const subtotal = calculateSubtotal()
-        // Add shipping, tax, discounts here if needed
-        return subtotal
+        return calculateSelectedSubtotal()
+    }
+
+    const handleCheckout = () => {
+        if (selectedItems.size === 0) {
+            toast.warning('Vui lòng chọn ít nhất một sản phẩm để thanh toán')
+            return
+        }
+        
+        // Convert Set to Array of IDs
+        const selectedItemIds = Array.from(selectedItems)
+        
+        // Navigate to checkout with selected item IDs
+        navigate('/checkout', { 
+            state: { 
+                selectedItems: selectedItemIds 
+            } 
+        })
     }
 
     if (loading && !cart) {
@@ -96,9 +166,17 @@ export default function CartPage() {
                             <div className="lg:col-span-2 space-y-4">
                                 <div className="bg-white rounded-lg shadow-sm">
                                     <div className="p-6 border-b flex items-center justify-between">
-                                        <h2 className="text-lg font-semibold">
-                                            Sản phẩm ({cart.items.length})
-                                        </h2>
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={cart.items.length > 0 && selectedItems.size === cart.items.length}
+                                                onChange={toggleSelectAll}
+                                                className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
+                                            />
+                                            <h2 className="text-lg font-semibold">
+                                                Sản phẩm ({cart.items.length}) - Đã chọn ({selectedItems.size})
+                                            </h2>
+                                        </div>
                                         <button
                                             onClick={handleClearCart}
                                             className="text-sm text-red-600 hover:underline"
@@ -111,6 +189,16 @@ export default function CartPage() {
                                         {cart.items.map((item) => (
                                             <div key={item.id} className="p-6">
                                                 <div className="flex gap-4">
+                                                    {/* Checkbox */}
+                                                    <div className="flex-shrink-0 pt-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedItems.has(item.id)}
+                                                            onChange={() => toggleSelectItem(item.id)}
+                                                            className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
+                                                        />
+                                                    </div>
+                                                    
                                                     {/* Product Image */}
                                                     <div className="flex-shrink-0">
                                                         <Link to={`/products/${item.productId}`}>
@@ -222,8 +310,8 @@ export default function CartPage() {
 
                                     <div className="space-y-3 mb-4">
                                         <div className="flex justify-between text-gray-600">
-                                            <span>Tạm tính</span>
-                                            <span>{calculateSubtotal().toLocaleString('vi-VN')} ₫</span>
+                                            <span>Tạm tính ({selectedItems.size} sản phẩm)</span>
+                                            <span>{calculateSelectedSubtotal().toLocaleString('vi-VN')} ₫</span>
                                         </div>
                                         <div className="flex justify-between text-gray-600">
                                             <span>Phí vận chuyển</span>
@@ -241,10 +329,11 @@ export default function CartPage() {
                                     </div>
 
                                     <button
-                                        onClick={() => navigate('/checkout')}
-                                        className="w-full bg-red-600 text-white py-4 rounded-lg font-medium hover:bg-red-700 transition"
+                                        onClick={handleCheckout}
+                                        disabled={selectedItems.size === 0}
+                                        className="w-full bg-red-600 text-white py-4 rounded-lg font-medium hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        Tiến hành thanh toán
+                                        Tiến hành thanh toán ({selectedItems.size})
                                     </button>
 
                                     <div className="mt-4 space-y-2 text-sm text-gray-600">
@@ -269,6 +358,21 @@ export default function CartPage() {
             </div>
 
             <Footer />
+
+            <ErrorModal
+                isOpen={errorModal.isOpen}
+                onClose={closeError}
+                title={errorModal.title}
+                message={errorModal.message}
+            />
+
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                onClose={closeConfirm}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+            />
         </div>
     )
 }

@@ -14,7 +14,8 @@ public interface ImageMapper {
     ProductImage toEntity(ProductImageRequest dto);
 
     @Mapping(target = "isDefault", source = "default")
-    ProductImageResponse toDto(ProductImage images);
+    ProductImageResponse toDto(ProductImage entity);
+    
     List<ProductImageResponse> toDto(List<ProductImage> images);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)

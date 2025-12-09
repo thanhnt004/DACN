@@ -7,16 +7,23 @@ export interface CheckoutItem {
 }
 
 export interface CheckoutSessionItem {
-    id?: string
+    cartItemId?: string
     variantId: string
-    productId?: string
+    productId: string
     productName: string
     variantName: string
+    sku: string
     quantity: number
     unitPriceAmount: number
+    compareAtAmount?: number
     totalAmount: number
+    weight?: number
     imageUrl?: string
-    sku?: string
+    stockStatus?: {
+        inStock: boolean
+        availableQuantity: number
+        message?: string
+    }
 }
 
 export interface CheckoutSessionCreateRequest {
@@ -59,18 +66,41 @@ export interface CheckoutSession {
     id: string
     cartId?: string
     items: CheckoutSessionItem[]
-    notes?: string
     subtotalAmount: number
     discountAmount: number
     shippingAmount: number
     totalAmount: number
+    discountInfo?: {
+        discountCode: string
+        discountAmount: number
+        isValid: boolean
+        message?: string
+    }
     shippingAddress?: UserAddress
+    selectedShippingMethod?: {
+        id: string
+        name: string
+        amount: number
+        estimatedDays?: number
+        isAvailable: boolean
+    }
+    availableShippingMethods?: Array<{
+        id: string
+        name: string
+        amount: number
+        estimatedDays?: number
+        isAvailable: boolean
+    }>
     selectedPaymentMethod?: PaymentMethodResponse
     availablePaymentMethods: PaymentMethodResponse[]
     canConfirm: boolean
     validationErrors?: string[]
     warnings?: string[]
+    createdAt?: string
+    updatedAt?: string
+    expiresAt?: string
     sessionToken: string
+    userId?: string
 }
 
 export interface OrderCreatedResponse {
@@ -144,7 +174,9 @@ export const confirmCheckout = async (
 ): Promise<OrderCreatedResponse> => {
     const key = idempotencyKey ?? generateIdempotencyKey()
     const payload = { notes: notes ?? '' };
-    const response = await api.post(`/api/v1/checkout/sessions/${sessionId}/confirm`, payload, {
+    const url = `/api/v1/checkout/sessions/${sessionId}/confirm`;
+    console.log('[API] confirmCheckout - sessionId:', sessionId, 'URL:', url);
+    const response = await api.post(url, payload, {
         headers: {
             'X-Session-Token': token,
             'Idempotency-Key': key,
