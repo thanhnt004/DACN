@@ -16,7 +16,7 @@ import java.util.UUID;
 @Builder
 public class ProductSearchResult {
     private UUID productId;
-    private Long embeddingId;
+    private UUID embeddingId;
     private String content;
     private Double similarity;
     private ProductSummaryResponse product;

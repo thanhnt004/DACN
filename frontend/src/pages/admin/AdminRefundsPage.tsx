@@ -221,11 +221,28 @@ export default function AdminRefundsPage() {
                                 <p className="font-bold mb-1">Thông tin khách hàng cung cấp:</p>
                                 <p>Phương thức: {selectedRequest.metadata?.refundMethod || 'Không có'}</p>
                                 {selectedRequest.metadata?.refundData && (
-                                    <div className="mt-1">
-                                        <p className="font-semibold">Chi tiết:</p>
-                                        <pre className="whitespace-pre-wrap text-xs mt-1">
-                                            {JSON.stringify(selectedRequest.metadata.refundData, null, 2)}
-                                        </pre>
+                                    <div className="mt-2 bg-white p-3 rounded border border-blue-100">
+                                        <p className="font-semibold text-gray-700 mb-2 text-sm">Chi tiết tài khoản:</p>
+                                        <div className="grid grid-cols-[100px_1fr] gap-y-1 text-sm">
+                                            {selectedRequest.metadata.refundData.bankName && (
+                                                <>
+                                                    <span className="text-gray-600">Ngân hàng:</span>
+                                                    <span className="font-medium text-gray-900">{selectedRequest.metadata.refundData.bankName}</span>
+                                                </>
+                                            )}
+                                            {selectedRequest.metadata.refundData.accountNumber && (
+                                                <>
+                                                    <span className="text-gray-600">Số tài khoản:</span>
+                                                    <span className="font-medium text-gray-900">{selectedRequest.metadata.refundData.accountNumber}</span>
+                                                </>
+                                            )}
+                                            {selectedRequest.metadata.refundData.accountName && (
+                                                <>
+                                                    <span className="text-gray-600">Tên chủ TK:</span>
+                                                    <span className="font-medium text-gray-900">{selectedRequest.metadata.refundData.accountName}</span>
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </div>

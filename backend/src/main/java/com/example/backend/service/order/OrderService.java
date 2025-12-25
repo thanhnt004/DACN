@@ -350,7 +350,7 @@ public class OrderService {
      * @param pageable Phân trang
      * @return Page of Orders
      */
-    public Page<Order> getPageOrder(String tab, String paymentType, String orderNumber, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
+    public Page<Order> getPageOrder(String tab, String orderNumber, LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
         if (!pageable.getSort().isSorted()) {
             pageable = org.springframework.data.domain.PageRequest.of(
                     pageable.getPageNumber(),

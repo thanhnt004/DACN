@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import * as ProductsApi from '../../api/admin/products'
 import * as BrandCategoryApi from '../../api/admin/brandCategory'
 import * as CatalogApi from '../../api/admin/catalog'
+import { ProductBulkAPI } from '../../api/admin/productBulk'
 import type { ProductSummaryResponse } from '../../api/admin/products'
-import { Eye, Edit2, Trash2, Filter, X } from 'lucide-react'
+import { Eye, Edit2, Trash2, Filter, X, Upload, FileDown, ChevronDown } from 'lucide-react'
 import { resolveErrorMessage } from '../../lib/problemDetails'
 import { formatInstant } from '../../lib/dateUtils'
 
@@ -36,6 +37,11 @@ export default function ProductManager() {
     const [categories, setCategories] = useState<BrandCategoryApi.CategoryResponse[]>([])
     const [sizes, setSizes] = useState<CatalogApi.SizeDto[]>([])
     const [colors, setColors] = useState<CatalogApi.ColorDto[]>([])
+
+    // Import state
+    const [importing, setImporting] = useState(false)
+    const [showImportMenu, setShowImportMenu] = useState(false)
+    const fileInputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
         loadReferences()
@@ -92,6 +98,57 @@ export default function ProductManager() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [page, filters])
 
+    const handleImportClick = () => {
+        fileInputRef.current?.click()
+    }
+
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        if (!file) return
+
+        // Reset input value so same file can be selected again
+        event.target.value = ''
+
+        if (!file.name.match(/\.(xlsx|xls)$/)) {
+            toast.error('Vui lòng chọn file Excel (.xlsx hoặc .xls)')
+            return
+        }
+
+        setImporting(true)
+        try {
+            const response = await ProductBulkAPI.bulkImport(file)
+            const data = response.data
+            toast.success(`Import thành công: ${data.successCount} sản phẩm. Lỗi: ${data.failureCount}`)
+            if (data.failureCount > 0) {
+                console.warn('Import failures:', data.errors)
+            }
+            fetchProducts()
+        } catch (error) {
+            console.error('Import failed:', error)
+            const errorMsg = resolveErrorMessage(error, 'Lỗi import sản phẩm')
+            toast.error(errorMsg)
+        } finally {
+            setImporting(false)
+        }
+    }
+
+    const handleDownloadTemplate = async () => {
+        try {
+            const response = await ProductBulkAPI.downloadTemplate()
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `product_import_template_${new Date().getTime()}.xlsx`);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode?.removeChild(link);
+            setShowImportMenu(false)
+        } catch (error) {
+            console.error('Download template failed:', error)
+            toast.error('Lỗi tải file mẫu')
+        }
+    }
+
     const handleDelete = async (id: string) => {
         if (!confirm('Bạn có chắc muốn xóa sản phẩm này?')) return
         try {
@@ -133,6 +190,55 @@ export default function ProductManager() {
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold">Quản lý sản phẩm</h1>
                 <div className="flex gap-2">
+                    {/* Import Button Group */}
+                    <div className="relative flex items-center">
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileChange}
+                            className="hidden"
+                            accept=".xlsx, .xls"
+                        />
+                        <button
+                            onClick={handleImportClick}
+                            disabled={importing}
+                            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-l hover:bg-green-700 disabled:opacity-50"
+                        >
+                            {importing ? (
+                                <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
+                            ) : (
+                                <Upload className="w-4 h-4" />
+                            )}
+                            Import Excel
+                        </button>
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowImportMenu(!showImportMenu)}
+                                className="bg-green-700 text-white px-2 py-2 rounded-r hover:bg-green-800 border-l border-green-600 h-full flex items-center"
+                            >
+                                <ChevronDown className="w-4 h-4" />
+                            </button>
+                            
+                            {showImportMenu && (
+                                <>
+                                    <div 
+                                        className="fixed inset-0 z-10" 
+                                        onClick={() => setShowImportMenu(false)}
+                                    />
+                                    <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg z-20 border border-gray-200 py-1">
+                                        <button
+                                            onClick={handleDownloadTemplate}
+                                            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 text-left"
+                                        >
+                                            <FileDown className="w-4 h-4" />
+                                            Tải file mẫu
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
                     <button
                         onClick={() => setShowFilters(!showFilters)}
                         className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200"

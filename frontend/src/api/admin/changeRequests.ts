@@ -1,5 +1,14 @@
 import api from '../http'
 
+const generateIdempotencyKey = (): string => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID()
+    }
+    const timestamp = Date.now()
+    const random = Math.random().toString(36).slice(2, 10)
+    return `idem-${timestamp}-${random}`
+}
+
 export interface ChangeRequestInfo {
     id: string
     type: string
@@ -69,21 +78,29 @@ export const getChangeRequests = async (params: {
 }
 
 export const reviewChangeRequest = async (requestId: string, data: ReviewRequestDTO) => {
-    const response = await api.post(`/api/v1/order/admin/requests/${requestId}/review`, data)
+    const response = await api.post(`/api/v1/admin/orders/requests/${requestId}/review`, data, {
+        headers: {
+            'Idempotency-Key': generateIdempotencyKey()
+        }
+    })
     return response.data
 }
 
 export const confirmRefund = async (requestId: string, data: RefundConfirmRequest) => {
-    const response = await api.post(`/api/v1/order/admin/admin/confirm-refund/${requestId}`, data)
+    const response = await api.post(`/api/v1/admin/orders/admin/confirm-refund/${requestId}`, data, {
+        headers: {
+            'Idempotency-Key': generateIdempotencyKey()
+        }
+    })
     return response.data
 }
 
 export const cancelOrderByAdmin = async (orderId: string, adminNote?: string) => {
-    const response = await api.put(`/api/v1/order/admin/${orderId}/cancel`, { adminNote })
+    const response = await api.put(`/api/v1/admin/orders/${orderId}/cancel`, { adminNote })
     return response.data
 }
 
 export const returnOrderByAdmin = async (orderId: string, adminNote?: string) => {
-    const response = await api.put(`/api/v1/order/admin/${orderId}/return`, { adminNote })
+    const response = await api.put(`/api/v1/admin/orders/${orderId}/return`, { adminNote })
     return response.data
 }

@@ -2,8 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import * as OrderApi from '../../api/order'
 import { Link } from 'react-router-dom'
 import OrderDetailModal from './components/OrderDetailModal'
-import { ToastContainer } from 'react-toastify'
-import 'react-toastify/dist/ReactToastify.css'
 import { formatInstant } from '../../lib/dateUtils'
 
 type StatusFilterOption = {
@@ -15,15 +13,15 @@ type StatusFilterOption = {
 
 const STATUS_FILTER_OPTIONS: readonly StatusFilterOption[] = [
     { value: 'ALL', label: 'Tất cả', query: 'ALL' },
-    { value: 'UNPAID', label: 'Chờ thanh toán', query: 'UNPAID' },
-    { value: 'TO_CONFIRM', label: 'Chờ xác nhận', query: 'TO_CONFIRM' },
+    { value: 'UNPAID', label: 'Chờ thanh toán', query: 'PENDING' },
+    { value: 'TO_CONFIRM', label: 'Chờ xác nhận', query: 'CONFIRMED' },
     { value: 'PROCESSING', label: 'Đã xác nhận', query: 'PROCESSING' },
-    { value: 'SHIPPING', label: 'Đang giao hàng', query: 'SHIPPING' },
-    { value: 'COMPLETED', label: 'Đã giao', query: 'COMPLETED' },
-    { value: 'CANCEL_REQ', label: 'Chờ hủy', query: 'CANCEL_REQ' },
+    { value: 'SHIPPING', label: 'Đang giao hàng', query: 'SHIPPED' },
+    { value: 'COMPLETED', label: 'Đã giao', query: 'DELIVERED' },
+    { value: 'CANCEL_REQ', label: 'Chờ hủy', query: 'CANCELING' },
     { value: 'CANCELLED', label: 'Đã hủy', query: 'CANCELLED' },
-    { value: 'RETURN_REQ', label: 'Chờ duyệt trả hàng', query: 'RETURN_REQ' },
-    { value: 'REFUNDED', label: 'Đã trả hàng', query: 'REFUNDED' },
+    { value: 'RETURN_REQ', label: 'Đang trả hàng', query: 'RETURNING' },
+    { value: 'REFUNDED', label: 'Đã trả hàng', query: 'REFUNDED,RETURNED' },
 ]
 
 type OrderStatusFilter = (typeof STATUS_FILTER_OPTIONS)[number]['value']
@@ -208,8 +206,6 @@ export default function MemberOrders() {
                     onOrderUpdate={handleOrderUpdate}
                 />
             )}
-            <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
         </>
     )
 }
-

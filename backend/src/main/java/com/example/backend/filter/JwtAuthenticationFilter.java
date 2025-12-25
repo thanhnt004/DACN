@@ -104,8 +104,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (path.startsWith("/api/v1/categories") || 
                 path.startsWith("/api/v1/brands") || 
                 path.startsWith("/api/v1/sizes") || 
-                path.startsWith("/api/v1/colors") ||
-                path.startsWith("/api/v1/discounts")) {
+                path.startsWith("/api/v1/colors")) {
                 log.trace("Allowing GET request for catalog endpoint: {}", path);
                 return true;
             }

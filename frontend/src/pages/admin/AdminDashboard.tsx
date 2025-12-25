@@ -22,8 +22,12 @@ export default function AdminDashboard() {
     })
     const [revenueMenuOpen, setRevenueMenuOpen] = useState(false)
     const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
+    const [monthlyProfitMenuOpen, setMonthlyProfitMenuOpen] = useState(false)
+    const [categoryProfitMenuOpen, setCategoryProfitMenuOpen] = useState(false)
     const revenueMenuRef = useRef<HTMLDivElement>(null)
     const categoryMenuRef = useRef<HTMLDivElement>(null)
+    const monthlyProfitMenuRef = useRef<HTMLDivElement>(null)
+    const categoryProfitMenuRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         loadDashboardData()
@@ -213,6 +217,126 @@ export default function AdminDashboard() {
         }
     }
 
+    // Export Monthly Profit to Excel
+    const exportMonthlyProfitToExcel = async () => {
+        if (!monthlyProfitReport || monthlyProfitReport.dataPoints.length === 0) {
+            toast.warning('Không có dữ liệu để xuất')
+            return
+        }
+        setMonthlyProfitMenuOpen(false)
+        try {
+            const ws_data = [
+                ['Tháng', 'Doanh thu', 'Chi phí', 'Lợi nhuận', 'Số đơn hàng'],
+                ...monthlyProfitReport.dataPoints.map(point => [
+                    point.month,
+                    point.totalRevenue,
+                    point.totalCost,
+                    point.grossProfit,
+                    point.orderCount
+                ])
+            ]
+            
+            const ws = XLSX.utils.aoa_to_sheet(ws_data)
+            const wb = XLSX.utils.book_new()
+            XLSX.utils.book_append_sheet(wb, ws, 'Lợi nhuận theo tháng')
+            XLSX.writeFile(wb, `loi-nhuan-thang_${dateRange.startDate}_${dateRange.endDate}.xlsx`)
+            toast.success('Xuất Excel thành công!')
+        } catch (err) {
+            console.error('Export error:', err)
+            toast.error('Lỗi khi xuất file Excel')
+        }
+    }
+
+    // Export Monthly Profit to CSV
+    const exportMonthlyProfitToCSV = () => {
+        if (!monthlyProfitReport || monthlyProfitReport.dataPoints.length === 0) {
+            toast.warning('Không có dữ liệu để xuất')
+            return
+        }
+        setMonthlyProfitMenuOpen(false)
+        try {
+            const csvContent = [
+                ['Tháng', 'Doanh thu', 'Chi phí', 'Lợi nhuận', 'Số đơn hàng'].join(','),
+                ...monthlyProfitReport.dataPoints.map(point => 
+                    [point.month, point.totalRevenue, point.totalCost, point.grossProfit, point.orderCount].join(',')
+                )
+            ].join('\n')
+            
+            const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' })
+            const link = document.createElement('a')
+            link.href = URL.createObjectURL(blob)
+            link.download = `loi-nhuan-thang_${dateRange.startDate}_${dateRange.endDate}.csv`
+            link.click()
+            toast.success('Xuất CSV thành công!')
+        } catch (err) {
+            console.error('Export error:', err)
+            toast.error('Lỗi khi xuất file CSV')
+        }
+    }
+
+    // Export Category Profit to Excel
+    const exportCategoryProfitToExcel = async () => {
+        if (!categoryProfitReport || categoryProfitReport.categories.length === 0) {
+            toast.warning('Không có dữ liệu để xuất')
+            return
+        }
+        setCategoryProfitMenuOpen(false)
+        try {
+            const ws_data = [
+                ['Danh mục', 'Doanh thu', 'Chi phí', 'Lợi nhuận', 'Tỷ suất lợi nhuận (%)'],
+                ...categoryProfitReport.categories.map(cat => [
+                    cat.categoryName,
+                    cat.totalRevenue,
+                    cat.totalCost,
+                    cat.grossProfit,
+                    cat.totalRevenue > 0 ? ((cat.grossProfit / cat.totalRevenue) * 100).toFixed(2) : '0.00'
+                ])
+            ]
+            
+            const ws = XLSX.utils.aoa_to_sheet(ws_data)
+            const wb = XLSX.utils.book_new()
+            XLSX.utils.book_append_sheet(wb, ws, 'Lợi nhuận theo danh mục')
+            XLSX.writeFile(wb, `loi-nhuan-danh-muc_${dateRange.startDate}_${dateRange.endDate}.xlsx`)
+            toast.success('Xuất Excel thành công!')
+        } catch (err) {
+            console.error('Export error:', err)
+            toast.error('Lỗi khi xuất file Excel')
+        }
+    }
+
+    // Export Category Profit to CSV
+    const exportCategoryProfitToCSV = () => {
+        if (!categoryProfitReport || categoryProfitReport.categories.length === 0) {
+            toast.warning('Không có dữ liệu để xuất')
+            return
+        }
+        setCategoryProfitMenuOpen(false)
+        try {
+            const csvContent = [
+                ['Danh mục', 'Doanh thu', 'Chi phí', 'Lợi nhuận', 'Tỷ suất lợi nhuận (%)'].join(','),
+                ...categoryProfitReport.categories.map(cat => 
+                    [
+                        cat.categoryName,
+                        cat.totalRevenue,
+                        cat.totalCost,
+                        cat.grossProfit,
+                        cat.totalRevenue > 0 ? ((cat.grossProfit / cat.totalRevenue) * 100).toFixed(2) : '0.00'
+                    ].join(',')
+                )
+            ].join('\n')
+            
+            const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' })
+            const link = document.createElement('a')
+            link.href = URL.createObjectURL(blob)
+            link.download = `loi-nhuan-danh-muc_${dateRange.startDate}_${dateRange.endDate}.csv`
+            link.click()
+            toast.success('Xuất CSV thành công!')
+        } catch (err) {
+            console.error('Export error:', err)
+            toast.error('Lỗi khi xuất file CSV')
+        }
+    }
+
     // Close dropdown when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -221,6 +345,12 @@ export default function AdminDashboard() {
             }
             if (categoryMenuRef.current && !categoryMenuRef.current.contains(event.target as Node)) {
                 setCategoryMenuOpen(false)
+            }
+            if (monthlyProfitMenuRef.current && !monthlyProfitMenuRef.current.contains(event.target as Node)) {
+                setMonthlyProfitMenuOpen(false)
+            }
+            if (categoryProfitMenuRef.current && !categoryProfitMenuRef.current.contains(event.target as Node)) {
+                setCategoryProfitMenuOpen(false)
             }
         }
         document.addEventListener('mousedown', handleClickOutside)
@@ -521,6 +651,33 @@ export default function AdminDashboard() {
                 <div className="bg-white shadow rounded-lg p-6">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-xl font-semibold">Lợi nhuận theo tháng</h2>
+                        <div className="relative" ref={monthlyProfitMenuRef}>
+                            <button
+                                onClick={() => setMonthlyProfitMenuOpen(!monthlyProfitMenuOpen)}
+                                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                title="Tùy chọn xuất file"
+                            >
+                                <MoreVertical className="w-5 h-5 text-gray-600" />
+                            </button>
+                            {monthlyProfitMenuOpen && (
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                                    <button
+                                        onClick={exportMonthlyProfitToExcel}
+                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                        Xuất Excel
+                                    </button>
+                                    <button
+                                        onClick={exportMonthlyProfitToCSV}
+                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm border-t"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                        Xuất CSV
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                     {monthlyProfitReport && monthlyProfitReport.dataPoints.length > 0 ? (
                         <div className="flex gap-4">
@@ -578,6 +735,33 @@ export default function AdminDashboard() {
                 <div className="bg-white shadow rounded-lg p-6">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-xl font-semibold">Lợi nhuận theo danh mục</h2>
+                        <div className="relative" ref={categoryProfitMenuRef}>
+                            <button
+                                onClick={() => setCategoryProfitMenuOpen(!categoryProfitMenuOpen)}
+                                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                title="Tùy chọn xuất file"
+                            >
+                                <MoreVertical className="w-5 h-5 text-gray-600" />
+                            </button>
+                            {categoryProfitMenuOpen && (
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                                    <button
+                                        onClick={exportCategoryProfitToExcel}
+                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                        Xuất Excel
+                                    </button>
+                                    <button
+                                        onClick={exportCategoryProfitToCSV}
+                                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm border-t"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                        Xuất CSV
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                     {categoryProfitReport && categoryProfitReport.categories.length > 0 ? (
                         <div className="flex gap-4">

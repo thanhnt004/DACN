@@ -6,6 +6,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import java.time.LocalDateTime; 
+import org.springframework.data.jpa.repository.Modifying; 
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,11 +28,11 @@ public interface ProductEmbeddingRepository extends JpaRepository<ProductEmbeddi
         LIMIT :limit
         """, nativeQuery = true)
     List<Object[]> findSimilarProducts(
-        @Param("queryVector") String queryVector,
-        @Param("threshold") Double threshold,
-        @Param("limit") Integer limit
+            @Param("queryVector") String queryVector,
+            @Param("threshold") Double threshold,
+            @Param("limit") Integer limit
     );
-    
+
     @Query(value = """
         SELECT pe.product_id, 1 - (pe.embedding <=> CAST(:queryVector AS vector)) as similarity
         FROM product_embeddings pe
@@ -37,10 +40,26 @@ public interface ProductEmbeddingRepository extends JpaRepository<ProductEmbeddi
         ORDER BY pe.embedding <=> CAST(:queryVector AS vector)
         """, nativeQuery = true)
     List<Object[]> findProductIdsBySimilarity(
-        @Param("queryVector") String queryVector,
-        @Param("threshold") Double threshold
+            @Param("queryVector") String queryVector,
+            @Param("threshold") Double threshold
     );
-    
+
+    @Modifying
+    @Transactional
+    @Query(value = "INSERT INTO product_embeddings " +
+            "(id, content, created_at, embedding, embedding_version, product_id, updated_at) " +
+            "VALUES (:id, :content, :createdAt, cast(:embedding as vector), :version, :productId, :updatedAt)",
+            nativeQuery = true)
+    void saveWithVectorCast(
+            @Param("id") UUID id,
+            @Param("content") String content,
+            @Param("createdAt") LocalDateTime createdAt,
+            @Param("embedding") String embedding, // Pass the String representation: "[-0.1, 0.5, ...]"
+            @Param("version") Integer version,
+            @Param("productId") UUID productId,
+            @Param("updatedAt") LocalDateTime updatedAt
+    );
+
     @Query("SELECT pe.productId FROM ProductEmbedding pe")
     List<UUID> findAllProductIds();
 

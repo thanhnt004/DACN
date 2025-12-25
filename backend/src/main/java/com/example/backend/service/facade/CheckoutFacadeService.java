@@ -9,6 +9,7 @@ import com.example.backend.dto.response.discount.DiscountResult;
 import com.example.backend.dto.response.shipping.ShippingOption;
 import com.example.backend.dto.response.user.UserAddress;
 import com.example.backend.exception.ConflictException;
+import com.example.backend.exception.NotFoundException;
 import com.example.backend.mapper.AddressMapper;
 import com.example.backend.model.User;
 import com.example.backend.service.auth.AccessTokenService;
@@ -49,7 +50,22 @@ public class CheckoutFacadeService {
     private final RedisCheckoutStoreService sessionStore;
 
     private final AddressMapper addressMapper;
-    public CheckoutSession createCheckoutSession(CheckoutSessionCreateRequest request) {
+    public boolean validateSessionToken(UUID sessionId, String sessionToken) {
+        try {
+            // Get session and validate token
+            CheckoutSession session = sessionStore.findById(sessionId).orElseThrow(
+                    ()->new NotFoundException("Phiên thanh toán không tồn tại hoặc đã hết hạn")
+            );
+            return session != null &&
+                    session.getSessionToken() != null &&
+                    session.getSessionToken().equals(sessionToken);
+        } catch (Exception e) {
+            log.error("Error validating session token for sessionId: {}", sessionId, e);
+            return false;
+        }
+    }
+
+        public CheckoutSession createCheckoutSession(CheckoutSessionCreateRequest request) {
         log.info("Initializing checkout session! ");
         //Nếu đã đăng nhập
         Optional<User> userOps = authenUtil.getAuthenUser();
@@ -152,8 +168,10 @@ public class CheckoutFacadeService {
             UUID sessionId,
             UpdateAddressRequest newAddress
     ) {
+        log.info("Updating address for session ID: {}", sessionId);
         var session = sessionStore.findById(sessionId);
         if (session.isEmpty()) {
+            log.warn("Checkout session not found for ID: {}", sessionId);
             throw new ConflictException("Phiên thanh toán không tồn tại hoặc đã hết hạn");
         }
         var checkoutSession = session.get();

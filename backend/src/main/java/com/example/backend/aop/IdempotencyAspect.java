@@ -53,8 +53,15 @@ public class IdempotencyAspect {
             for (java.lang.annotation.Annotation annotation : parameterAnnotations[i]) {
                 if (annotation instanceof org.springframework.web.bind.annotation.PathVariable) {
                     org.springframework.web.bind.annotation.PathVariable pathVar = (org.springframework.web.bind.annotation.PathVariable) annotation;
-                    String pathVarName = pathVar.value().isEmpty() ? parameterNames[i] : pathVar.value();
+                    String pathVarName = pathVar.value().isEmpty() ? (parameterNames != null ? parameterNames[i] : "") : pathVar.value();
                     if (pathVarName.equals(scopeParamName) && args[i] != null) {
+                        scopeValue = args[i].toString();
+                        break;
+                    }
+                } else if (annotation instanceof org.springframework.web.bind.annotation.RequestParam) {
+                    org.springframework.web.bind.annotation.RequestParam requestParam = (org.springframework.web.bind.annotation.RequestParam) annotation;
+                    String paramName = requestParam.value().isEmpty() ? (parameterNames != null ? parameterNames[i] : "") : requestParam.value();
+                    if (paramName.equals(scopeParamName) && args[i] != null) {
                         scopeValue = args[i].toString();
                         break;
                     }
@@ -68,6 +75,11 @@ public class IdempotencyAspect {
             @SuppressWarnings("unchecked")
             Map<String, String> pathVariables = (Map<String, String>) request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
             scopeValue = (pathVariables != null) ? pathVariables.get(scopeParamName) : null;
+        }
+        
+        // Fallback to request parameter if not found in path variables
+        if (scopeValue == null) {
+            scopeValue = request.getParameter(scopeParamName);
         }
 
         // Nếu endpoint này cần scope mà không tìm thấy -> Lỗi
@@ -93,7 +105,7 @@ public class IdempotencyAspect {
 
         // Case B: Đang xử lý -> Chặn lại
         if (record != null && record.getStatus() == IdempotencyKey.Status.PROCESSING) {
-            long timeDiff = System.currentTimeMillis() - record.getCreatedAt().getNano();
+            long timeDiff = System.currentTimeMillis() - record.getCreatedAt().toEpochMilli();
             // Giả sử timeout là 5 giây, nếu quá 5s mà vẫn Processing nghĩa là server cũ đã chết
             if (timeDiff < 5000) {
                 throw new ConflictException("Request is already being processed");
@@ -105,13 +117,10 @@ public class IdempotencyAspect {
 
         Object result;
         try {
-            // 4. Chạy logic tạo Order thực sự (createOrder)
+        
             result = joinPoint.proceed();
-
-            // 5. Thành công -> Update trạng thái SUCCESS và lưu response
             idempotencyStore.saveSuccess(key, result);
         } catch (Exception e) {
-            // 6. Lỗi -> Xóa key hoặc update FAILED để client retry được
             idempotencyStore.delete(key);
             throw e;
         }

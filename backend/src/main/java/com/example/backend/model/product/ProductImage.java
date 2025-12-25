@@ -50,5 +50,9 @@ public class ProductImage {
         this.setColorId(image.getColorId());
         this.setPosition(image.getPosition());
         this.setImageUrl(image.getImageUrl());
+        this.setPublicId(image.getPublicId());
+        this.setDefault(image.isDefault());
+        this.setCreatedAt(image.getCreatedAt());
+        this.setVariant(image.getVariant());
     }
 }

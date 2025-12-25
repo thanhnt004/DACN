@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 import { toast } from 'react-toastify';
+import { Mail, MapPin, Phone } from 'lucide-react';
 
 const FeedbackSupport = () => {
     const [formData, setFormData] = useState({
@@ -48,39 +49,32 @@ const FeedbackSupport = () => {
                         
                         <div className="space-y-4">
                             <div className="flex items-start gap-3">
-                                <div className="bg-blue-100 p-2 rounded-full text-blue-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    </svg>
+                                <div className="bg-red-100 p-2 rounded-full text-red-600 flex-shrink-0">
+                                    <MapPin className="h-5 w-5" />
                                 </div>
                                 <div>
                                     <h3 className="font-medium">Địa chỉ</h3>
-                                    <p className="text-gray-600">123 Đường ABC, Quận XYZ, TP. Hồ Chí Minh</p>
+                                    <p className="text-gray-600">Số 123, Đường Nguyễn Văn Linh, Phường Tân Phú, Quận 7, TP. Hồ Chí Minh</p>
                                 </div>
                             </div>
 
                             <div className="flex items-start gap-3">
-                                <div className="bg-green-100 p-2 rounded-full text-green-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                                    </svg>
+                                <div className="bg-green-100 p-2 rounded-full text-green-600 flex-shrink-0">
+                                    <Phone className="h-5 w-5" />
                                 </div>
                                 <div>
-                                    <h3 className="font-medium">Hotline</h3>
-                                    <p className="text-gray-600">1900 1234</p>
+                                    <h3 className="font-medium">Điện thoại</h3>
+                                    <p className="text-gray-600">0909.123.456 - 0987.654.321</p>
                                 </div>
                             </div>
 
                             <div className="flex items-start gap-3">
-                                <div className="bg-red-100 p-2 rounded-full text-red-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                    </svg>
+                                <div className="bg-blue-100 p-2 rounded-full text-blue-600 flex-shrink-0">
+                                    <Mail className="h-5 w-5" />
                                 </div>
                                 <div>
                                     <h3 className="font-medium">Email</h3>
-                                    <p className="text-gray-600">support@example.com</p>
+                                    <p className="text-gray-600">contact@wearwave.vn</p>
                                 </div>
                             </div>
                         </div>

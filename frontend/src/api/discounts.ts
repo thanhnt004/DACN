@@ -55,7 +55,17 @@ export const getAvailableForProducts = async (productIds?: string[]): Promise<Di
     const response = await api.get<DiscountResponse[]>('/api/v1/discounts/get-available', {
         params: productIds && productIds.length > 0 ? {
             productIds: productIds
-        } : {}
+        } : {},
+        paramsSerializer: (params) => {
+            return Object.entries(params)
+                .map(([key, value]) => {
+                    if (Array.isArray(value)) {
+                        return value.map(v => `${key}=${v}`).join('&')
+                    }
+                    return `${key}=${value}`
+                })
+                .join('&')
+        }
     })
     return response.data
 }

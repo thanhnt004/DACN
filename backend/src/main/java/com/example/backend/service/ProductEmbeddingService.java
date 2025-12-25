@@ -1,6 +1,7 @@
 package com.example.backend.service;
 
 import com.example.backend.entity.ProductEmbedding;
+import org.postgresql.util.PGobject;
 import com.example.backend.repository.ProductEmbeddingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,8 @@ public class ProductEmbeddingService {
 
     private final ProductEmbeddingRepository embeddingRepository;
     private final GeminiService geminiService;
+    private static final double SIMILARITY_THRESHOLD = 0.7;
+    private static final int DEFAULT_LIMIT = 10;
 
     @Value("${vector.database.similarity-threshold:0.7}")
     private Double similarityThreshold;
@@ -40,7 +43,24 @@ public class ProductEmbeddingService {
                     embedding.setEmbedding(vectorString);
                     embedding.setEmbeddingVersion(1);
 
-                    embeddingRepository.save(embedding);
+                    // Fix: ensure id is UUID, not Long
+                    UUID embeddingId;
+                    if (embedding.getId() != null) {
+                    // Convert Long id to UUID (if possible), or use productId as fallback
+                    // This assumes productId is the correct UUID for new embeddings
+                    embeddingId = productId;
+                    } else {
+                    embeddingId = UUID.randomUUID();
+                    }
+                    embeddingRepository.saveWithVectorCast(
+                        embeddingId,
+                        embedding.getContent(),
+                        java.time.LocalDateTime.now(),
+                        vectorString,
+                        embedding.getEmbeddingVersion(),
+                        productId,
+                        java.time.LocalDateTime.now()
+                    );
                     log.info("Successfully saved embedding for product ID: {}", productId);
                 })
                 .doOnError(error -> log.error("Failed to generate embedding for product ID: {}", productId, error))
@@ -48,16 +68,16 @@ public class ProductEmbeddingService {
                 .toFuture();
     }
 
-    public List<ProductEmbedding> searchSimilarProducts(String query, Integer limit) {
+    public List<ProductEmbedding> searchSimilarProducts(String query, Integer limit, Double threshold) {
         if (query == null || query.trim().isEmpty()) {
             return Collections.emptyList();
         }
-
+        double effectiveThreshold = (threshold != null) ? threshold : similarityThreshold;
         return geminiService.generateEmbedding(query)
                 .map(embedding -> {
                     String queryVector = convertToVectorString(embedding);
                     List<Object[]> results = embeddingRepository.findSimilarProducts(
-                            queryVector, similarityThreshold, limit != null ? limit : 10);
+                            queryVector, effectiveThreshold, limit != null ? limit : 10);
 
                     return results.stream()
                             .map(this::mapToProductEmbedding)
@@ -119,14 +139,27 @@ public class ProductEmbeddingService {
 
     private ProductEmbedding mapToProductEmbedding(Object[] row) {
         ProductEmbedding embedding = new ProductEmbedding();
-        embedding.setId(((Number) row[0]).longValue());
+        embedding.setId(convertToUUID(row[0]));
         embedding.setProductId(convertToUUID(row[1]));
         embedding.setContent((String) row[2]);
-        embedding.setEmbedding((String) row[3]);
-        
+        Object rawEmbedding = row[3];
+        if (rawEmbedding != null) {
+            // The Postgres driver returns 'vector' types as PGobject
+            if (rawEmbedding instanceof org.postgresql.util.PGobject) {
+                embedding.setEmbedding(((org.postgresql.util.PGobject) rawEmbedding).getValue());
+            }
+            // In some rare configs it might be a String, so we handle that too
+            else if (rawEmbedding instanceof String) {
+                embedding.setEmbedding((String) rawEmbedding);
+            } else {
+                // Fallback for safety
+                embedding.setEmbedding(rawEmbedding.toString());
+            }
+        }
+
         // Row[4] contains the similarity score from the query
-        if (row.length > 4 && row[4] != null) {
-            embedding.setSimilarity(((Number) row[4]).doubleValue());
+        if (row.length > 4 && row[7] != null) {
+            embedding.setSimilarity(((Number) row[7]).doubleValue());
         }
         return embedding;
     }

@@ -21,4 +21,6 @@ public class ProductImageRequest {
 
     private UUID colorId;
 
+    private UUID variantId;
+
 }

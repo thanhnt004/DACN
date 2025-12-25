@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, XCircle, Clock, AlertCircle, Package, RefreshCw, LucideIcon } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, AlertCircle, Package, RefreshCw, LucideIcon, UploadCloud } from 'lucide-react'
 import { toast } from 'react-toastify'
 import * as ChangeRequestsApi from '../../api/admin/changeRequests'
+import { uploadImagesToCloudinary } from '../../api/media'
 import ErrorModal from '../../components/common/ErrorModal'
 import ConfirmModal from '../../components/common/ConfirmModal'
 import { useModals } from '../../hooks/useModals'
@@ -20,6 +21,7 @@ export default function AdminChangeRequestsPage() {
     const [showRefundModal, setShowRefundModal] = useState(false)
     const [reviewData, setReviewData] = useState({ status: 'APPROVED', adminNote: '' })
     const [refundData, setRefundData] = useState({ imageProof: '', note: '' })
+    const [refundImageFile, setRefundImageFile] = useState<File | null>(null)
     const [submitting, setSubmitting] = useState(false)
     
     const { errorModal, showError, closeError, confirmModal, closeConfirm } = useModals()
@@ -57,6 +59,7 @@ export default function AdminChangeRequestsPage() {
     const handleRefund = (request: ChangeRequestsApi.ChangeRequest) => {
         setSelectedRequest(request)
         setRefundData({ imageProof: '', note: '' })
+        setRefundImageFile(null)
         setShowRefundModal(true)
     }
 
@@ -85,14 +88,25 @@ export default function AdminChangeRequestsPage() {
     const submitRefund = async () => {
         if (!selectedRequest) return
         
-        if (!refundData.imageProof || !refundData.note) {
-            toast.warning('Vui lòng nhập đầy đủ thông tin hoàn tiền')
+        if ((!refundData.imageProof && !refundImageFile) || !refundData.note) {
+            toast.warning('Vui lòng nhập đầy đủ thông tin hoàn tiền (ảnh chứng từ và ghi chú)')
             return
         }
         
         setSubmitting(true)
         try {
-            await ChangeRequestsApi.confirmRefund(selectedRequest.id, refundData)
+            let imageUrl = refundData.imageProof
+            if (refundImageFile) {
+                const uploadedUrls = await uploadImagesToCloudinary([refundImageFile], 'refund_proof', selectedRequest.id)
+                if (uploadedUrls && uploadedUrls.length > 0) {
+                    imageUrl = uploadedUrls[0]
+                }
+            }
+
+            await ChangeRequestsApi.confirmRefund(selectedRequest.id, {
+                ...refundData,
+                imageProof: imageUrl
+            })
             toast.success('Đã xác nhận hoàn tiền')
             loadRequests()
         } catch (error: unknown) {
@@ -112,7 +126,8 @@ export default function AdminChangeRequestsPage() {
             APPROVED: { bg: 'bg-green-100', text: 'text-green-800', icon: CheckCircle },
             REJECTED: { bg: 'bg-red-100', text: 'text-red-800', icon: XCircle },
             WAITING_REFUND: { bg: 'bg-blue-100', text: 'text-blue-800', icon: AlertCircle },
-            REFUNDED: { bg: 'bg-purple-100', text: 'text-purple-800', icon: Package }
+            REFUNDED: { bg: 'bg-purple-100', text: 'text-purple-800', icon: Package },
+            COMPLETED: { bg: 'bg-gray-100', text: 'text-gray-800', icon: CheckCircle }
         }
         
         const badge = badges[status] || badges.PENDING
@@ -333,15 +348,89 @@ export default function AdminChangeRequestsPage() {
                         <h3 className="text-xl font-bold mb-4">Xác nhận hoàn tiền</h3>
                         
                         <div className="space-y-4 mb-6">
+                            <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800 mb-4">
+                                <p className="font-bold mb-1">Thông tin khách hàng cung cấp:</p>
+                                <p>Phương thức: {selectedRequest.metadata?.refundMethod || 'Không có'}</p>
+                                {selectedRequest.metadata?.refundData && (
+                                    <div className="mt-2 bg-white p-3 rounded border border-blue-100">
+                                        <p className="font-semibold text-gray-700 mb-2 text-sm">Chi tiết tài khoản:</p>
+                                        <div className="grid grid-cols-[100px_1fr] gap-y-1 text-sm">
+                                            {selectedRequest.metadata.refundData.bankName && (
+                                                <>
+                                                    <span className="text-gray-600">Ngân hàng:</span>
+                                                    <span className="font-medium text-gray-900">{selectedRequest.metadata.refundData.bankName}</span>
+                                                </>
+                                            )}
+                                            {selectedRequest.metadata.refundData.accountNumber && (
+                                                <>
+                                                    <span className="text-gray-600">Số tài khoản:</span>
+                                                    <span className="font-medium text-gray-900">{selectedRequest.metadata.refundData.accountNumber}</span>
+                                                </>
+                                            )}
+                                            {selectedRequest.metadata.refundData.accountName && (
+                                                <>
+                                                    <span className="text-gray-600">Tên chủ TK:</span>
+                                                    <span className="font-medium text-gray-900">{selectedRequest.metadata.refundData.accountName}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             <div>
-                                <label className="block text-sm font-medium mb-2">Link ảnh chứng từ *</label>
-                                <input
-                                    type="text"
-                                    value={refundData.imageProof}
-                                    onChange={(e) => setRefundData({ ...refundData, imageProof: e.target.value })}
-                                    className="w-full px-4 py-2 border rounded-lg"
-                                    placeholder="Nhập URL ảnh chứng từ chuyển khoản..."
-                                />
+                                <label className="block text-sm font-medium mb-2">Link ảnh chứng từ chuyển khoản *</label>
+                                <div className="mt-2 p-6 border-2 border-dashed rounded-lg text-center hover:bg-gray-50 transition-colors relative">
+                                    {refundImageFile ? (
+                                        <div className="relative inline-block">
+                                            <img 
+                                                src={URL.createObjectURL(refundImageFile)} 
+                                                alt="Preview" 
+                                                className="h-32 object-contain rounded"
+                                            />
+                                            <button 
+                                                onClick={() => setRefundImageFile(null)}
+                                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                                            >
+                                                <XCircle className="w-4 h-4" />
+                                            </button>
+                                            <p className="text-sm text-gray-500 mt-2">{refundImageFile.name}</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
+                                            <div className="mt-2">
+                                                <label htmlFor="file-upload-request" className="cursor-pointer">
+                                                    <span className="mt-2 block text-sm font-medium text-gray-900">
+                                                        Kéo thả hoặc chọn ảnh
+                                                    </span>
+                                                    <input 
+                                                        id="file-upload-request"
+                                                        type="file" 
+                                                        accept="image/*" 
+                                                        onChange={(e) => {
+                                                            if (e.target.files && e.target.files[0]) {
+                                                                setRefundImageFile(e.target.files[0])
+                                                            }
+                                                        }} 
+                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                                                    />
+                                                </label>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 10MB</p>
+                                        </>
+                                    )}
+                                </div>
+                                <div className="mt-2 flex items-center gap-2">
+                                    <span className="text-xs text-gray-500">Hoặc nhập URL:</span>
+                                    <input
+                                        type="text"
+                                        value={refundData.imageProof}
+                                        onChange={(e) => setRefundData({ ...refundData, imageProof: e.target.value })}
+                                        className="flex-1 px-3 py-1 text-sm border rounded"
+                                        placeholder="https://..."
+                                    />
+                                </div>
                             </div>
                             
                             <div>

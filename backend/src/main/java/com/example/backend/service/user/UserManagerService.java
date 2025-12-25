@@ -78,13 +78,14 @@ public class UserManagerService {
         return response;
     }
     @Transactional
-    public void addAddress(CustomUserDetail userDetail, UserAddress address) {
+    public UserAddress addAddress(CustomUserDetail userDetail, UserAddress address) {
         User currentUser = userRepository.findById(userDetail.getId()).orElseThrow(()->new NotFoundException("User not found!"));
         Address newAddress = addressMapper.toEntity(address);
         if (address.isDefaultShipping())
             addressRepository.setDefaultShippingFalse(currentUser.getId());
-        currentUser.addAddress(newAddress);
-        userRepository.save(currentUser);
+        newAddress.setUser(currentUser);
+        Address savedAddress = addressRepository.save(newAddress);
+        return addressMapper.toDto(savedAddress);
     }
     @Transactional
     public void updateProfile(CustomUserDetail userDetail,UserProfileDto dto)

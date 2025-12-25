@@ -15,4 +15,5 @@ public class ShipmentResponse {
     private String status;
     private Instant deliveredAt;
     private String warehouse;
+    private Boolean isReturn;
 }

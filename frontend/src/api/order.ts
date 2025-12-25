@@ -25,6 +25,7 @@ export interface ShipmentResponse {
     status?: string;
     deliveredAt?: string;
     warehouse?: string;
+    isReturn?: boolean;
 }
 
 export interface OrderChangeRequestResponse {
@@ -91,6 +92,11 @@ export const rePay = async (orderId: string): Promise<{ paymentUrl: string }> =>
     return response.data;
 };
 
+export const retryPayment = async (orderId: string): Promise<string> => {
+    const res = await rePay(orderId);
+    return res.paymentUrl;
+};
+
 export interface CancelOrderRequest {
     reason: string;
     paymentRefundOption?: {
@@ -98,6 +104,10 @@ export interface CancelOrderRequest {
         data?: Record<string, string | number | boolean>;
     };
 }
+
+export const requestCancel = async (id: string, data: CancelOrderRequest): Promise<void> => {
+    await api.post(`/api/v1/orders/${id}/cancel`, data);
+};
 
 export interface ReturnOrderRequest {
     returnAddress: UserAddress;

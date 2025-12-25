@@ -214,9 +214,10 @@ public class GHNService {
                 .toProvinceName(shopProvince != null ? shopProvince.getProvinceName() : "")
 
                 // Địa chỉ người gửi (khách hàng) - DÙNG TEXT NAME
-                .fromName(userAddress.getFullName())
-                .fromPhone(userAddress.getPhone())
-                .fromAddress(userAddress.getAddressLine())
+                // HARDCODE GIỐNG ĐƠN GỬI ĐI ĐỂ TEST (Sender = Shop)
+                .fromName(shopInfo.getName())
+                .fromPhone(shopInfo.getPhone())
+                .fromAddress(shopInfo.getAddress())
                 .fromWardName("Phường 14")
                 .fromDistrictName("Quận 10")
                 .fromProvinceName("TP. Hồ Chí Minh")

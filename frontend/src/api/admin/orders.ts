@@ -119,7 +119,11 @@ export const cancelOrderByAdmin = async (orderId: string): Promise<string> => {
 };
 
 export const reviewChangeRequest = async (requestId: string, payload: ReviewRequestPayload): Promise<void> => {
-    await api.post(`/api/v1/admin/orders/requests/${requestId}/review`, payload);
+    await api.post(`/api/v1/admin/orders/requests/${requestId}/review`, payload, {
+        headers: {
+            'Idempotency-Key': self.crypto.randomUUID()
+        }
+    });
 };
 
 export const returnOrderByAdmin = async (orderId: string, adminNote?: string): Promise<void> => {
@@ -144,4 +148,13 @@ export const updateOrderStatus = async (
         params: { status }
     });
     return response.data;
+};
+
+export const completeDelivery = async (orderCode: string) => {
+    return api.post('/api/v1/webhooks/ghn', {
+        OrderCode: orderCode,
+        Status: 'delivered',
+        Type: 'switch_status',
+        Time: Date.now()
+    });
 };

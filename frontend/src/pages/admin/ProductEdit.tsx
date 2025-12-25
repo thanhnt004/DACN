@@ -64,13 +64,16 @@ const ProductEdit: React.FC = () => {
     // Images
     const [primaryImage, setPrimaryImage] = useState<{ file: File; preview: string } | null>(null);
     const [galleryImages, setGalleryImages] = useState<{ file: File; preview: string }[]>([]);
-    const [existingPrimaryImage, setExistingPrimaryImage] = useState<string>('');
-    const [existingGalleryImages, setExistingGalleryImages] = useState<string[]>([]);
+    const [existingPrimaryImage, setExistingPrimaryImage] = useState<ProductImagePayload | null>(null);
+    const [existingGalleryImages, setExistingGalleryImages] = useState<ProductImagePayload[]>([]);
     
     // Variants
     const [variants, setVariants] = useState<VariantRow[]>([]);
     const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
     const [selectedColors, setSelectedColors] = useState<string[]>([]);
+    // Track which sizes/colors are locked (in use by variants)
+    const [lockedSizes, setLockedSizes] = useState<string[]>([]);
+    const [lockedColors, setLockedColors] = useState<string[]>([]);
     const [bulkValues, setBulkValues] = useState<BulkApplyValues>({
         priceAmount: '',
         compareAtAmount: '',
@@ -138,7 +141,7 @@ const ProductEdit: React.FC = () => {
         
         setLoadingProduct(true);
         try {
-            const product = await getProductDetail(productId, ['images', 'variants']);
+            const product = await getProductDetail(productId, ['images', 'variants', 'categories']);
             
             console.log('📦 Loaded product:', product);
             console.log('🏷️ Brand ID from product:', product.brandId);
@@ -160,17 +163,17 @@ const ProductEdit: React.FC = () => {
             
             // Set existing images
             if (product.images && product.images.length > 0) {
-                // Filter out variant images (images with colorId)
-                const productImages = product.images.filter(img => !img.colorId);
+                // Use all images, don't filter by colorId
+                const productImages = product.images;
                 
-                console.log('🖼️ Product images (no variant):', productImages);
+                console.log('🖼️ Product images:', productImages);
                 
                 // Find primary image (isDefault = true)
                 const primaryImage = productImages.find(img => img.isDefault);
                 console.log('🎯 Primary image:', primaryImage);
                 
                 if (primaryImage) {
-                    setExistingPrimaryImage(primaryImage.imageUrl);
+                    setExistingPrimaryImage(primaryImage);
                 }
                 
                 // Gallery images are non-default images, sorted by position
@@ -181,7 +184,7 @@ const ProductEdit: React.FC = () => {
                 console.log('🖼️ Gallery images:', galleryImages);
                 
                 if (galleryImages.length > 0) {
-                    setExistingGalleryImages(galleryImages.map(img => img.imageUrl));
+                    setExistingGalleryImages(galleryImages);
                 }
             }
             
@@ -218,6 +221,8 @@ const ProductEdit: React.FC = () => {
                 const uniqueColors = [...new Set(variantRows.map(v => v.colorId))];
                 setSelectedSizes(uniqueSizes);
                 setSelectedColors(uniqueColors);
+                setLockedSizes(uniqueSizes);
+                setLockedColors(uniqueColors);
             }
             
         } catch (err) {
@@ -279,7 +284,7 @@ const ProductEdit: React.FC = () => {
                 file,
                 preview: URL.createObjectURL(file)
             });
-            setExistingPrimaryImage('');
+            setExistingPrimaryImage(null);
         }
     };
 
@@ -288,7 +293,7 @@ const ProductEdit: React.FC = () => {
             URL.revokeObjectURL(primaryImage.preview);
             setPrimaryImage(null);
         }
-        setExistingPrimaryImage('');
+        setExistingPrimaryImage(null);
     };
 
     // Handle gallery images
@@ -414,6 +419,7 @@ const ProductEdit: React.FC = () => {
         const variant = variants.find(v => v.tempId === tempId);
         if (!variant) return;
 
+        let deletedVariant: VariantRow | undefined = undefined;
         if (variant.variantId && productId) {
             if (!window.confirm('Xóa biến thể này? Hành động không thể hoàn tác.')) return;
             
@@ -421,6 +427,7 @@ const ProductEdit: React.FC = () => {
                 setLoading(true);
                 await deleteVariant(productId, variant.variantId);
                 setVariants(prev => prev.filter(v => v.tempId !== tempId));
+                deletedVariant = variant;
                 toast.success('Đã xóa biến thể');
             } catch (err) {
                 console.error('Failed to delete variant:', err);
@@ -430,7 +437,25 @@ const ProductEdit: React.FC = () => {
             }
         } else {
             setVariants(prev => prev.filter(v => v.tempId !== tempId));
+            deletedVariant = variant;
         }
+        // After deletion, check if any color/size is no longer used
+        setTimeout(() => {
+            if (deletedVariant) {
+                const stillUsedColors = variants.filter(v => v.tempId !== tempId).map(v => v.colorId);
+                const stillUsedSizes = variants.filter(v => v.tempId !== tempId).map(v => v.sizeId);
+                // If deleted color is not in any variant, unlock and uncheck
+                if (!stillUsedColors.includes(deletedVariant.colorId)) {
+                    setLockedColors(prev => prev.filter(id => id !== deletedVariant!.colorId));
+                    setSelectedColors(prev => prev.filter(id => id !== deletedVariant!.colorId));
+                }
+                // If deleted size is not in any variant, unlock and uncheck
+                if (!stillUsedSizes.includes(deletedVariant.sizeId)) {
+                    setLockedSizes(prev => prev.filter(id => id !== deletedVariant!.sizeId));
+                    setSelectedSizes(prev => prev.filter(id => id !== deletedVariant!.sizeId));
+                }
+            }
+        }, 100);
     };
 
     // Save product
@@ -454,26 +479,57 @@ const ProductEdit: React.FC = () => {
             setLoading(true);
 
             let imagePayloads: ProductImagePayload[] = [];
-            
-            if (primaryImage || galleryImages.length > 0) {
-                try {
-                    const allFiles = [];
-                    if (primaryImage) allFiles.push(primaryImage.file);
-                    allFiles.push(...galleryImages.map(img => img.file));
+            let currentPosition = 0;
 
-                    const uploadedUrls = await uploadImagesToCloudinary(allFiles, 'product', productId || undefined);
-                    
-                    imagePayloads = uploadedUrls.map((url, index) => ({
+            try {
+                // 1. Handle Primary Image
+                if (primaryImage) {
+                    // Upload new primary image
+                    const [url] = await uploadImagesToCloudinary([primaryImage.file], 'product', productId || undefined);
+                    imagePayloads.push({
                         imageUrl: url,
-                        position: index,
-                        isDefault: index === 0,
+                        position: currentPosition++,
+                        isDefault: true,
                         alt: name
-                    }));
-                } catch (uploadError) {
-                    console.error('Failed to upload images:', uploadError);
-                    toast.error('Không thể tải ảnh lên');
-                    throw uploadError;
+                    });
+                } else if (existingPrimaryImage) {
+                    // Use existing primary image
+                    imagePayloads.push({
+                        ...existingPrimaryImage,
+                        position: currentPosition++,
+                        isDefault: true,
+                        alt: name
+                    });
                 }
+
+                // 2. Handle Existing Gallery Images
+                existingGalleryImages.forEach(img => {
+                    imagePayloads.push({
+                        ...img,
+                        position: currentPosition++,
+                        isDefault: false,
+                        alt: name
+                    });
+                });
+
+                // 3. Handle New Gallery Images
+                if (galleryImages.length > 0) {
+                    const newGalleryFiles = galleryImages.map(img => img.file);
+                    const newGalleryUrls = await uploadImagesToCloudinary(newGalleryFiles, 'product', productId || undefined);
+                    
+                    newGalleryUrls.forEach(url => {
+                        imagePayloads.push({
+                            imageUrl: url,
+                            position: currentPosition++,
+                            isDefault: false,
+                            alt: name
+                        });
+                    });
+                }
+            } catch (uploadError) {
+                console.error('Failed to upload images:', uploadError);
+                toast.error('Không thể tải ảnh lên');
+                throw uploadError;
             }
 
             if (productId) {
@@ -1023,7 +1079,7 @@ const ProductEdit: React.FC = () => {
                                     {(primaryImage || existingPrimaryImage) && (
                                         <div className="relative">
                                             <img
-                                                src={primaryImage?.preview || existingPrimaryImage}
+                                                src={primaryImage?.preview || existingPrimaryImage?.imageUrl}
                                                 alt="Primary"
                                                 className="w-full h-48 object-cover rounded-lg"
                                             />
@@ -1042,10 +1098,10 @@ const ProductEdit: React.FC = () => {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Ảnh thư viện</label>
                                     <div className="grid grid-cols-2 gap-2 mb-2">
-                                        {existingGalleryImages.map((url, idx) => (
+                                        {existingGalleryImages.map((img, idx) => (
                                             <div key={`existing-${idx}`} className="relative">
                                                 <img
-                                                    src={url}
+                                                    src={img.imageUrl}
                                                     alt={`Existing ${idx}`}
                                                     className="w-full h-32 object-cover rounded-lg"
                                                 />
@@ -1129,6 +1185,31 @@ const ProductEdit: React.FC = () => {
                                         <span className="text-gray-400">Chọn danh mục sản phẩm</span>
                                     )}
                                 </button>
+                                
+                                {/* Selected Categories List */}
+                                {categoryIds.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        {categoryIds.map(id => {
+                                            const category = categories.find(c => c.id === id);
+                                            return category ? (
+                                                <span key={id} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                    {category.name}
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleCategory(id);
+                                                        }}
+                                                        className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-red-400 hover:bg-red-200 hover:text-red-500 focus:outline-none"
+                                                    >
+                                                        <span className="sr-only">Remove {category.name}</span>
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </span>
+                                            ) : null;
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </>
@@ -1154,27 +1235,36 @@ const ProductEdit: React.FC = () => {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Màu sắc</label>
                                     <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-2 space-y-1">
-                                        {colorsData.map(color => (
-                                            <label key={color.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedColors.includes(color.id)}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) {
-                                                            setSelectedColors(prev => [...prev, color.id]);
-                                                        } else {
-                                                            setSelectedColors(prev => prev.filter(id => id !== color.id));
-                                                        }
-                                                    }}
-                                                    className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
-                                                />
-                                                <div
-                                                    className="w-5 h-5 rounded border border-gray-300"
-                                                    style={{ backgroundColor: color.hexCode || '#ccc' }}
-                                                />
-                                                <span className="text-sm">{color.name}</span>
-                                            </label>
-                                        ))}
+                                        {colorsData.map(color => {
+                                            const isLocked = lockedColors.includes(color.id);
+                                            return (
+                                                <label key={color.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedColors.includes(color.id)}
+                                                        disabled={isLocked}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedColors(prev => [...prev, color.id]);
+                                                            } else {
+                                                                if (!isLocked) {
+                                                                    setSelectedColors(prev => prev.filter(id => id !== color.id));
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                                                    />
+                                                    <div
+                                                        className="w-5 h-5 rounded border border-gray-300"
+                                                        style={{ backgroundColor: color.hexCode || '#ccc' }}
+                                                    />
+                                                    <span className="text-sm">{color.name}</span>
+                                                    {isLocked && (
+                                                        <span className="ml-2 text-xs text-gray-400">(đang dùng)</span>
+                                                    )}
+                                                </label>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
@@ -1182,23 +1272,32 @@ const ProductEdit: React.FC = () => {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Kích thước</label>
                                     <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-2 space-y-1">
-                                        {sizesData.map(size => (
-                                            <label key={size.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedSizes.includes(size.id)}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) {
-                                                            setSelectedSizes(prev => [...prev, size.id]);
-                                                        } else {
-                                                            setSelectedSizes(prev => prev.filter(id => id !== size.id));
-                                                        }
-                                                    }}
-                                                    className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
-                                                />
-                                                <span className="text-sm font-medium">{size.name || size.code}</span>
-                                            </label>
-                                        ))}
+                                        {sizesData.map(size => {
+                                            const isLocked = lockedSizes.includes(size.id);
+                                            return (
+                                                <label key={size.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedSizes.includes(size.id)}
+                                                        disabled={isLocked}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedSizes(prev => [...prev, size.id]);
+                                                            } else {
+                                                                if (!isLocked) {
+                                                                    setSelectedSizes(prev => prev.filter(id => id !== size.id));
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                                                    />
+                                                    <span className="text-sm font-medium">{size.name || size.code}</span>
+                                                    {isLocked && (
+                                                        <span className="ml-2 text-xs text-gray-400">(đang dùng)</span>
+                                                    )}
+                                                </label>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>

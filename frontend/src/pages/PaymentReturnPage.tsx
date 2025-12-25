@@ -16,6 +16,9 @@ const PaymentReturnPage = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
+    // Get API Base URL from environment or default
+    const BASE_URL = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_BASE_URL || 'http://localhost:8089';
+
     useEffect(() => {
         const orderId = localStorage.getItem('pendingOrderId');
         const params = new URLSearchParams(location.search);
@@ -26,7 +29,7 @@ const PaymentReturnPage = () => {
             return;
         }
 
-        const eventSource = new EventSource(`/api/v1/payments/status/stream/${orderId}`);
+        const eventSource = new EventSource(`${BASE_URL}/api/v1/payments/status/stream/${orderId}`);
 
         eventSource.onopen = () => {
             console.log('SSE connection opened.');

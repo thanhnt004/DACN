@@ -51,6 +51,9 @@ public class CartService {
 
     private CartResponse buildCartResponse(Cart cart) {
         // Remove items with deleted variants before mapping
+        if(cart.getItems() == null) {
+            cart.setItems(new ArrayList<>());
+        }
         cart.getItems().removeIf(item -> {
             try {
                 ProductVariant variant = item.getVariant();

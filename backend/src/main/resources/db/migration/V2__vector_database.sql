@@ -3,8 +3,8 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Create product_embeddings table
 CREATE TABLE product_embeddings (
-    id BIGSERIAL PRIMARY KEY,
-    product_id BIGINT NOT NULL,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id uuid NOT NULL,
     content TEXT,
     embedding vector(768),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

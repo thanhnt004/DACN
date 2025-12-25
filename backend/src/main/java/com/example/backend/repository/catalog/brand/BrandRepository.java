@@ -12,4 +12,6 @@ public interface BrandRepository extends JpaRepository<Brand, UUID>, JpaSpecific
     Boolean existsBySlugAndIdNot(String slug, UUID excludeId);
 
     Optional<Brand>  findBySlug(String slug);
+
+    Optional<Brand> findByName(String normalizedName);
 }

@@ -88,7 +88,7 @@ public class AdminOrderController {
     @PostMapping("/requests/{requestId}/review")
     @PreAuthorize("hasRole('ADMIN')") // Hoặc 'STAFF'
     public ResponseEntity<Void> reviewRequest(
-            @PathVariable UUID requestId,
+            @PathVariable("requestId") UUID requestId,
             @RequestBody ReviewRequestDTO dto // status: APPROVED/REJECTED, adminNote
     ) {
         orderFacadeService.reviewChangeRequest(requestId, dto);
@@ -110,8 +110,8 @@ public class AdminOrderController {
     }
     @Idempotent(expire = 300, scope = "requestId")
     @PostMapping("/admin/confirm-refund/{requestId}")
-    public ResponseEntity<?> confirmRefund(@PathVariable UUID requestId, @RequestBody RefundConfirmRequest dto) {
+    public ResponseEntity<?> confirmRefund(@PathVariable("requestId") UUID requestId, @RequestBody RefundConfirmRequest dto) {
         orderFacadeService.confirmManualRefund(requestId, dto.getImageProof(), dto.getNote());
-        return ResponseEntity.ok("Đã xác nhận hoàn tiền");
+        return ResponseEntity.ok(java.util.Map.of("message", "Đã xác nhận hoàn tiền"));
     }
 }

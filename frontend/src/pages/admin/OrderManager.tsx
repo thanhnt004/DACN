@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 import * as AdminOrderApi from '../../api/admin/orders';
 import type { OrderResponse } from '../../api/order';
-import { Search, SlidersHorizontal, Printer } from 'lucide-react';
+import { Search, SlidersHorizontal, Printer, CheckCircle } from 'lucide-react';
 import AdminOrderActions from './components/AdminOrderActions';
 import RejectReasonModal from './components/RejectReasonModal';
 import AdminOrderDetailModal from './components/AdminOrderDetailModal';
@@ -460,6 +460,25 @@ export default function OrderManager() {
             console.error(err);
         }
     };
+
+    const handleCompleteDelivery = async (trackingNumber: string) => {
+        if (!trackingNumber) {
+            toast.error('Không tìm thấy mã vận đơn.');
+            return;
+        }
+        if (!window.confirm('Bạn có chắc chắn muốn hoàn tất giao hàng cho đơn này?')) {
+            return;
+        }
+        try {
+            await AdminOrderApi.completeDelivery(trackingNumber);
+            toast.success('Đã cập nhật trạng thái giao hàng thành công.');
+            setFetchNonce(n => n + 1);
+        } catch (err) {
+            const errorMsg = resolveErrorMessage(err, 'Lỗi khi cập nhật trạng thái giao hàng');
+            toast.error(errorMsg);
+            console.error(err);
+        }
+    };
     
 
     const statusHeading = useMemo(() => {
@@ -715,13 +734,24 @@ export default function OrderManager() {
                                                 </td>
                                                 {/* Thao tác */}
                                                 <td className="px-4 py-3 align-top">
-                                                    <AdminOrderActions 
-                                                        order={order} 
-                                                        onConfirm={handleConfirmOrder} 
-                                                        onCancel={handleCancelOrder} 
-                                                        onShip={() => handleShipOrders([order.id])} 
-                                                        onReview={handleReviewRequest} 
-                                                    />
+                                                    <div className="flex flex-col gap-2">
+                                                        <AdminOrderActions 
+                                                            order={order} 
+                                                            onConfirm={handleConfirmOrder} 
+                                                            onCancel={handleCancelOrder} 
+                                                            onShip={() => handleShipOrders([order.id])} 
+                                                            onReview={handleReviewRequest} 
+                                                        />
+                                                        {activeTab === 'SHIPPING' && order.shipment?.trackingNumber && (
+                                                            <button
+                                                                onClick={() => handleCompleteDelivery(order.shipment!.trackingNumber!)}
+                                                                className="flex items-center justify-center p-1 text-green-600 hover:bg-green-50 rounded border border-green-200 w-full"
+                                                                title="Xác nhận đã giao hàng"
+                                                            >
+                                                                <CheckCircle size={18} />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         </Fragment>

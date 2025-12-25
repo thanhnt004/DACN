@@ -102,6 +102,22 @@ export default function QuickAddModal({ productId, onClose }: QuickAddModalProps
         }).format(price);
     };
 
+    // Helper: get available colors for selected size
+    const getAvailableColors = (sizeId: string) => {
+        if (!product?.variants) return [];
+        return product.options.color.filter(color =>
+            product.variants.some(v => v.sizeId === sizeId && v.colorId === color.id && v.inventory?.available && v.inventory.available > 0)
+        );
+    };
+
+    // Helper: get available sizes for selected color
+    const getAvailableSizes = (colorId: string) => {
+        if (!product?.variants) return [];
+        return product.options.size.filter(size =>
+            product.variants.some(v => v.colorId === colorId && v.sizeId === size.id && v.inventory?.available && v.inventory.available > 0)
+        );
+    };
+
     if (loading) {
         return (
             <div 
@@ -171,30 +187,29 @@ export default function QuickAddModal({ productId, onClose }: QuickAddModalProps
                                     </label>
                                     <div className="flex gap-2 flex-wrap">
                                         {product.options.color.map(color => {
-                                            const isAvailable = selectedSize ? isVariantAvailable(selectedSize, color.id) : true;
+                                            let isAvailable = true;
+                                            if (selectedSize) {
+                                                isAvailable = product.variants.some(v => v.sizeId === selectedSize && v.colorId === color.id && v.inventory?.available && v.inventory.available > 0);
+                                            } else {
+                                                isAvailable = getAvailableSizes(color.id).length > 0;
+                                            }
                                             return (
                                                 <button
                                                     key={color.id}
-                                                    onClick={() => isAvailable && setSelectedColor(color.id)}
+                                                    onClick={() => {
+                                                        if (!isAvailable) return;
+                                                        setSelectedColor(prev => prev === color.id ? '' : color.id);
+                                                    }}
                                                     disabled={!isAvailable}
-                                                    className={`relative w-10 h-10 rounded-lg border-2 transition ${
-                                                        selectedColor === color.id
-                                                            ? 'border-red-600 ring-2 ring-red-200'
-                                                            : isAvailable
-                                                            ? 'border-gray-300 hover:border-gray-400'
+                                                    className={`px-4 py-2 rounded-lg border-2 transition font-medium ${selectedColor === color.id
+                                                        ? 'border-red-600 bg-red-50 text-red-600'
+                                                        : isAvailable
+                                                            ? 'border-gray-300 hover:border-gray-400 text-gray-900'
                                                             : 'border-gray-200 opacity-40 cursor-not-allowed'
-                                                    }`}
-                                                    title={color.name}
+                                                        }`}
+                                                    title={isAvailable ? color.name : `${color.name} (Hết hàng)`}
                                                 >
-                                                    <div
-                                                        className="w-full h-full rounded-md"
-                                                        style={{ backgroundColor: color.hexCode }}
-                                                    />
-                                                    {!isAvailable && (
-                                                        <div className="absolute inset-0 flex items-center justify-center">
-                                                            <div className="w-full h-0.5 bg-gray-400 rotate-45" />
-                                                        </div>
-                                                    )}
+                                                    {color.name}
                                                 </button>
                                             );
                                         })}
@@ -210,19 +225,27 @@ export default function QuickAddModal({ productId, onClose }: QuickAddModalProps
                                     </label>
                                     <div className="flex gap-2 flex-wrap">
                                         {product.options.size.map(size => {
-                                            const isAvailable = selectedColor ? isVariantAvailable(size.id, selectedColor) : true;
+                                            let isAvailable = true;
+                                            if (selectedColor) {
+                                                isAvailable = product.variants.some(v => v.colorId === selectedColor && v.sizeId === size.id && v.inventory?.available && v.inventory.available > 0);
+                                            } else {
+                                                isAvailable = getAvailableColors(size.id).length > 0;
+                                            }
                                             return (
                                                 <button
                                                     key={size.id}
-                                                    onClick={() => isAvailable && setSelectedSize(size.id)}
+                                                    onClick={() => {
+                                                        if (!isAvailable) return;
+                                                        setSelectedSize(prev => prev === size.id ? '' : size.id);
+                                                    }}
                                                     disabled={!isAvailable}
-                                                    className={`px-4 py-2 rounded-lg border-2 transition font-medium ${
-                                                        selectedSize === size.id
-                                                            ? 'border-red-600 bg-red-50 text-red-600'
-                                                            : isAvailable
+                                                    className={`px-4 py-2 rounded-lg border-2 transition font-medium ${selectedSize === size.id
+                                                        ? 'border-red-600 bg-red-50 text-red-600'
+                                                        : isAvailable
                                                             ? 'border-gray-300 hover:border-gray-400 text-gray-900'
                                                             : 'border-gray-200 text-gray-400 opacity-50 cursor-not-allowed line-through'
-                                                    }`}
+                                                        }`}
+                                                    title={isAvailable ? size.code : `${size.code} (Hết hàng)`}
                                                 >
                                                     {size.code}
                                                 </button>

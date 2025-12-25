@@ -49,8 +49,10 @@ public class CheckoutSession implements Serializable {
      * Tổng tiền phải thanh toán
      */
     private Long totalAmount;
+    
+    private UUID orderId; // ID của đơn hàng đã tạo (nếu có)
 
-    // ============== DISCOUNT ==============
+    // ============== USER INFO ==============
 
     private DiscountResult discountInfo;
 

@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-
+import org.hibernate.annotations.Type;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -19,7 +19,7 @@ public class ProductEmbedding {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private UUID id;
 
     @Column(name = "product_id", nullable = false, columnDefinition = "uuid")
     private UUID productId;

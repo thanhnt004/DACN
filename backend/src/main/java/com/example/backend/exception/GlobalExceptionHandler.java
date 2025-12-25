@@ -10,8 +10,10 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
+import java.io.IOException;
 import java.net.URI;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,6 +22,57 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     private static final URI DEFAULT_TYPE = URI.create("about:blank");
+    @ExceptionHandler(SecurityException.class)
+
+
+    public ResponseEntity<Map<String, Object>> handleSecurityException(SecurityException ex) {
+        log.warn("Security exception: {}", ex.getMessage());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("timestamp", LocalDateTime.now());
+        response.put("status", HttpStatus.FORBIDDEN.value());
+        response.put("error", "Forbidden");
+        response.put("message", ex.getMessage());
+        response.put("path", getCurrentPath());
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+    @ExceptionHandler(value = IOException.class)
+    public ResponseEntity<ProblemDetails> handleIOException(IOException ex) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+
+        ProblemDetails body = ProblemDetails.builder()
+                .type(DEFAULT_TYPE)
+                .title("File Processing Error")
+                .status(status.value())
+                .detail("Lỗi xử lý file: " + ex.getMessage())
+                .code("FILE_PROCESSING_ERROR")
+                .timestamp(Instant.now())
+                .build();
+
+        return ResponseEntity.status(status).body(body);
+    }
+
+    @ExceptionHandler(value = UnsupportedOperationException.class)
+    public ResponseEntity<ProblemDetails> handleUnsupportedOperation(UnsupportedOperationException ex) {
+        HttpStatus status = HttpStatus.NOT_IMPLEMENTED;
+
+        ProblemDetails body = ProblemDetails.builder()
+                .type(DEFAULT_TYPE)
+                .title("Feature Not Implemented")
+                .status(status.value())
+                .detail(ex.getMessage())
+                .code("NOT_IMPLEMENTED")
+                .timestamp(Instant.now())
+                .build();
+
+        return ResponseEntity.status(status).body(body);
+    }
+
+    private String getCurrentPath() {
+        // Implementation to get current request path
+        return "/api/v1/checkout/sessions";
+    }
 
     /**
      * Handle DomainException with error code.

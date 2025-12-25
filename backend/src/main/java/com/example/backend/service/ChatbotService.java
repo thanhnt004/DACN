@@ -21,7 +21,7 @@ public class ChatbotService {
         log.info("Processing chat query: {}", userQuery);
 
         try {
-            List<ProductEmbedding> similarProducts = embeddingService.searchSimilarProducts(userQuery, 5);
+            List<ProductEmbedding> similarProducts = embeddingService.searchSimilarProducts(userQuery, 5, 0.5);
 
             String context = similarProducts.stream()
                     .map(ProductEmbedding::getContent)

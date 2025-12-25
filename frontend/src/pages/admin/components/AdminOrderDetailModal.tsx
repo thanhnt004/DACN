@@ -173,6 +173,128 @@ export default function AdminOrderDetailModal({ orderId, onClose, onOrderUpdate 
         }
     };
 
+    const handlePrintInvoice = () => {
+        if (!order) return;
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            toast.error('Vui lòng cho phép pop-up để có thể in hóa đơn.');
+            return;
+        }
+
+        const shippingAddr = order.shippingAddress;
+        const fullAddress = [shippingAddr?.line1, shippingAddr?.ward, shippingAddr?.district, shippingAddr?.province].filter(Boolean).join(', ') || shippingAddr?.address || 'N/A';
+        const payment = order.payments?.[0];
+        const isPaid = payment?.status === 'CAPTURED';
+
+        const invoiceHtml = `
+            <html>
+            <head>
+                <title>Hóa đơn #${order.orderNumber}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+                    .header { text-align: center; margin-bottom: 30px; }
+                    .store-name { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
+                    .invoice-title { font-size: 20px; font-weight: bold; margin-bottom: 5px; }
+                    .order-info { margin-bottom: 20px; }
+                    .customer-info { margin-bottom: 20px; border-bottom: 1px solid #ccc; padding-bottom: 20px; }
+                    .section-title { font-weight: bold; margin-bottom: 10px; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                    th { background-color: #f2f2f2; }
+                    .text-right { text-align: right; }
+                    .totals { margin-top: 20px; }
+                    .total-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+                    .final-total { font-weight: bold; font-size: 18px; margin-top: 10px; }
+                    .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; }
+                    @media print {
+                        body { padding: 0; }
+                        .no-print { display: none; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="store-name">WEARWAVE</div>
+                    <div class="invoice-title">HÓA ĐƠN BÁN HÀNG</div>
+                    <div>Mã đơn hàng: #${order.orderNumber}</div>
+                    <div>Ngày đặt: ${formatDateTime(order.placedAt)}</div>
+                </div>
+
+                <div class="customer-info">
+                    <div class="section-title">Thông tin khách hàng</div>
+                    <div><strong>Người mua:</strong> ${shippingAddr?.fullName || 'N/A'}</div>
+                    <div><strong>Số điện thoại:</strong> ${shippingAddr?.phone || 'N/A'}</div>
+                    <div><strong>Địa chỉ:</strong> ${fullAddress}</div>
+                </div>
+
+                <div class="order-details">
+                    <div class="section-title">Chi tiết đơn hàng</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Sản phẩm</th>
+                                <th class="text-right">Đơn giá</th>
+                                <th class="text-right">SL</th>
+                                <th class="text-right">Thành tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${order.items.map(item => `
+                                <tr>
+                                    <td>
+                                        <div>${item.productName}</div>
+                                        <small>Phân loại: ${item.variantName}</small>
+                                    </td>
+                                    <td class="text-right">${item.unitPriceAmount.toLocaleString('vi-VN')}₫</td>
+                                    <td class="text-right">${item.quantity}</td>
+                                    <td class="text-right">${item.totalAmount.toLocaleString('vi-VN')}₫</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="totals">
+                    <div class="total-row">
+                        <span>Tạm tính:</span>
+                        <span>${order.subtotalAmount.toLocaleString('vi-VN')}₫</span>
+                    </div>
+                    <div class="total-row">
+                        <span>Phí vận chuyển:</span>
+                        <span>${order.shippingAmount.toLocaleString('vi-VN')}₫</span>
+                    </div>
+                    ${order.discountAmount > 0 ? `
+                        <div class="total-row">
+                            <span>Giảm giá:</span>
+                            <span>-${order.discountAmount.toLocaleString('vi-VN')}₫</span>
+                        </div>
+                    ` : ''}
+                    <div class="total-row final-total">
+                        <span>Tổng cộng:</span>
+                        <span>${order.totalAmount.toLocaleString('vi-VN')}₫</span>
+                    </div>
+                    <div class="total-row" style="margin-top: 10px; font-style: italic;">
+                        <span>Trạng thái thanh toán:</span>
+                        <span>${isPaid ? 'Đã thanh toán' : 'Chưa thanh toán'} (${payment?.provider || 'N/A'})</span>
+                    </div>
+                </div>
+
+                <div class="footer">
+                    <p>Cảm ơn quý khách đã mua hàng!</p>
+                </div>
+
+                <script>
+                    window.onload = function() { window.print(); }
+                </script>
+            </body>
+            </html>
+        `;
+
+        printWindow.document.write(invoiceHtml);
+        printWindow.document.close();
+    };
+
 
     const copyToClipboard = (text: string, label: string) => {
         navigator.clipboard.writeText(text);
@@ -399,7 +521,9 @@ export default function AdminOrderDetailModal({ orderId, onClose, onOrderUpdate 
                                         <>
                                             <div className="border-t pt-3 mt-3">
                                                 <div className="flex justify-between items-center mb-2">
-                                                    <span className="text-sm text-gray-600">Đơn vị vận chuyển:</span>
+                                                    <span className="text-sm text-gray-600">
+                                                        {order.shipment.isReturn ? 'Đơn vị vận chuyển (Trả hàng):' : 'Đơn vị vận chuyển:'}
+                                                    </span>
                                                     <span className="font-semibold">{order.shipment.carrier}</span>
                                                 </div>
                                                 {order.shipment.trackingNumber && (
@@ -484,6 +608,13 @@ export default function AdminOrderDetailModal({ orderId, onClose, onOrderUpdate 
                             onShip={handleShipOrder} 
                             onReview={() => {}} 
                         />
+                        <button 
+                            onClick={handlePrintInvoice} 
+                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                        >
+                            <Printer size={16} />
+                            In hóa đơn
+                        </button>
                         {order.shipment?.trackingNumber && (
                             <button 
                                 onClick={handlePrintShippingLabel} 

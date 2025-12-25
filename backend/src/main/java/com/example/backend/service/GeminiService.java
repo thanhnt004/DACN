@@ -11,7 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
-
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
@@ -36,7 +36,8 @@ public class GeminiService {
     private String chatModel;
 
     public Mono<List<Double>> generateEmbedding(String text) {
-        String url = baseUrl + "/v1beta/models/" + embeddingModel + ":embedContent";
+        // Xây dựng path động
+        String path = "/v1beta/models/" + embeddingModel + ":embedContent";
 
         Map<String, Object> request = Map.of(
             "model", "models/" + embeddingModel,
@@ -45,12 +46,14 @@ public class GeminiService {
             )
         );
 
-        log.debug("Generating embedding with model: {}, URL: {}", embeddingModel, url);
-        
         return webClient.post()
-                .uri(url)
+                .uri(uriBuilder -> uriBuilder
+                        .scheme("https")
+                        .host("generativelanguage.googleapis.com")
+                        .path(path)
+                        .queryParam("key", apiKey) // QUAN TRỌNG: Truyền Key qua tham số URL
+                        .build())
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .header("x-goog-api-key", apiKey)
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(String.class)
@@ -59,26 +62,23 @@ public class GeminiService {
     }
 
     public Mono<String> generateChatResponse(String prompt, String context) {
-        String url = baseUrl + "/v1beta/models/" + chatModel + ":generateContent";
+        // 1. Tự ghép chuỗi URL hoàn chỉnh để kiểm soát dấu ":" và "?key="
+        // Lưu ý: key phải là tham số cuối cùng
+        String finalUrl = baseUrl + "/v1beta/models/" + chatModel + ":generateContent?key=" + apiKey;
 
-        log.debug("Generating chat response with model: {}, URL: {}", chatModel, url);
+        log.info("Chat URL (Raw): {}", finalUrl); // Log để kiểm tra
 
         String fullPrompt = String.format("""
             Bạn là một trợ lý AI cho cửa hàng thời trang WearWave. Nhiệm vụ của bạn là tư vấn và giúp khách hàng tìm kiếm sản phẩm.
             - Luôn trả lời một cách thân thiện, chuyên nghiệp và hữu ích.
-            - Sử dụng thông tin sản phẩm được cung cấp dưới đây để trả lời câu hỏi của khách hàng một cách chính xác nhất.
-            - Nếu không có thông tin sản phẩm nào được cung cấp hoặc thông tin không khớp với câu hỏi, đừng nói "tôi không biết". Thay vào đó, hãy:
-                + Đưa ra lời khuyên thời trang chung liên quan đến câu hỏi.
-                + Khuyến khích khách hàng khám phá các danh mục sản phẩm trên trang web.
-                + Đề nghị họ cung cấp thêm chi tiết để bạn có thể hỗ trợ tốt hơn.
-            - Giữ câu trả lời ngắn gọn và tập trung vào câu hỏi chính.
-
-            Thông tin sản phẩm (nếu có):
+            - Dựa vào thông tin sản phẩm dưới đây (nếu có) để trả lời.
+            
+            Thông tin sản phẩm:
             ---
             %s
             ---
             
-            Câu hỏi của khách hàng: %s
+            Câu hỏi: %s
             """, context, prompt);
 
         Map<String, Object> request = Map.of(
@@ -88,9 +88,9 @@ public class GeminiService {
         );
 
         return webClient.post()
-                .uri(url)
+                // 2. Dùng URI.create() để Spring không can thiệp sửa URL của bạn nữa
+                .uri(URI.create(finalUrl))
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .header("x-goog-api-key", apiKey)
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(String.class)
@@ -101,13 +101,19 @@ public class GeminiService {
     private List<Double> parseEmbeddingResponse(String response) {
         try {
             JsonNode jsonNode = objectMapper.readTree(response);
+            // Kiểm tra cấu trúc response của Embedding
             JsonNode embedding = jsonNode.path("embedding").path("values");
+            
+            // Nếu model text-embedding-004 trả về cấu trúc khác, nó có thể nằm trong mảng embeddings
+            if (embedding.isMissingNode()) {
+                 embedding = jsonNode.path("embeddings").get(0).path("values");
+            }
 
             if (embedding.isArray()) {
                 return objectMapper.convertValue(embedding, List.class);
             }
-            throw new RuntimeException("Invalid embedding response format");
-        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Invalid embedding response format: " + response);
+        } catch (Exception e) {
             log.error("Error parsing embedding response: {}", e.getMessage());
             throw new RuntimeException("Failed to parse embedding response", e);
         }
@@ -121,8 +127,7 @@ public class GeminiService {
                     .path("text").asText();
         } catch (Exception e) {
             log.error("Error parsing chat response: {}", e.getMessage());
-            return "Xin lỗi, tôi không thể xử lý yêu cầu của bạn lúc này. Vui lòng thử lại sau.";
+            return "Xin lỗi, hiện tại tôi đang gặp chút sự cố. Bạn vui lòng thử lại sau nhé!";
         }
     }
 }
-

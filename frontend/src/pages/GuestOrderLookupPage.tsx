@@ -6,8 +6,6 @@ import { Link } from 'react-router-dom'
 import { Header } from '../components/layout/Header'
 import Footer from '../components/layout/Footer'
 import OrderDetailModal from './member/components/OrderDetailModal'
-import { ToastContainer } from 'react-toastify'
-import 'react-toastify/dist/ReactToastify.css'
 import { formatInstant } from '../lib/dateUtils'
 
 type StatusFilterOption = {
@@ -246,7 +244,6 @@ export default function GuestOrderLookupPage() {
                     onOrderUpdate={handleOrderUpdate}
                 />
             )}
-            <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
         </>
     )
 }

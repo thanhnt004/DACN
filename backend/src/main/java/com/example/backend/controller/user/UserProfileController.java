@@ -45,10 +45,9 @@ public class UserProfileController {
         return ResponseEntity.ok(userManagerService.getLinkedProvider(userDetail));
     }
     @PostMapping(value = "/address")
-    public ResponseEntity<?> addNewAddress(@AuthenticationPrincipal CustomUserDetail userDetail,@RequestBody UserAddress address)
+    public ResponseEntity<UserAddress> addNewAddress(@AuthenticationPrincipal CustomUserDetail userDetail,@RequestBody UserAddress address)
     {
-        userManagerService.addAddress(userDetail,address);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(userManagerService.addAddress(userDetail,address));
     }
     @PutMapping
     public ResponseEntity<?> updateProfile(@AuthenticationPrincipal CustomUserDetail userDetail,@RequestBody UserProfileDto dto)

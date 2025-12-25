@@ -70,7 +70,7 @@ public class PaymentService {
 
     public Payment createPayment(Order order, String paymentMethodId) {
         PaymentMethodResponse paymentMethod = getAvailablePaymentMethods(order.getTotalAmount()).stream()
-                .filter(m -> m.getId().equals(paymentMethodId) && m.getIsAvailable())
+                .filter(m -> m.getId().contains("VNPAY") && m.getIsAvailable())
                 .toList()
                 .getFirst();
         Payment payment = Payment.builder()
@@ -135,7 +135,7 @@ public class PaymentService {
         // Set tất cả payment cũ thành FAILED
         paymentRepository.setAllOtherPaymentsToFailed(order.getId(), payment.getId());
         
-        if ("VNPAY".equals(paymentMethodId)) {
+        if (paymentMethodId.toUpperCase().contains("VNPAY")) {
             return vnPayService.createPaymentUrl(order, payment);
         } else if ("COD".equals(paymentMethodId)) {
             // COD không cần payment URL, redirect về trang order detail

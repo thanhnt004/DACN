@@ -87,6 +87,31 @@ public class OrderFacadeService {
         try {
             CheckoutSession checkoutSession = redisCheckoutStoreService.findById(sessionId).orElseThrow(
                     () -> new CheckoutSessionNotFoundException());
+
+            // Check if order already exists for this session
+            if (checkoutSession.getOrderId() != null) {
+                Order existingOrder = orderService.getOrderById(checkoutSession.getOrderId());
+                Payment latestPayment = null;
+                if (existingOrder.getPayments() != null && !existingOrder.getPayments().isEmpty()) {
+                    latestPayment = existingOrder.getPayments().get(existingOrder.getPayments().size() - 1);
+                }
+                
+                String existingPaymentUrl = null;
+                if (latestPayment != null && latestPayment.getRawResponse() != null) {
+                    existingPaymentUrl = (String) latestPayment.getRawResponse().get("paymentUrl");
+                }
+
+                return OrderCreatedResponse.builder()
+                        .orderId(existingOrder.getId())
+                        .orderNumber(existingOrder.getOrderNumber())
+                        .status(existingOrder.getStatus().name())
+                        .totalAmount(existingOrder.getTotalAmount())
+                        .paymentId(latestPayment != null ? latestPayment.getId() : null)
+                        .paymentMethod(latestPayment != null ? latestPayment.getProvider() : null)
+                        .paymentUrl(existingPaymentUrl)
+                        .build();
+            }
+
             if (!checkoutSession.getCanConfirm())
                 throw new BadRequestException("cannot confirm this checkout session");
             validateSessionItemsBeforeOrder(checkoutSession);
@@ -114,6 +139,16 @@ public class OrderFacadeService {
             // 7. Generate payment URL
             String paymentUrl = paymentService.generatePaymentUrl(order, payment, paymentMethodId);
 
+            // Save paymentUrl to payment rawResponse for idempotency
+            if (paymentUrl != null) {
+                Map<String, Object> rawResponse = payment.getRawResponse();
+                if (rawResponse == null) {
+                    rawResponse = new HashMap<>();
+                }
+                rawResponse.put("paymentUrl", paymentUrl);
+                payment.setRawResponse(rawResponse);
+            }
+
             log.debug("Payment URL generated: orderId={}", order.getId());
 
             // 7. Xóa cart nếu source = CART
@@ -122,9 +157,10 @@ public class OrderFacadeService {
                 log.debug("Cart cleared: cartId={}", checkoutSession.getCartId());
             }
 
-            // 8. Xóa session khỏi Redis
-            redisCheckoutStoreService.delete(sessionId);
-            log.debug("Session deleted: sessionId={}", sessionId);
+            // 8. Update session with orderId instead of deleting
+            checkoutSession.setOrderId(order.getId());
+            redisCheckoutStoreService.save(checkoutSession);
+            log.debug("Session updated with orderId: sessionId={}, orderId={}", sessionId, order.getId());
 
             // 9. Gửi email confirmation (async)
             if (order.getUser() != null)
@@ -254,10 +290,21 @@ public class OrderFacadeService {
                 .toList();
         List<DiscountRedemptionResponse> discountResponses = List.of(); // Placeholder
 
-        // Lấy thông tin vận chuyển (shipment active, không phải return)
-        var shipmentOpt = shipmentService.getAllShipmentsByOrder(order.getId()).stream()
+        // Lấy tất cả shipment của order
+        var allShipments = shipmentService.getAllShipmentsByOrder(order.getId());
+
+        // Tìm shipment trả hàng active
+        var returnShipment = allShipments.stream()
+                .filter(s -> Boolean.TRUE.equals(s.getIsActive()) && Boolean.TRUE.equals(s.getIsReturnShipment()))
+                .findFirst();
+
+        // Tìm shipment giao hàng active
+        var forwardShipment = allShipments.stream()
                 .filter(s -> Boolean.TRUE.equals(s.getIsActive()) && !Boolean.TRUE.equals(s.getIsReturnShipment()))
                 .findFirst();
+
+        // Ưu tiên hiển thị return shipment nếu có, ngược lại hiển thị forward shipment
+        var shipmentOpt = returnShipment.isPresent() ? returnShipment : forwardShipment;
         
         var shipmentResponse = shipmentOpt.map(s -> com.example.backend.dto.response.shipping.ShipmentResponse.builder()
                 .id(s.getId())
@@ -266,6 +313,7 @@ public class OrderFacadeService {
                 .status(s.getStatus())
                 .deliveredAt(s.getDeliveredAt())
                 .warehouse(s.getWarehouse())
+                .isReturn(Boolean.TRUE.equals(s.getIsReturnShipment()))
                 .build()).orElse(null);
 
         OrderResponse.OrderResponseBuilder responseBuilder = OrderResponse.builder()
@@ -351,7 +399,7 @@ public class OrderFacadeService {
      */
     public PageResponse<OrderResponse> getOrderListByAdmin(String tab, String orderNumber,
                                                            LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
-        return new PageResponse<>(orderService.getPageOrder(tab, null, orderNumber, startDate, endDate, pageable)
+        return new PageResponse<>(orderService.getPageOrder(tab, orderNumber, startDate, endDate, pageable)
                 .map(this::buildOrderResponse));
     }
 
@@ -574,6 +622,7 @@ public class OrderFacadeService {
         metadata.put("customer_reason", request.getReason());
 
         if (dto.getStatus().equals("APPROVED")) {
+            request.setStatus("APPROVED");
             auditLogService.logAction(
                 AuditActionType.APPROVE_CHANGE_REQUEST,
                 AuditEntityType.ORDER_CHANGE_REQUEST,

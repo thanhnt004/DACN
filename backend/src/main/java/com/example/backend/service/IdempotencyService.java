@@ -37,8 +37,14 @@ public class IdempotencyService {
         }
 
         // Convert body to Map for storage
-        @SuppressWarnings("unchecked")
-        Map<String, Object> bodyMap = objectMapper.convertValue(body, Map.class);
+        Map<String, Object> bodyMap;
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> converted = objectMapper.convertValue(body, Map.class);
+            bodyMap = converted;
+        } catch (IllegalArgumentException e) {
+            bodyMap = Map.of("value", body);
+        }
 
         Instant now = Instant.now();
         IdempotencyKey record = IdempotencyKey.builder()

@@ -21,6 +21,7 @@ import com.example.backend.model.product.Category;
 import com.example.backend.model.product.Product;
 import com.example.backend.model.product.ProductImage;
 import com.example.backend.model.product.ProductStatus;
+import com.example.backend.model.product.ProductVariant;
 import com.example.backend.repository.catalog.brand.BrandRepository;
 import com.example.backend.repository.catalog.categoty.CategoryRepository;
 import com.example.backend.repository.catalog.product.ProductRepository;
@@ -28,6 +29,7 @@ import com.example.backend.repository.catalog.product.ProductSpecification;
 import com.example.backend.repository.catalog.product.ProductVariantRepository;
 import com.example.backend.service.ProductEmbeddingService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
@@ -43,6 +45,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class ProductService {
     private final ProductRepository productRepository;
     private final ProductVariantRepository variantRepository;
@@ -167,6 +170,18 @@ public class ProductService {
 
         if (request.getImages() != null) {
             List<ProductImage> images = request.getImages().stream().map(imageMapper::toEntity).toList();
+            log.info("Received {} images for update", images.size());
+            images.forEach(img -> {
+                ProductVariant variant = null;
+                UUID requestedVariantId = (img.getVariant() != null) ? img.getVariant().getId() : null;
+                log.info("Processing image. Requested Variant ID: {}", requestedVariantId);
+                if (requestedVariantId != null) {
+                    variant = variantRepository.findById(requestedVariantId)
+                            .orElse(null);
+                    log.info("Found variant: {}", (variant != null ? variant.getId() : "null"));
+                }
+                img.setVariant(variant);
+            });
             exist.syncImage(images);
         }
         exist = productRepository.save(exist);

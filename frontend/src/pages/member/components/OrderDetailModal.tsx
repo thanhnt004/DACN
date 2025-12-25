@@ -36,127 +36,84 @@ export default function OrderDetailModal({ order, onClose, onOrderUpdate }: Orde
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
     const [otherReason, setOtherReason] = useState('');
-
     const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
     const [returnReason, setReturnReason] = useState('');
     const [returnImages, setReturnImages] = useState<FileList | null>(null);
-    const [returnOptionType, setReturnOptionType] = useState<'PICKUP' | 'DROP_OFF'>('PICKUP');
-    const [paymentRefundMethod, setPaymentRefundMethod] = useState<'BANK_TRANSFER' | 'OTHER'>('BANK_TRANSFER');
+    const [isUploading, setIsUploading] = useState(false);
+    const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+
+    const [paymentRefundMethod, setPaymentRefundMethod] = useState('BANK_TRANSFER');
     const [bankName, setBankName] = useState('');
     const [accountNumber, setAccountNumber] = useState('');
     const [accountName, setAccountName] = useState('');
-    const [isUploading, setIsUploading] = useState(false);
-    
-    // Payment countdown state
-    const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+    const [returnOptionType, setReturnOptionType] = useState('PICKUP');
 
-    // Calculate and update countdown timer for payment expiration
-    useEffect(() => {
-        if (order.status === 'PENDING' && order.payments && order.payments.length > 0) {
-            const payment = order.payments[0];
-            if (payment.status !== 'PAID' && payment.provider !== 'COD' && payment.expireAt) {
-                const updateCountdown = () => {
-                    const expireTime = new Date(payment.expireAt!).getTime();
-                    const remaining = Math.floor((expireTime - Date.now()) / 1000);
-                    setTimeRemaining(remaining > 0 ? remaining : 0);
-                };
-                
-                updateCountdown(); // Initial update
-                const interval = setInterval(updateCountdown, 1000); // Update every second
-                
-                return () => clearInterval(interval);
-            }
-        }
-        setTimeRemaining(null);
-    }, [order.status, order.payments]);
-
-    const statusInfo = useMemo(() => STATUS_INFO_MAP[order.status] ?? {
-        label: order.status,
-        description: 'Trạng thái không xác định',
-        icon: Package
+    const statusInfo = useMemo(() => {
+        return STATUS_INFO_MAP[order.status] || { label: 'Không xác định', description: 'Trạng thái đơn hàng không xác định.', icon: Package };
     }, [order.status]);
 
-    const isPendingUnpaidNonCod = order.status === 'PENDING' &&
-        order.payments &&
-        order.payments.length > 0 &&
-        order.payments.every(p => p.provider !== 'COD' && p.status !== 'PAID');
+    const isPendingUnpaidNonCod = useMemo(() => {
+        const payment = order.payments?.[0];
+        return order.status === 'PENDING' && payment && payment.provider !== 'COD' && payment.status !== 'CAPTURED';
+    }, [order.status, order.payments]);
 
-    // Check if within expiration time for re-payment
     const isWithinPaymentWindow = useMemo(() => {
-        if (isPendingUnpaidNonCod && order.payments && order.payments.length > 0) {
-            const payment = order.payments[0];
-            if (payment.expireAt) {
-                const expireTime = new Date(payment.expireAt).getTime();
-                return Date.now() < expireTime;
-            }
-        }
-        return false;
-    }, [isPendingUnpaidNonCod, order.payments]);
+        if (!order.createdAt) return false;
+        const creationTime = new Date(order.createdAt).getTime();
+        const currentTime = new Date().getTime();
+        const paymentWindow = 15 * 60 * 1000; // 15 minutes
+        return currentTime - creationTime < paymentWindow;
+    }, [order.createdAt]);
 
-    const handleRePay = async () => {
-        if (timeRemaining !== null && timeRemaining <= 0) {
-            toast.error('Đơn hàng đã hết hạn thanh toán.');
-            return;
-        }
-        
-        try {
-            toast.info('Đang tạo liên kết thanh toán...');
-            const response = await OrderApi.rePay(order.id);
-            console.log('Re-pay response:', response);
-            
-            if (response && response.paymentUrl) {
-                window.location.href = response.paymentUrl;
-            } else {
-                toast.error('Không nhận được liên kết thanh toán. Vui lòng thử lại.');
-            }
-        } catch (error: unknown) {
-            console.error('Failed to re-pay:', error);
-            const err = error as { response?: { data?: { message?: string } }; message?: string };
-            const errorMessage = err?.response?.data?.message || err?.message || 'Lỗi khi tạo lại liên kết thanh toán.';
-            toast.error(errorMessage);
-        }
-    };
+    useEffect(() => {
+        let timer: NodeJS.Timeout | undefined;
+        if (isPendingUnpaidNonCod && order.createdAt) {
+            const calculateTimeRemaining = () => {
+                const creationTime = new Date(order.createdAt).getTime();
+                const currentTime = new Date().getTime();
+                const paymentWindow = 15 * 60 * 1000;
+                const elapsed = currentTime - creationTime;
+                const remaining = Math.max(0, paymentWindow - elapsed);
+                setTimeRemaining(Math.round(remaining / 1000));
 
-    // --- Cancellation Logic ---
+                if (remaining <= 0) {
+                    clearInterval(timer);
+                }
+            };
+            calculateTimeRemaining();
+            timer = setInterval(calculateTimeRemaining, 1000);
+        }
+        return () => clearInterval(timer);
+    }, [isPendingUnpaidNonCod, order.createdAt]);
+
     const handleOpenCancelModal = () => setIsCancelModalOpen(true);
     const handleCloseCancelModal = () => setIsCancelModalOpen(false);
 
     const handleConfirmCancel = async () => {
-        const reason = cancelReason === 'Khác' ? otherReason : cancelReason;
-        if (!reason || reason.trim().length < 5) {
-            toast.error('Vui lòng cung cấp lý do hủy đơn hợp lệ (tối thiểu 5 ký tự).');
+        const finalReason = cancelReason === 'Khác' ? otherReason : cancelReason;
+        if (!finalReason || (cancelReason === 'Khác' && otherReason.length < 5)) {
+            toast.error('Vui lòng cung cấp lý do hủy đơn hợp lệ.');
             return;
         }
 
-        // Check if order has been paid (CAPTURED and not COD)
-        const hasPaidPayment = order.payments && order.payments.some(p => p.status === 'CAPTURED' && p.provider !== 'COD');
-
-        // Validate payment refund info if order is paid and BANK_TRANSFER selected
-        if (hasPaidPayment && paymentRefundMethod === 'BANK_TRANSFER') {
-            if (!bankName || !accountNumber || !accountName) {
-                toast.error('Vui lòng cung cấp đầy đủ thông tin tài khoản ngân hàng để hoàn tiền.');
-                return;
-            }
+        const requiresRefundInfo = order.payments?.some(p => p.status === 'CAPTURED' && p.provider !== 'COD');
+        if (requiresRefundInfo && paymentRefundMethod === 'BANK_TRANSFER' && (!bankName || !accountNumber || !accountName)) {
+            toast.error('Vui lòng cung cấp đầy đủ thông tin tài khoản ngân hàng để hoàn tiền.');
+            return;
         }
 
         try {
             const payload: OrderApi.CancelOrderRequest = {
-                reason,
-                // Only include payment refund option if order has been paid
-                ...(hasPaidPayment && {
-                    paymentRefundOption: {
+                reason: finalReason,
+                paymentRefundOption: requiresRefundInfo
+                    ? {
                         method: paymentRefundMethod,
-                        data: paymentRefundMethod === 'BANK_TRANSFER' 
-                            ? { bankName, accountNumber, accountName }
-                            : {}
+                        data: paymentRefundMethod === 'BANK_TRANSFER' ? { bankName, accountNumber, accountName } : {}
                     }
-                })
+                    : undefined
             };
-            console.log('Cancel order payload:', payload);
-            console.log('hasPaidPayment:', hasPaidPayment);
-            console.log('order.payments:', order.payments);
-            await OrderApi.cancelOrder(order.id, payload);
-            toast.success('Yêu cầu hủy đơn hàng đã được gửi đi.');
+            await OrderApi.requestCancel(order.id, payload);
+            toast.success('Yêu cầu hủy đơn hàng đã được gửi.');
             onOrderUpdate();
             handleCloseCancelModal();
             onClose();
@@ -165,6 +122,34 @@ export default function OrderDetailModal({ order, onClose, onOrderUpdate }: Orde
             toast.error('Không thể gửi yêu cầu hủy đơn hàng.');
         }
     };
+
+    const handleRePay = async () => {
+        try {
+            const paymentUrl = await OrderApi.retryPayment(order.id);
+            if (paymentUrl) {
+                window.location.href = paymentUrl;
+            } else {
+                toast.error('Không thể lấy được link thanh toán. Vui lòng thử lại.');
+            }
+        } catch (error) {
+            console.error('Failed to retry payment:', error);
+            toast.error('Thanh toán lại thất bại. Vui lòng thử lại.');
+        }
+    };
+    
+        // State cho modal chỉnh sửa thông tin hoàn tiền
+        const [isEditRefundModalOpen, setIsEditRefundModalOpen] = useState(false);
+        const [editRefundImage, setEditRefundImage] = useState(order.changeRequest?.metadata?.refundImage || '');
+        const [editRefundNote, setEditRefundNote] = useState(order.changeRequest?.metadata?.refundNote || order.changeRequest?.adminNote || '');
+
+        // Hàm xử lý lưu thông tin hoàn tiền đã chỉnh sửa
+        const handleSaveRefundInfo = async () => {
+            // TODO: Gọi API cập nhật thông tin hoàn tiền cho đơn hàng bị hủy
+            // Ví dụ: await OrderApi.updateRefundInfo(order.changeRequest?.id, { refundImage: editRefundImage, refundNote: editRefundNote })
+            toast.success('Đã cập nhật thông tin hoàn tiền!');
+            setIsEditRefundModalOpen(false);
+            onOrderUpdate();
+        };
 
     // --- Return Logic ---
     const handleOpenReturnModal = () => setIsReturnModalOpen(true);
@@ -292,7 +277,7 @@ export default function OrderDetailModal({ order, onClose, onOrderUpdate }: Orde
     return (
         <>
             <div 
-                className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4"
+                className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
                 onClick={onClose}
             >
                 <div 
@@ -326,19 +311,19 @@ export default function OrderDetailModal({ order, onClose, onOrderUpdate }: Orde
                         {order.shippingAddress && (
                             <div className="mb-6 p-4 border rounded-lg">
                                 <h4 className="font-semibold text-base mb-2">Địa chỉ giao hàng</h4>
-                                <p className="text-sm text-gray-700">{order.shippingAddress.fullName} - {order.shippingAddress.phoneNumber}</p>
+                                <p className="text-sm text-gray-700">{order.shippingAddress.fullName}</p>
                                 <p className="text-sm text-gray-600 mt-1">
-                                    {order.shippingAddress.addressLine}, {order.shippingAddress.ward}, {order.shippingAddress.district}, {order.shippingAddress.province}
+                                    {order.shippingAddress.ward}, {order.shippingAddress.district}, {order.shippingAddress.province}
                                 </p>
                             </div>
                         )}
 
                         {/* Shipment Tracking Info */}
-                        {order.status === 'SHIPPED' && order.shipment && (
+                        {order.shipment && (order.status === 'SHIPPED' || order.status === 'RETURNING' || order.status === 'RETURNED' || order.shipment.isReturn) && (
                             <div className="mb-6 p-4 border rounded-lg bg-blue-50">
                                 <h4 className="font-semibold text-base mb-2 flex items-center gap-2">
                                     <Truck className="w-5 h-5 text-blue-600" />
-                                    Thông tin vận chuyển
+                                    {order.shipment.isReturn ? 'Thông tin vận chuyển (Trả hàng)' : 'Thông tin vận chuyển'}
                                 </h4>
                                 <div className="space-y-2 text-sm">
                                     {order.shipment.carrier && (
@@ -368,8 +353,7 @@ export default function OrderDetailModal({ order, onClose, onOrderUpdate }: Orde
                                 </div>
                             </div>
                         )}
-
-                        {/* Change Request Section */}
+                        
                         {order.changeRequest && (
                             <div className="mb-6 p-4 border rounded-lg bg-gray-50">
                                 <div className="flex items-center justify-between mb-3">
@@ -390,6 +374,16 @@ export default function OrderDetailModal({ order, onClose, onOrderUpdate }: Orde
                                     </span>
                                 </div>
 
+                                {order.status === 'CANCELLED' && (
+                                    <div className="flex justify-end mt-2">
+                                        <button
+                                            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                                            onClick={() => setIsEditRefundModalOpen(true)}
+                                        >
+                                            Chỉnh sửa thông tin hoàn tiền
+                                        </button>
+                                    </div>
+                                )}
                                 <div className="space-y-3">
                                     <div>
                                         <p className="text-sm font-medium text-gray-700 mb-1">Lý do:</p>
@@ -398,36 +392,59 @@ export default function OrderDetailModal({ order, onClose, onOrderUpdate }: Orde
                                         </div>
                                     </div>
 
+                                    {/* Hiển thị thông tin hoàn tiền nếu đơn đã hủy và có metadata hoặc adminNote */}
+                                    {order.status === 'CANCELLED' && (
+                                        <>
+                                            {order.changeRequest.adminNote && (
+                                                <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                                                    <p className="text-sm font-medium text-blue-700 mb-1">Ghi chú Admin:</p>
+                                                    <p className="text-sm text-blue-600">{order.changeRequest.adminNote}</p>
+                                                </div>
+                                            )}
+                                            {order.changeRequest.metadata && (
+                                                <div className="mt-2">
+                                                    <p className="text-sm font-medium text-gray-700 mb-2">Thông tin hoàn tiền:</p>
+                                                    <div className="grid grid-cols-2 gap-2 text-sm">
+                                                        {order.changeRequest.metadata.bankName && (
+                                                            <div>
+                                                                <span className="text-gray-500">Ngân hàng:</span>
+                                                                <span className="ml-2 font-medium">{order.changeRequest.metadata.bankName}</span>
+                                                            </div>
+                                                        )}
+                                                        {order.changeRequest.metadata.accountNumber && (
+                                                            <div>
+                                                                <span className="text-gray-500">Số tài khoản:</span>
+                                                                <span className="ml-2 font-medium">{order.changeRequest.metadata.accountNumber}</span>
+                                                            </div>
+                                                        )}
+                                                        {order.changeRequest.metadata.accountName && (
+                                                            <div className="col-span-2">
+                                                                <span className="text-gray-500">Tên chủ tài khoản:</span>
+                                                                <span className="ml-2 font-medium">{order.changeRequest.metadata.accountName}</span>
+                                                            </div>
+                                                        )}
+                                                        {order.changeRequest.metadata.refundImage && (
+                                                            <div className="col-span-2 mt-2">
+                                                                <span className="text-gray-500">Ảnh chứng từ hoàn tiền:</span>
+                                                                <img src={order.changeRequest.metadata.refundImage} alt="Refund proof" className="mt-2 w-40 h-auto rounded border" />
+                                                            </div>
+                                                        )}
+                                                        {order.changeRequest.metadata.refundNote && (
+                                                            <div className="col-span-2 mt-2">
+                                                                <span className="text-gray-500">Ghi chú hoàn tiền:</span>
+                                                                <span className="ml-2 font-medium">{order.changeRequest.metadata.refundNote}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+
                                     {order.changeRequest.status === 'REJECTED' && order.changeRequest.adminNote && (
                                         <div className="p-3 bg-red-50 border border-red-200 rounded">
                                             <p className="text-sm font-medium text-red-700 mb-1">Lý do từ chối:</p>
                                             <p className="text-sm text-red-600">{order.changeRequest.adminNote}</p>
-                                        </div>
-                                    )}
-
-                                    {order.changeRequest.metadata && Object.keys(order.changeRequest.metadata).length > 0 && (
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-700 mb-2">Thông tin hoàn tiền:</p>
-                                            <div className="grid grid-cols-2 gap-2 text-sm">
-                                                {order.changeRequest.metadata.bankName && (
-                                                    <div>
-                                                        <span className="text-gray-500">Ngân hàng:</span>
-                                                        <span className="ml-2 font-medium">{order.changeRequest.metadata.bankName}</span>
-                                                    </div>
-                                                )}
-                                                {order.changeRequest.metadata.accountNumber && (
-                                                    <div>
-                                                        <span className="text-gray-500">Số tài khoản:</span>
-                                                        <span className="ml-2 font-medium">{order.changeRequest.metadata.accountNumber}</span>
-                                                    </div>
-                                                )}
-                                                {order.changeRequest.metadata.accountName && (
-                                                    <div className="col-span-2">
-                                                        <span className="text-gray-500">Tên chủ tài khoản:</span>
-                                                        <span className="ml-2 font-medium">{order.changeRequest.metadata.accountName}</span>
-                                                    </div>
-                                                )}
-                                            </div>
                                         </div>
                                     )}
 
@@ -446,6 +463,51 @@ export default function OrderDetailModal({ order, onClose, onOrderUpdate }: Orde
                                             </div>
                                         </div>
                                     )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Modal chỉnh sửa thông tin hoàn tiền */}
+                        {isEditRefundModalOpen && (
+                            <div className="fixed inset-0 flex items-center justify-center z-[9999] p-4 bg-black bg-opacity-30" onClick={() => setIsEditRefundModalOpen(false)}>
+                                <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+                                    <h3 className="text-xl font-bold mb-4">Chỉnh sửa thông tin hoàn tiền</h3>
+                                    <div className="space-y-4 mb-6">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Link ảnh chứng từ hoàn tiền</label>
+                                            <input
+                                                type="text"
+                                                value={editRefundImage}
+                                                onChange={e => setEditRefundImage(e.target.value)}
+                                                className="w-full px-4 py-2 border rounded-lg"
+                                                placeholder="Nhập URL ảnh chứng từ..."
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Ghi chú hoàn tiền</label>
+                                            <textarea
+                                                value={editRefundNote}
+                                                onChange={e => setEditRefundNote(e.target.value)}
+                                                rows={4}
+                                                className="w-full px-4 py-2 border rounded-lg"
+                                                placeholder="Nhập ghi chú..."
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3 justify-end">
+                                        <button
+                                            onClick={() => setIsEditRefundModalOpen(false)}
+                                            className="px-6 py-2 border rounded-lg hover:bg-gray-50"
+                                        >
+                                            Hủy
+                                        </button>
+                                        <button
+                                            onClick={handleSaveRefundInfo}
+                                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                        >
+                                            Lưu
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -510,7 +572,7 @@ export default function OrderDetailModal({ order, onClose, onOrderUpdate }: Orde
             {/* Cancellation Modal */}
             {isCancelModalOpen && (
                 <div 
-                    className="fixed inset-0 bg-transparent flex items-center justify-center z-[100] p-4"
+                    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
                     onClick={() => setIsCancelModalOpen(false)}
                 >
                     <div 
@@ -576,7 +638,7 @@ export default function OrderDetailModal({ order, onClose, onOrderUpdate }: Orde
             {/* Return Modal */}
             {isReturnModalOpen && (
                 <div 
-                    className="fixed inset-0 bg-transparent flex items-center justify-center z-[100] p-4"
+                    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
                     onClick={handleCloseReturnModal}
                 >
                     <div 
@@ -644,6 +706,8 @@ export default function OrderDetailModal({ order, onClose, onOrderUpdate }: Orde
                     </div>
                 </div>
             )}
+            
         </>
     );
 }
+

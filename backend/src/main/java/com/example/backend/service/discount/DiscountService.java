@@ -232,12 +232,14 @@ public class DiscountService {
     }
 
     public List<DiscountResponse> getAvailable(List<UUID> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return new ArrayList<>();
+        }
         List<Product> products = productRepository.findAllById(productIds);
         if (products.isEmpty())
             throw new BadRequestException("Products not found");
         List<Category> categories = productRepository.findDistinctCategoriesByProductIds(productIds);
         List<Discount> discounts = discountRepository.findApplicableAndGlobalDiscounts(productIds,categories.stream().map(Category::getId).toList(),Instant.now());
         return discounts.stream().map(discountMapper::toDto).toList();
-
     }
 }

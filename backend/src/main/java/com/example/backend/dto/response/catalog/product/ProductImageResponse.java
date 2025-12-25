@@ -24,4 +24,6 @@ public class ProductImageResponse {
     private boolean isDefault;
     
     private UUID colorId;
+
+    private UUID variantId;
 }

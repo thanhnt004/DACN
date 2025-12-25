@@ -9,6 +9,7 @@ import com.example.backend.dto.response.checkout.CheckoutSession;
 import com.example.backend.dto.response.checkout.OrderCreatedResponse;
 import com.example.backend.service.facade.CheckoutFacadeService;
 import com.example.backend.service.facade.OrderFacadeService;
+import com.example.backend.validate.RequireSessionOwnership;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -49,11 +50,11 @@ public class CheckOutController
      * Lấy thông tin session
      */
     @GetMapping("/sessions/{sessionId}")
+    @RequireSessionOwnership
     public ResponseEntity<CheckoutSession> getSession(
             @PathVariable UUID sessionId,
             @RequestHeader("X-Session-Token") String sessionToken
     ) {
-
         CheckoutSession response = checkoutFacade.getSession(
                 sessionId
         );
@@ -65,6 +66,7 @@ public class CheckOutController
      * Cập nhật địa chỉ giao hàng
      */
     @PutMapping("/sessions/{sessionId}/address")
+    @RequireSessionOwnership
     public ResponseEntity<CheckoutSession> updateAddress(
             @PathVariable UUID sessionId,
             @RequestHeader("X-Session-Token") String sessionToken,
@@ -83,6 +85,7 @@ public class CheckOutController
      * Cập nhật mã giảm giá
      */
     @PutMapping("/sessions/{sessionId}/discount")
+    @RequireSessionOwnership
     public ResponseEntity<CheckoutSession> updateDiscount(
             @PathVariable String sessionId,
             @RequestHeader("X-Session-Token") String sessionToken,
@@ -101,6 +104,7 @@ public class CheckOutController
      * Cập nhật phương thức thanh toán
      */
     @PutMapping("/sessions/{sessionId}/payment-method")
+    @RequireSessionOwnership
     public ResponseEntity<CheckoutSession> updatePaymentMethod(
             @PathVariable String sessionId,
             @RequestHeader("X-Session-Token") String sessionToken,
@@ -119,6 +123,7 @@ public class CheckOutController
      */
     @Idempotent(expire = 300, scope = "sessionId")
     @PostMapping("/sessions/{sessionId}/confirm")
+    @RequireSessionOwnership
     public ResponseEntity<OrderCreatedResponse> confirmCheckout(
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse,

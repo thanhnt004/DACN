@@ -150,7 +150,7 @@ upload:
             folder-pattern: others/%s
             max-size: 5000000
         avatar:
-            allowed-formats: jpg,png.webp
+            allowed-formats: jpg,png,webp
             folder-pattern: users/%s/avatar
             max-size: 2000000
             transformations: c_limit,w_400
@@ -164,6 +164,51 @@ upload:
             folder-pattern: products/%s/images
             max-size: 10000000
             transformations: c_limit,w_1200
+        user:
+            folder-pattern: "users/%s"
+            max-size: 5242880 # 5MB
+            allowed-formats:
+                - jpg
+                - png
+                - jpeg
+                - webp
+            transformations: "w_500,c_fill,q_auto"
+        brand:
+            folder-pattern: "brands/%s"
+            max-size: 5242880 # 5MB
+            allowed-formats:
+                - jpg
+                - png
+                - jpeg
+                - webp
+            transformations: "w_500,c_limit,q_auto"
+        category:
+            folder-pattern: "categories/%s"
+            max-size: 5242880 # 5MB
+            allowed-formats:
+                - jpg
+                - png
+                - jpeg
+                - webp
+            transformations: "w_500,c_limit,q_auto"
+        refund_proof:
+            folder-pattern: "refunds/%s"
+            max-size: 5242880 # 5MB
+            allowed-formats:
+                - jpg
+                - png
+                - jpeg
+                - webp
+            transformations: "w_1000,c_limit,q_auto"
+        return:
+            folder-pattern: "returns/%s"
+            max-size: 5242880 # 5MB
+            allowed-formats:
+                - jpg
+                - png
+                - jpeg
+                - webp
+            transformations: "w_1000,c_limit,q_auto"
 payment:
     vnPay:
         url: ${PAY_URL}
@@ -273,9 +318,9 @@ security:
 google:
     ai:
         gemini:
-            api-key: ${GEMINI_API_KEY}
+            api-key: AIzaSyBRsA5NnCOb2EjCYPlj8VXHx0-z2qZwx4o
             embedding-model: text-embedding-004
-            chat-model: gemini-1.5-flash-latest
+            chat-model: gemini-2.5-flash-lite
             base-url: https://generativelanguage.googleapis.com
 
 vector:

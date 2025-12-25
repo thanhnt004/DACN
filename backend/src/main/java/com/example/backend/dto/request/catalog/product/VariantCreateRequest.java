@@ -3,12 +3,14 @@ package com.example.backend.dto.request.catalog.product;
 import com.example.backend.validate.ValidCompareAtPrice;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+import lombok.Builder;
 import lombok.Data;
 
 import java.util.UUID;
 
 @Data
 @ValidCompareAtPrice
+@Builder
 public class VariantCreateRequest {
     // productId is provided via path parameter, not required in request body
     private UUID productId;

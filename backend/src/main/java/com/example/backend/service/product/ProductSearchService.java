@@ -44,7 +44,7 @@ public class ProductSearchService {
 
         try {
             // Get similar products from embedding service
-            List<ProductEmbedding> embeddings = embeddingService.searchSimilarProducts(query, limit);
+            List<ProductEmbedding> embeddings = embeddingService.searchSimilarProducts(query, limit, effectiveThreshold);
 
             if (embeddings.isEmpty()) {
                 log.info("No similar products found for query: {}", query);
@@ -95,7 +95,7 @@ public class ProductSearchService {
         }
 
         try {
-            List<ProductEmbedding> embeddings = embeddingService.searchSimilarProducts(query, limit);
+            List<ProductEmbedding> embeddings = embeddingService.searchSimilarProducts(query, limit, defaultSimilarityThreshold);
 
             return embeddings.stream()
                     .map(ProductEmbedding::getContent)
@@ -122,7 +122,7 @@ public class ProductSearchService {
             stats.put("indexedProducts", embeddingCount);
             stats.put("indexedPercentage", productCount > 0 ?
                     (double) embeddingCount / productCount * 100 : 0);
-            stats.put("similarityThreshold", defaultSimilarityThreshold);
+            stats.put("similarityThreshold", 0.5);
             stats.put("status", embeddingCount > 0 ? "active" : "no_embeddings");
 
         } catch (Exception e) {

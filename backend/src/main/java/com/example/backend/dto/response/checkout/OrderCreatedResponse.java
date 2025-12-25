@@ -1,6 +1,7 @@
 package com.example.backend.dto.response.checkout;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,6 +24,7 @@ public class OrderCreatedResponse {
     /**
      * ID của đơn hàng vừa tạo
      */
+    @JsonProperty("id")
     private UUID orderId;
 
     /**

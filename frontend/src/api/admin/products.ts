@@ -26,6 +26,7 @@ export interface ProductImagePayload {
     publicId?: string
     isDefault?: boolean
     colorId?: string
+    variantId?: string
 }
 
 export interface ProductImageResponse extends ProductImagePayload {
